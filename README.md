@@ -92,7 +92,8 @@ A documentação da chamada de Edge Functions do Supabase usa `supabase.function
 | `/` | Dashboard com cartões do dia, sequência, XP e decks | Aberta em navegador |
 | `/decks` | Biblioteca remota com fallback local | Aberta; status `Sem decks remotos · modo local ativo` confirmado |
 | `/decks/new` | Formulário de novo deck | Aberta em navegador |
-| `/decks/[deckId]` | Detalhe dinâmico, métricas e tabela Basic/Cloze/Reverse | Aberta em navegador |
+| `/decks/[deckId]` | Detalhe dinâmico, métricas, tabela e painel de cards | Aberta em navegador |
+| `/decks/[deckId]/cards` | CRUD de cards mesclado do ZIP, com `notes` + `cards` | Aberta; insert autenticado confirmado |
 | `/study/[deckId]` | Revelar, atalhos e quatro ratings | Aberta e interagida; rating incrementou a sessão |
 | `/exams` | Agendamento de exame e prioridade | Aberta em navegador |
 | `/analytics` | Retenção, volume, tempo, precisão e gráfico | Aberta em navegador |
@@ -101,7 +102,7 @@ A documentação da chamada de Edge Functions do Supabase usa `supabase.function
 | `/register` | `auth.signUp` | Aberta em navegador |
 | `/manifest.webmanifest` | Manifesto PWA | Gerado pelo Next.js |
 
-Os detalhes da evidência visual e textual estão em [`docs/browser-verification.md`](./docs/browser-verification.md).
+Os detalhes da evidência visual e textual estão em [`docs/browser-verification.md`](./docs/browser-verification.md). O teste autenticado, incluindo login, criação de deck, criação de card e confirmação por SQL no Supabase, está em [`docs/integration-verification.md`](./docs/integration-verification.md).
 
 ## 7. Integração Supabase
 
@@ -159,7 +160,7 @@ A análise de performance apontou uma foreign key sem índice cobrindo `user_bad
 
 ## 10. Limitações conhecidas
 
-A tela principal usa dados demonstrativos para manter a experiência navegável sem exigir login durante a revisão visual. A biblioteca de decks já consulta o Supabase e alterna para esse conteúdo local quando a resposta remota vem vazia ou falha. Para uma conta autenticada, a próxima iteração deve hidratar todos os cartões a partir de `v_deck_tree` e das entidades relacionadas.
+A tela principal usa dados demonstrativos para manter a experiência navegável sem exigir login durante a revisão visual. A biblioteca de decks consulta o Supabase e alterna para esse conteúdo local quando a resposta remota vem vazia ou falha. O fluxo autenticado de criação de deck e card já foi executado com sucesso; para uma conta autenticada, a próxima iteração deve hidratar todos os cartões a partir de `v_deck_tree` e das entidades relacionadas.
 
 O cálculo FSRS-6 não é reimplementado integralmente no cliente nesta versão. A avaliação otimista é persistida e encaminhada a `fsrs-review`; o agendador definitivo deve continuar no contrato do backend. O manifesto PWA está presente, mas o precache do app shell via Serwist/Workbox ainda deve ser adicionado para cumprir o requisito de abrir o JavaScript sem rede pela primeira vez.
 
