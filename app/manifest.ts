@@ -1,0 +1,1 @@
+import type { MetadataRoute } from 'next';export default function manifest():MetadataRoute.Manifest{return {name:'Flashi',short_name:'Flashi',description:'Estude offline com repetição espaçada.',start_url:'/',display:'standalone',background_color:'#f6f7fb',theme_color:'#5146e5',icons:[]}}
