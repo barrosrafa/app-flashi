@@ -13,6 +13,7 @@ const routes: RouteExpectation[] = [
   { path: '/decks/idiomas', heading: 'Inglês para concursos' },
   { path: '/decks/idiomas/cards', heading: 'Gerenciar cards' },
   { path: '/study/idiomas', heading: 'Sessão de estudo' },
+  { path: '/study/demo', heading: 'Sessão de estudo' },
   { path: '/exams', heading: 'Exames', exact: true },
   { path: '/analytics', heading: 'Desempenho' },
   { path: '/profile', heading: 'Seu perfil', exact: true },
@@ -39,6 +40,16 @@ test('gerenciador de cards exibe o contrato real do Supabase', async ({ page }) 
   await expect(page.getByLabel('Frente')).toBeVisible();
   await expect(page.getByLabel('Verso')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar card' })).toBeVisible();
+});
+
+test('prévia de estudo completa o fluxo frente, verso e avaliação', async ({ page }) => {
+  await page.goto('/study/demo');
+  await expect(page.getByRole('heading', { name: 'Sessão de estudo' })).toBeVisible();
+  await page.getByRole('button', { name: /Revelar resposta/ }).click();
+  await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Bom, próxima revisão/ })).toBeVisible();
+  await page.getByRole('button', { name: /Bom, próxima revisão/ }).click();
+  await expect(page.getByRole('status')).toContainText('Sessão concluída');
 });
 
 test('tela de ferramentas expõe contratos avançados', async ({ page }) => {
