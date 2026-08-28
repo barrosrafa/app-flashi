@@ -15,7 +15,7 @@ const routes: RouteExpectation[] = [
   { path: '/study/idiomas', heading: 'Sessão de estudo' },
   { path: '/exams', heading: 'Exames', exact: true },
   { path: '/analytics', heading: 'Desempenho' },
-  { path: '/profile', heading: 'Seu perfil' },
+  { path: '/profile', heading: 'Seu perfil', exact: true },
   { path: '/tools', heading: 'Ferramentas avançadas' },
   { path: '/login', heading: 'Seu próximo cartão começa aqui.' },
   { path: '/register', heading: 'Aprenda algo hoje.' },
@@ -38,7 +38,7 @@ test('gerenciador de cards exibe o contrato real do Supabase', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Cards do deck' })).toBeVisible();
   await expect(page.getByLabel('Frente')).toBeVisible();
   await expect(page.getByLabel('Verso')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Adicionar card no Supabase' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adicionar card' })).toBeVisible();
 });
 
 test('tela de ferramentas expõe contratos avançados', async ({ page }) => {
@@ -92,8 +92,8 @@ test.describe('fluxo autenticado opcional', () => {
     await page.getByLabel('Frente').fill('Qual é o objetivo do teste E2E?');
     await page.getByLabel('Verso').fill('Confirmar persistência de deck, note e card no Supabase.');
     await page.getByLabel('Tags').fill('e2e supabase');
-    await page.getByRole('button', { name: 'Adicionar card no Supabase' }).click();
-    await expect(page.getByRole('status')).toContainText(/Card inserido|Card inserido pelo contrato/);
+    await page.getByRole('button', { name: 'Adicionar card' }).click();
+    await expect(page.getByRole('status')).toContainText(/Card inserido/);
     await expect(page.getByText('Qual é o objetivo do teste E2E?')).toBeVisible();
   });
 });

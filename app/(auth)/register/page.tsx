@@ -1,1 +1,42 @@
-'use client';import Link from 'next/link';import {useState} from 'react';import {createClient} from '../../../lib/supabase/client';export default function Register(){const [message,setMessage]=useState('');async function submit(e:React.FormEvent){e.preventDefault();const f=new FormData(e.currentTarget as HTMLFormElement);const {error}=await createClient().auth.signUp({email:String(f.get('email')),password:String(f.get('password')),options:{data:{full_name:String(f.get('name'))}}});setMessage(error?error.message:'Conta criada. Verifique seu e-mail para confirmar o acesso.')}return <main className="auth"><div className="card auth-card"><div className="brand" style={{padding:'0 0 8px',color:'#151827'}}>flash<span>i</span></div><div className="eyebrow">Comece sua jornada</div><h1>Aprenda algo hoje.</h1><p className="subtitle">Crie sua conta e leve seus cartões com você, até quando estiver offline.</p><form onSubmit={submit}><div className="field"><label>Nome</label><input name="name" required placeholder="Seu nome"/></div><div className="field"><label>E-mail</label><input name="email" type="email" required placeholder="voce@email.com"/></div><div className="field"><label>Senha</label><input name="password" type="password" minLength={6} required placeholder="Mínimo de 6 caracteres"/></div><button className="btn">Criar conta</button>{message&&<div className="notice">{message}</div>}</form><p className="subtitle" style={{marginTop:20}}>Já tem conta? <Link href="/login" style={{color:'#5146e5',fontWeight:700}}>Entrar</Link></p></div></main>}
+'use client';
+
+import Link from 'next/link';
+import { useState, type FormEvent } from 'react';
+import { createClient } from '../../../lib/supabase/client';
+
+export default function Register() {
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setLoading(true);
+    setMessage('Criando sua conta…');
+    setSuccess(false);
+    const { error } = await createClient().auth.signUp({
+      email: String(form.get('email') ?? ''),
+      password: String(form.get('password') ?? ''),
+      options: { data: { full_name: String(form.get('name') ?? '') } },
+    });
+    setMessage(error ? error.message : 'Conta criada. Verifique seu e-mail para confirmar o acesso.');
+    setSuccess(!error);
+    setLoading(false);
+  }
+
+  return <main className="auth"><div className="card auth-card">
+    <Link className="brand auth-brand" href="/" aria-label="Flashi, ir para a página inicial">flash<span>i</span></Link>
+    <div className="eyebrow">Comece sua jornada</div>
+    <h1>Aprenda algo hoje.</h1>
+    <p className="subtitle">Crie sua conta e leve seus cartões com você, até quando estiver offline.</p>
+    <form onSubmit={submit} aria-busy={loading}>
+      <div className="field"><label htmlFor="register-name">Nome</label><input id="register-name" name="name" required placeholder="Seu nome" autoComplete="name" /></div>
+      <div className="field"><label htmlFor="register-email">E-mail</label><input id="register-email" name="email" type="email" required placeholder="voce@email.com" autoComplete="email" /></div>
+      <div className="field"><label htmlFor="register-password">Senha</label><input id="register-password" name="password" type="password" minLength={6} required placeholder="Mínimo de 6 caracteres" autoComplete="new-password" /><span className="status-text">Use pelo menos 6 caracteres.</span></div>
+      <button className="btn" type="submit" disabled={loading}>{loading ? 'Criando conta…' : 'Criar conta'}</button>
+      {message && <div className={`notice ${success ? 'success' : message === 'Criando sua conta…' ? '' : 'error'}`} role={success ? 'status' : 'alert'} aria-live="polite">{message}</div>}
+    </form>
+    <p className="subtitle auth-switch">Já tem conta? <Link href="/login" className="inline-link">Entrar</Link></p>
+  </div></main>;
+}
