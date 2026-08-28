@@ -20,9 +20,9 @@ A aplicação também preserva transparência no comportamento remoto. Quando n�
 | Cloud | `@supabase/supabase-js` + `@supabase/ssr` | Auth, Data API, RPCs, Storage e Edge Functions |
 | Offline | Dexie sobre IndexedDB | Cartões, avaliações, cursor de sync e outbox |
 | Validação | Vitest | Contratos determinísticos de sync e idempotência |
-| PWA | Manifesto Next.js | Nome, tema e modo standalone preparados; precache do shell é próxima etapa |
+| PWA | Manifesto Next.js + service worker | App shell versionado, precache tolerante a falhas e fallback de navegação offline |
 
-O uso de `@supabase/ssr` e das variáveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` segue a recomendação oficial de separar o cliente de navegador do cliente de servidor.[^2] O Next.js 16 chama a convenção de middleware de **Proxy**; o arquivo atual ainda usa `middleware.ts` por compatibilidade e o build emite apenas um aviso de migração.[^1]
+O uso de `@supabase/ssr` e das variáveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` segue a recomendação oficial de separar o cliente de navegador do cliente de servidor.[^2] O Next.js 16 chama a convenção de middleware de **Proxy**; o projeto já usa `proxy.ts`, sem depender da convenção depreciada.[^1]
 
 ## 3. Estrutura do repositório
 
@@ -84,7 +84,8 @@ A chave publishable pode ser exposta no navegador porque o controle de acesso de
 | `pnpm dev` | Servidor local | Usado para verificação de navegador em `http://localhost:3000` |
 | `pnpm typecheck` | TypeScript estrito | Passou sem erros |
 | `pnpm test` | Testes Vitest | 3 testes passaram |
-| `pnpm exec next build --webpack` | Build de produção | Compilou 11 rotas sem erros |
+| `pnpm test:e2e` | Playwright com Chromium | 15 testes passaram; 1 teste autenticado opcional foi ignorado sem variáveis |
+| `pnpm exec next build --webpack` | Build de produção | Compila as rotas sem erros |
 | `node scripts/supabase-smoke.mjs` | Smoke test remoto | REST público, RPC de sync e proteção JWT verificados |
 
 A documentação da chamada de Edge Functions do Supabase usa `supabase.functions.invoke`, o mesmo padrão adotado em `lib/services/study-service.ts`.[^3]
@@ -160,21 +161,21 @@ A análise de performance apontou uma foreign key sem índice cobrindo `user_bad
 | `SECURITY DEFINER` executável por authenticated | WARN | Revisar `EXECUTE`, ownership e validação de `auth.uid()` |
 | FK `user_badges.badge_id` sem índice | INFO | Criar índice cobrindo a coluna |
 | `auth_rls_initplan` em várias policies | WARN | Usar `(select auth.uid())` conforme advisory |
-| Convenção `middleware.ts` depreciada no Next 16 | WARNING de build | Migrar para `proxy.ts` em uma alteração separada |
+| Convenção `middleware.ts` depreciada no Next 16 | Resolvido | O projeto usa `proxy.ts`; manter a convenção nas próximas alterações |
 
 ## 10. Limitações conhecidas
 
-A tela principal usa dados demonstrativos para manter a experiência navegável sem exigir login durante a revisão visual. A biblioteca de decks consulta o Supabase e alterna para esse conteúdo local quando a resposta remota vem vazia ou falha. O fluxo autenticado de criação de deck e card já foi executado com sucesso; para uma conta autenticada, a próxima iteração deve hidratar todos os cartões a partir de `v_deck_tree` e das entidades relacionadas.
+A tela principal consulta o Supabase e o estado local para montar indicadores, fila e decks, exibindo estados de carregamento, erro e vazio sem inventar persistência remota. A biblioteca de decks consulta o Supabase e alterna para conteúdo local somente quando a resposta remota vem vazia ou falha, identificando esse modo na interface. O fluxo autenticado de criação de deck e card foi executado com sucesso; a hidratação completa de todas as entidades relacionadas continua como evolução.
 
-O cálculo FSRS-6 não é reimplementado integralmente no cliente nesta versão. A avaliação otimista é persistida e encaminhada a `fsrs-review`; o agendador definitivo deve continuar no contrato do backend. O manifesto PWA está presente, mas o precache do app shell via Serwist/Workbox ainda deve ser adicionado para cumprir o requisito de abrir o JavaScript sem rede pela primeira vez.
+O cálculo FSRS-6 não é reimplementado integralmente no cliente nesta versão. A avaliação otimista é persistida e encaminhada a `fsrs-review`; o agendador definitivo deve continuar no contrato do backend. O manifesto PWA e o service worker estão presentes: o shell de rotas principais é pré-cacheado de forma tolerante a falhas, assets same-origin são armazenados sob demanda e navegações usam rede primeiro com fallback para o cache. O offline depende de um primeiro acesso online para que HTML e assets específicos tenham sido aquecidos.
 
 Também não há, nesta entrega, upload de mídia com SHA-256, editor completo de notas e templates, oclusão de imagem, processamento de jobs Anki, ingestão de PDF/YouTube/web, busca semântica, gamificação visível ou chat socrático. Os serviços e os contratos devem ser implementados por fases, sem inventar RPCs ou funções que não existem no backend.
 
 ## 11. Próximos passos recomendados
 
-A primeira evolução deve gerar `src/types/database.ts` diretamente do projeto Supabase e substituir tipos aproximados dos serviços pelos tipos oficiais. Em seguida, a biblioteca de decks deve receber o usuário autenticado, hidratar Dexie em lotes e exibir contadores reais de cartões novos e de revisão.
+A geração de `src/types/database.ts` a partir do projeto Supabase e a substituição dos tipos aproximados pelos contratos oficiais já foram concluídas. A próxima evolução é hidratar integralmente as entidades relacionadas em Dexie, ampliar os contadores de cartões novos e de revisão e tornar a fila local de estudo a fonte primária durante a sessão.
 
-A segunda evolução deve concluir o precache do app shell, migrar `middleware.ts` para `proxy.ts`, adicionar Playwright com cenário offline real e tornar a tela de estudo dependente da fila local. A terceira deve implementar uploads privados nos buckets `card-media` e `anki-transfers`, gerar URLs assinadas de curta duração e adicionar os jobs assíncronos com estados `queued`, `processing`, `completed` e `failed`.
+A próxima evolução deve materializar integralmente a fila local de estudo, mover a criação de note + card para uma RPC transacional ou Edge Function idempotente e completar uploads privados nos buckets `card-media` e `anki-transfers`. O cenário offline e a cobertura Playwright básica já estão implementados; o teste mutacional autenticado pode ser repetido exportando credenciais de uma conta de QA.
 
 ## 12. Merge do `flashcards.zip`
 
@@ -283,14 +284,16 @@ Os findings de segurança e performance existentes no projeto Supabase continuam
 |---|---|---|
 | Instalação limpa | `pnpm install` conclui sem arquivos gerados versionados | Aprovado |
 | TypeScript | `pnpm typecheck` sem erros | Aprovado |
-| Testes | `pnpm test` com todos os testes verdes | Aprovado: 3 testes |
-| Build | `pnpm exec next build --webpack` compila todas as rotas | Aprovado |
+| Testes unitários | `pnpm test` com todos os testes verdes | Aprovado: 3 testes |
+| Testes E2E | `pnpm test:e2e` cobre rotas, cards, offline e auth opcional | Aprovado: 15 passaram; 1 ignorado por ausência de credenciais |
+| Build | `pnpm exec next build --webpack` compila todas as rotas | A validar no release final |
 | Auth | Login retorna sessão válida e a UI confirma entrada | Aprovado com usuário fornecido |
 | Deck | Insert aparece em `public.decks` e lista autenticada | Aprovado |
 | Card | Insert relacionado em `public.notes` e `public.cards` | Aprovado |
 | Proteção anônima | Card sem sessão não executa insert | Aprovado |
 | Segredos | `.env.local` ignorado e nenhuma senha commitada | Aprovado |
-| Git | Working tree limpo e branch publicada | Aprovado |
+| PWA offline | Service worker aquece shell e abre `/decks` sem rede | Aprovado por Playwright |
+| Git | Working tree limpo e branch publicada | A validar após commit/push |
 
 ## 18. Referências
 
