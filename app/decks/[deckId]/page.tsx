@@ -1,3 +1,6 @@
+import { CollaboratorManager } from '../../../components/decks/CollaboratorManager';
+import { DeckSettingsForm } from '../../../components/decks/DeckSettingsForm';
+import { isFeatureEnabled } from '../../../lib/feature-flags';
 import Link from 'next/link';
 import { AppShell, Topbar } from '../../../components/AppShell';
 import CardBrowser from '../../../components/CardBrowser';
@@ -18,5 +21,5 @@ export default async function DeckDetail({ params }: { params: Promise<{ deckId:
       <div className="card sample-card"><div className="sample-label">Amostra recente</div><p className="subtitle">Os exemplos abaixo ajudam a localizar o deck. O conteúdo completo está em “Gerenciar cards”.</p><div className="table-wrap"><table className="table"><thead><tr><th scope="col">Frente</th><th scope="col">Tipo</th><th scope="col">Estado</th></tr></thead><tbody>{[['What is spaced repetition?', 'Basic', 'Revisão'], ['Although / Even though', 'Cloze', 'Aprendendo'], ['Present perfect', 'Reverse', 'Novo']].map((row) => <tr key={row[0]}><td>{row[0]}</td><td><span className="pill">{row[1]}</span></td><td>{row[2]}</td></tr>)}</tbody></table></div></div>
     </section>
     <CardBrowser deckId={deckId} />
-  </AppShell>;
+  <DeckSettingsForm deckId={deckId} />{isFeatureEnabled('collab') && <CollaboratorManager deckId={deckId} />}</AppShell>;
 }

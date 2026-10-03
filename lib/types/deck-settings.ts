@@ -1,0 +1,1 @@
+export interface DeckSettings { user_id: string; deck_id: string; overrides: { new_per_day?: number; reviews_per_day?: number; fsrs_weights?: number[]; [key: string]: unknown }; is_favorite?: boolean; display_order?: number | null; created_at?: string; updated_at?: string; }

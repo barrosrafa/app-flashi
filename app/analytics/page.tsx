@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { AppShell, Topbar } from '../../components/AppShell';
-import { getAnalyticsData, type AnalyticsData } from '../../lib/services/analytics-service';
+import { getAnalyticsData, getAnalyticsRange, type AnalyticsData } from '../../lib/services/analytics-service';
 
 export default function Analytics() {
   const [data, setData] = useState<AnalyticsData | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''); const [range, setRange] = useState<7 | 30 | 90>(7); const [rangeRows, setRangeRows] = useState<Array<{ stat_date: string; cards_studied: number; time_studied_ms: number }>>([]);
 
   useEffect(() => {
     getAnalyticsData().then(setData).catch((reason: unknown) => {
@@ -14,7 +14,7 @@ export default function Analytics() {
         ? 'Entre na sua conta para ver o desempenho real.'
         : 'Não foi possível carregar as métricas.');
     });
-  }, []);
+  }, []); useEffect(() => { getAnalyticsRange(range).then((rows) => setRangeRows(rows as typeof rangeRows)).catch(() => undefined); }, [range]);
 
   const comparison = data && data.cardsPreviousWeek > 0
     ? Math.round(((data.cardsThisWeek - data.cardsPreviousWeek) / data.cardsPreviousWeek) * 100)
@@ -30,11 +30,11 @@ export default function Analytics() {
       <div className="card"><div className="stat-label">Tempo médio</div><div className="stat-value">{data ? `${data.averageTimeSeconds}s` : '—'}</div><div className="stat-label">por revisão registrada</div></div>
       <div className="card"><div className="stat-label">Precisão</div><div className="stat-value">{data ? `${data.accuracy}%` : '—'}</div><div className="stat-label">últimos 7 dias</div></div>
     </div>
-    <div className="section-head"><h2>Atividade dos últimos 7 dias</h2></div>
+    <div className="section-head"><h2>Atividade</h2><label>Período <select value={range} onChange={(e) => setRange(Number(e.target.value) as 7 | 30 | 90)}><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label></div>
     <div className="card" style={{ height: 240, display: 'flex', alignItems: 'end', gap: 18, padding: '26px 34px' }}>
       {(data?.days ?? []).map((day) => <div key={day.date} style={{ flex: 1, textAlign: 'center' }}><div title={`${day.cards} cartões · ${day.minutes} min`} style={{ height: `${Math.max((day.cards / maxCards) * 150, day.cards ? 8 : 2)}px`, background: day.cards === maxCards ? '#5146e5' : '#dcd9ff', borderRadius: '8px 8px 3px 3px' }} /><small className="stat-label">{day.label}</small></div>)}
       {!data && !error && <div className="stat-label">Carregando atividade…</div>}
     </div>
-    {data && <div className="card" style={{ marginTop: 18 }}><div className="stat-label">Tempo total nos últimos 7 dias</div><div className="stat-value">{Math.round(data.totalTimeMs / 60000)} min</div><div className="stat-label">Métricas calculadas sem valores demonstrativos.</div></div>}
+    {rangeRows.length > 0 && <div className="card" style={{ marginTop: 18 }}><div className="stat-label">Cartões no período selecionado</div><div className="stat-value">{rangeRows.reduce((sum, row) => sum + row.cards_studied, 0)}</div></div>}{data && <div className="card" style={{ marginTop: 18 }}><div className="stat-label">Tempo total nos últimos 7 dias</div><div className="stat-value">{Math.round(data.totalTimeMs / 60000)} min</div><div className="stat-label">Métricas calculadas sem valores demonstrativos.</div></div>}
   </AppShell>;
 }

@@ -18,8 +18,8 @@ Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são 
 
 ### Estado verificado da branch
 
-- Branch: `feature/v4`.
-- Último commit publicado nesta implementação: `b09d94b`.
+- Branch: `feature/v5`.
+- Implementação v5 em preparação para publicação, baseada em `feature/v4`.
 - Backend de referência: `barrosrafa/Flashi`, branch `v2`.
 - O frontend não altera o repositório do backend.
 
@@ -626,4 +626,176 @@ Os repositórios individuais em `lib/db/repositories/` são, em grande parte, re
 - [Vitest](https://vitest.dev/guide/)
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
 
-**Última auditoria técnica:** 2026-10-02.
+**Última auditoria técnica:** 2026-10-02 — implementação SDD v5.
+
+
+---
+
+## 16. Implementação do SDD v5
+
+A feature/v5 implementa as funcionalidades do SDD que tinham contrato disponível no backend `Flashi@v2`. A implementação foi feita sobre os serviços e componentes existentes; não foram criadas RPCs, tabelas, buckets ou Edge Functions novas.
+
+### 16.1 Colaboração em decks
+
+- Serviço: `lib/services/collaborator-service.ts`.
+- Tipos: `lib/types/collaborator.ts`.
+- Hook: `hooks/useDeckCollaborators.ts`.
+- UI: `components/decks/CollaboratorManager.tsx`.
+- Integração: detalhe do deck, condicionada a `NEXT_PUBLIC_FF_COLLAB`.
+- Operações: listar, adicionar/atualizar/remover por Data API em `deck_collaborators`.
+- Roles aceitos pelo backend: `viewer` e `editor`.
+
+O backend não expõe uma RPC ou relação `profiles` para resolver email em `user_id`. Por isso a UI solicita o UUID do usuário Supabase. Não há resolução fictícia por email nem lookup administrativo no frontend.
+
+### 16.2 Tags e relações card/tag
+
+- Serviço: `lib/services/tag-service.ts`.
+- Tipos: `lib/types/tag.ts`.
+- Hook: `hooks/useTags.ts`.
+- UI: `components/tags/TagSelector.tsx`, exibida no `CardBrowser`.
+- Tabelas: `tags` e `card_tags`.
+- Operações: listar, criar/upsert por nome, remover, listar tags do card, associar e desassociar.
+- A criação obtém o `user_id` da sessão autenticada para respeitar a policy `tags_owner`.
+- Flag: `NEXT_PUBLIC_FF_TAGS` está documentada e desligada por padrão; a tabela pode ser usada pela UI de cards quando a funcionalidade for ativada no produto.
+
+O campo textual de tags que já existia no formulário de criação de card continua sendo preservado. A relação normalizada `card_tags` é gerida pelo seletor v5, não por uma interpretação inventada desse texto.
+
+### 16.3 Configurações específicas por deck
+
+- Serviço: `lib/services/deck-settings-service.ts`.
+- Tipo: `lib/types/deck-settings.ts`.
+- UI: `components/decks/DeckSettingsForm.tsx`, no detalhe do deck.
+- Tabela: `user_deck_settings`.
+- Campos usados: `overrides`, `is_favorite` e `display_order`.
+- Valores de UI: `new_per_day`, `reviews_per_day` e favorito.
+- O `user_id` é sempre obtido da sessão antes do upsert composto `(user_id, deck_id)`.
+
+A estrutura `overrides` aceita chaves adicionais porque o backend modela o conteúdo como JSONB; a UI só edita os dois limites que estão efetivamente expostos nesta branch.
+
+### 16.4 Sessões socráticas
+
+- Serviço: `lib/services/socratic-service.ts`.
+- Tipo: `lib/types/socratic.ts`.
+- UI: `/socratic` e `/socratic/[id]`, com `SocraticSessionView`.
+- Tabela: `socratic_remediation_sessions`.
+- Estados reais: `queued`, `processing`, `completed` e `failed`.
+- Operações: listar, obter, atualizar status e resolver através de `resolve_socratic_remediation`.
+- Flag: `NEXT_PUBLIC_FF_SOCRATIC` está desligada por padrão.
+
+A criação não é feita pelo browser: o backend cria a sessão através do trigger de leech quando `card_learning_state.lapses` atinge o limiar configurado. A resolução oficial também é feita pela RPC existente, que remove a suspensão, zera lapses e marca a sessão como concluída.
+
+### 16.5 Referências entre notas
+
+- Serviço: `lib/services/reference-service.ts`.
+- Tipo: `lib/types/note-reference.ts`.
+- UI: `components/notes/ReferenceEditor.tsx`, apresentado junto dos cards pelo `CardBrowser` usando o `note_id` do card.
+- Tabela: `note_references`.
+- Operações: listar por nota de origem, criar e remover.
+- A UI rejeita referência para a própria nota antes de chamar a Data API.
+- Flag: `NEXT_PUBLIC_FF_REFERENCES` está disponível na camada de flags e desligada por padrão.
+
+O backend não possui a coluna `user_id` indicada no rascunho do SDD para esta tabela; ownership é derivado de `notes` pelas policies de source e target. O frontend usa o schema real, com `block_id`, `context_snippet`, `usn` e timestamps quando retornados.
+
+### 16.6 Editor de templates
+
+- Serviço: `lib/services/template-service.ts`.
+- Tipos: `lib/types/card-template.ts`.
+- Validação: `lib/validation-template-schema.ts`.
+- Rotas: `/templates` e `/templates/[id]`; o ID `new` representa criação.
+- Tabela: `card_templates`.
+- Campos JSONB: `field_definitions` e `card_generation`.
+- Operações: listar, obter, criar, atualizar e remover no serviço.
+- A UI v5 permite editar nome, campos e regras de frente/verso.
+- A validação verifica nome, pelo menos um campo, pelo menos uma geração e placeholders declarados.
+- `lib/template-renderer.ts` existente continua sendo o renderer da sessão/preview; não foi duplicado.
+- Flag: `NEXT_PUBLIC_FF_TEMPLATES` está desligada por padrão.
+
+Templates de sistema continuam read-only na policy para usuários comuns. O serviço cria templates com `user_id` da sessão e `is_system=false`.
+
+### 16.7 Exportação Anki com mídia
+
+`anki-service.ts` já suportava o contrato correto e foi integrado/confirmado sem duplicação:
+
+- `ankiService.exportDeck(deckId, includeMedia)` envia `include_media` para `anki-transfer`;
+- `/export/anki` expõe checkbox “Incluir mídia”;
+- após sucesso, exibe `total_cards`, `bytes` e `file_sha256` retornados pelo backend;
+- o download usa URL assinada do bucket `anki-transfers`, com validade curta.
+
+A Edge Function continua responsável por ler até 10.000 cards, copiar mídia quando solicitado e montar o pacote. O frontend não tenta montar `.apkg` nem interpretar SQLite.
+
+### 16.8 Estado da otimização FSRS
+
+- Hook: `hooks/useFsrsOptimization.ts`.
+- Componente: `components/settings/FsrsOptimizationStatus.tsx`.
+- Serviço existente estendido com `optimizerService.statusSummary()`.
+- UI: polling padrão de 60 segundos, última execução, quantidade de reviews, limiar, estado de fila e botão de solicitação.
+- Página existente: `/settings/fsrs-optimize` continua a solicitar o job.
+
+O status usa a RPC real `get_fsrs_optimization_status`, que devolve `review_count`, `optimizer_threshold`, `is_ready`, `has_queued_run` e `last_optimized_at`. Não foi adicionada notificação push/browser. O processamento continua no worker/Edge Function backend.
+
+### 16.9 Estatísticas avançadas
+
+`lib/services/analytics-service.ts` foi estendido sem quebrar `getAnalyticsData()`:
+
+- `getAnalyticsRange(7 | 30 | 90)` consulta `daily_statistics` por período;
+- `getRetentionByDeck(deckId, days)` consulta `review_logs` e os cards do deck, agregando retenção diária sem criar colunas novas;
+- `/analytics` oferece seleção de 7, 30 ou 90 dias e mostra o total de cards do período selecionado;
+- os cards e o gráfico original dos últimos sete dias continuam disponíveis.
+
+A retenção é calculada a partir dos ratings dos logs existentes, considerando `again` como falha e os demais ratings como acerto. O backend continua sendo a fonte dos agregados e dos eventos.
+
+### 16.10 Configuração MCP
+
+`/tools/mcp` recebeu campos de endpoint e token e um botão “Testar conexão”. O teste chama `mcpClient.callTool('search_notes', { query: 'ping', limit: 1, mode: 'lexical' })` e apresenta o resultado/erro.
+
+Endpoint e token ficam apenas no estado da página: não existe tabela nem `user_metadata` confirmado para persistir estas credenciais, portanto a feature não as grava. A implementação continua sendo o cliente MCP local já existente, sem criar servidor MCP público.
+
+### 16.11 Editor completo de oclusão
+
+`components/OcclusionEditor.tsx` foi estendido sobre o componente existente:
+
+- criar caixa por pointer drag;
+- selecionar caixa existente;
+- mover caixa dentro dos limites 0–100%;
+- redimensionar pelo canto inferior direito;
+- excluir caixa;
+- renumerar `cloze_ordinal` após exclusão.
+
+A RPC existente `create_image_occlusion_note` não foi alterada. Para edição futura persistida, o backend possui policies `UPDATE` e `DELETE` em `note_image_occlusion_boxes`, mas o componente continua controlado por `value/onChange`; a persistência depende do fluxo da rota que o utiliza.
+
+### 16.12 Flags v5
+
+As duas camadas de flags foram atualizadas:
+
+```dotenv
+NEXT_PUBLIC_FF_TAGS=0
+NEXT_PUBLIC_FF_SOCRATIC=0
+NEXT_PUBLIC_FF_TEMPLATES=0
+NEXT_PUBLIC_FF_REFERENCES=0
+```
+
+As flags são desligadas por padrão no `.env.example`. `NEXT_PUBLIC_FF_COLLAB`, `NEXT_PUBLIC_FF_ANKI_IO`, `NEXT_PUBLIC_FF_FSRS_OPT` e `NEXT_PUBLIC_FF_OCCLUSION` permanecem conforme a configuração anterior.
+
+### 16.13 Validação v5
+
+Validações executadas após a implementação:
+
+- `pnpm typecheck` — passou;
+- `pnpm test` — **20 testes passaram em 6 ficheiros**;
+- `pnpm build` — passou, incluindo as rotas `/socratic`, `/socratic/[id]`, `/templates` e `/templates/[id]`;
+- `git diff --check` — passou;
+- validadores backend SQL/snapshot/README — passaram;
+- backend pytest — **9 testes e 174 subtestes passaram**;
+- auditoria de contratos — tabelas v5 confirmadas no backend e nenhuma nova Edge Function foi inventada.
+
+### 16.14 Dependências que continuam fora do frontend
+
+| Item | Situação real |
+|---|---|
+| Colaborador por email | Não implementado: falta RPC/endpoint seguro para email → UUID. A UI usa UUID. |
+| Criação de sessão socrática | Não implementada no browser: o trigger backend cria a sessão ao detetar leech. |
+| Chat socrático com IA | Não inventado: o schema tem `chat_history`, mas não há Edge Function de chat no contrato verificado. |
+| Push de FSRS | Não implementado conforme o SDD; não existe canal de notificação configurado. |
+| Persistência de endpoint/token MCP | Não implementada; valores ficam em memória. |
+| Persistência de edição de oclusão | O editor é controlado; a página deve chamar Data API/RPC quando o fluxo de edição for conectado. |
+| Gráficos avançados | Não foi adicionada dependência: o projeto não tinha biblioteca de gráficos aprovada; a UI usa o gráfico CSS existente. |

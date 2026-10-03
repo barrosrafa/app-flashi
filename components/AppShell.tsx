@@ -10,6 +10,8 @@ const items = [
   { href: '/exams', label: 'Exames', icon: 'calendar' },
   { href: '/analytics', label: 'Desempenho', icon: 'chart' },
   { href: '/tools', label: 'Ferramentas', icon: 'tool' },
+  { href: '/templates', label: 'Templates', icon: 'layers' },
+  { href: '/socratic', label: 'Socrático', icon: 'play' },
   { href: '/profile', label: 'Perfil', icon: 'user' },
 ] as const;
 
