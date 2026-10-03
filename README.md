@@ -1,957 +1,629 @@
-# Flashi
+# Flashi — documentação técnica
 
-Aplicação web de flashcards para estudo com repetição espaçada, construída com **Next.js 16**, **React 19**, **TypeScript** e **Supabase**. A versão documentada neste ficheiro corresponde à branch **`feature/v3`** e integra a aplicação frontend com os contratos efetivamente publicados pelo backend [Flashi `v2`](https://github.com/barrosrafa/Flashi/tree/v2).
+## 1. Estado e escopo
 
-> **Estado da entrega:** a implementação v3 inclui as funcionalidades de fundação local-first, sincronização incremental, outbox, Anki, importação por URL, busca semântica com fallback lexical, otimização FSRS, ingestão assistida por IA, mídia, oclusão de imagem, gamificação, exames e tratamento global de erros Edge Functions. As funcionalidades opt-in permanecem desativadas por defeito através de feature flags.
+O Flashi é uma aplicação web de flashcards construída com **Next.js App Router**, **React**, **Supabase** e **Dexie**. O frontend fornece autenticação, gestão de decks e cartões, estudo com repetição espaçada, importações, pesquisa, mídia, oclusão de imagem, exames, gamificação, otimização FSRS, persistência local e um adaptador MCP.
 
-## Índice
+Este documento descreve o que existe no código desta branch. Não é uma especificação futura nem uma promessa de funcionalidades. Quando uma área depende de uma flag, de sessão autenticada, de Storage, de uma Edge Function ou de um worker backend, isso é indicado explicitamente.
 
-1. [Visão geral](#1-visão-geral)
-2. [Arquitetura](#2-arquitetura)
-3. [Stack](#3-stack)
-4. [Estrutura do projeto](#4-estrutura-do-projeto)
-5. [Configuração local](#5-configuração-local)
-6. [Feature flags](#6-feature-flags)
-7. [Funcionalidades](#7-funcionalidades)
-8. [Rotas](#8-rotas)
-9. [Serviços frontend](#9-serviços-frontend)
-10. [Persistência local, sincronização e outbox](#10-persistência-local-sincronização-e-outbox)
-11. [Contratos com o backend](#11-contratos-com-o-backend)
-12. [Segurança e tratamento de erros](#12-segurança-e-tratamento-de-erros)
-13. [Testes e validação](#13-testes-e-validação)
-14. [Desenvolvimento](#14-desenvolvimento)
-15. [Troubleshooting](#15-troubleshooting)
-16. [Limitações e decisões contratuais](#16-limitações-e-decisões-contratuais)
-17. [Checklist de release](#17-checklist-de-release)
-18. [Referências](#18-referências)
+### Fonte de verdade usada nesta documentação
+
+- código versionado em `app/`, `components/`, `lib/`, `src/`, `scripts/` e `tests/`;
+- configuração em `package.json`, `tsconfig.json`, `playwright.config.ts`, `proxy.ts`, `.env.example` e `public/sw.js`;
+- tipos Supabase em `src/types/database.ts`;
+- backend de referência `barrosrafa/Flashi`, branch `v2`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
+- testes e validadores executados nesta revisão.
+
+Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são evidência de trabalhos anteriores, mas não substituem o código atual quando houver divergência.
+
+### Estado verificado da branch
+
+- Branch: `feature/v4`.
+- Último commit publicado nesta implementação: `b09d94b`.
+- Backend de referência: `barrosrafa/Flashi`, branch `v2`.
+- O frontend não altera o repositório do backend.
 
 ---
 
-## 1. Visão geral
+## 2. Arquitetura efetivamente implementada
 
-O Flashi foi desenhado em torno de três princípios:
+```mermaid
+flowchart TD
+  Browser[Browser / Next.js App Router]
+  Shell[AppShell + Topbar]
+  Pages[Rotas e páginas client/server]
+  Services[Serviços de domínio]
+  Edge[Supabase Auth, Data API, Storage e Edge Functions]
+  Dexie[FlashiLocalDB / Dexie]
+  Outbox[Outbox local]
+  Sync[Sync incremental por USN]
+  SW[Service Worker]
 
-1. **A sessão de estudo é local-first.** Revelar um cartão e registrar uma avaliação não deve depender de uma resposta de rede. A avaliação é persistida localmente, identificada por um `client_review_id` estável e encaminhada para a outbox.
-2. **O backend é a fonte de verdade remota.** Auth, RLS, RPCs, Edge Functions, Storage, sequência USN e agendamento FSRS pertencem ao backend Supabase.
-3. **Divergências contratuais são resolvidas a favor do backend.** O SDD contém alguns nomes exemplificativos que não existem no `Flashi@v2`; o frontend usa os nomes e payloads presentes nas migrations e Edge Functions reais.
-
-O produto disponibiliza:
-
-- autenticação por email e password;
-- criação e gestão de decks, notas e cartões;
-- sessão de estudo com avaliação otimista;
-- sincronização incremental por USN;
-- outbox para mutações offline e reprocessamento ordenado;
-- importação e exportação de pacotes Anki;
-- importação de conteúdos CSV, Markdown, Quizlet e RemNote por URL;
-- busca semântica e fallback lexical;
-- solicitação e consulta de otimização FSRS;
-- ingestão de texto, URL e PDF para revisão humana antes de salvar notas;
-- upload e assinatura temporária de mídia privada;
-- criação de cartões de oclusão de imagem;
-- perfil de XP, nível, sequência e badges;
-- agendamento de exames e fila de estudo ponderada por data-alvo;
-- PWA com service worker e comportamento tolerante a falhas offline.
-
----
-
-## 2. Arquitetura
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Next.js App Router / React UI                               │
-│ rotas, componentes, guards de flags e feedback de erros     │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────┐
-│ Serviços frontend                                            │
-│ anki · ingestão · busca · FSRS · mídia · exames · XP         │
-│ importação · oclusão · cliente Edge único                    │
-└───────────────┬───────────────────────────────┬──────────────┘
-                │                               │
-┌───────────────▼──────────────┐   ┌────────────▼─────────────┐
-│ Dexie / IndexedDB             │   │ Supabase browser client  │
-│ schema local, repositórios,   │   │ Auth, Data API, RPC,      │
-│ cursor USN e outbox           │   │ Storage e Edge Functions  │
-└───────────────┬──────────────┘   └────────────┬─────────────┘
-                │                               │
-                └───────────────┬───────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Backend Flashi@v2                                           │
-│ PostgreSQL/RLS · Storage · Edge Functions · workers · RPCs   │
-└─────────────────────────────────────────────────────────────┘
+  Browser --> Shell
+  Shell --> Pages
+  Pages --> Services
+  Services --> Edge
+  Services --> Dexie
+  Pages --> Outbox
+  Outbox --> Edge
+  Sync --> Edge
+  Sync --> Dexie
+  Browser --> SW
 ```
 
-### Fluxo online
+### Camadas
 
-1. A UI chama um serviço de domínio.
-2. O serviço lê/escreve localmente quando a operação faz parte do fluxo de estudo ou outbox.
-3. Operações remotas passam por `invokeEdge` ou pelo cliente Supabase tipado.
-4. O backend valida JWT, propriedade via RLS e payload.
-5. A UI apresenta sucesso, estado pendente ou erro tipado.
-
-### Fluxo offline
-
-1. A mutação é escrita no IndexedDB com `_dirty = 1`.
-2. Uma entrada com `client_mutation_id` é criada na outbox.
-3. O worker tenta enviar quando a aplicação está online, recebe foco ou termina uma escrita.
-4. Falhas transitórias ficam pendentes para retry; a ordem das mutações é preservada.
-5. A sincronização incremental aplica tombstones e registros até ao próximo `usn`.
-
----
-
-## 3. Stack
-
-| Camada | Tecnologia | Responsabilidade |
+| Camada | Localização | Responsabilidade real |
 |---|---|---|
-| Framework | Next.js 16.1 / App Router | Rotas estáticas, dinâmicas e server rendering |
-| UI | React 19 / TypeScript 5.9 | Componentes, formulários e interação |
-| Estilos | CSS responsivo próprio | Layout mobile-first e estados da UI |
-| Backend | Supabase | Auth, Postgres, RLS, RPC, Storage e Edge Functions |
-| Cliente Supabase | `@supabase/ssr` e `@supabase/supabase-js` | Sessão de browser e chamadas remotas |
-| Persistência offline | Dexie / IndexedDB | Entidades locais, cursor, estado dirty e outbox |
-| Validação | Vitest | Testes de serviços, contratos e invariantes |
-| E2E | Playwright | Smoke tests de UI quando o ambiente está configurado |
-| PWA | Manifest e service worker | Cache do shell e fallback de navegação |
+| Apresentação | `app/`, `components/` | Rotas, formulários, estados de carregamento, erro, vazio e feedback. |
+| Serviços | `lib/services/` | Validação de entradas, chamadas à Data API, Storage, RPCs e Edge Functions. |
+| Cliente Edge comum | `lib/services/http/` | Auth check, timeout, retry, classificação de 401/403/429/503 e evento global. |
+| Persistência local | `lib/db/` | Dexie, cursor USN, tombstones, outbox e worker opcional. |
+| Tipos | `src/types/database.ts` | Tipos gerados/espelhados das tabelas, enums e funções Supabase usadas pelo frontend. |
+| PWA | `app/manifest.ts`, `public/sw.js` | Manifesto, cache do shell e fallback de navegação offline. |
+| Backend | repositório `Flashi` | RLS, integridade, RPCs, filas, processamento assíncrono, Storage e Edge Functions. |
 
-O Next.js 16 utiliza `proxy.ts` em vez da convenção antiga `middleware.ts`. O cliente Supabase de browser está em `lib/supabase/client.ts` e usa exclusivamente URL pública e chave publishable.
+O browser usa somente a chave pública do Supabase. Não há `service_role` no frontend. O worker `fsrs-optimize-worker` e o `ai-ingest-worker` pertencem ao backend e não são invocados pelo browser.
 
 ---
 
-## 4. Estrutura do projeto
+## 3. Stack e execução local
 
-```text
-app/
-├── (auth)/login/                 # Login Supabase Auth
-├── (auth)/register/              # Registo Supabase Auth
-├── analytics/                    # Métricas e atividade
-├── decks/                        # Biblioteca e criação de decks
-│   └── [deckId]/
-│       ├── cards/                # Gestão de cartões
-│       └── occlusion/new/        # Editor de oclusão de imagem
-├── exams/                        # Exames e prioridade
-├── export/anki/                  # Exportação para .apkg
-├── import/
-│   ├── ai-ingest/                # Ingestão com revisão humana
-│   ├── anki/                     # Importação .apkg
-│   └── url/                      # Importação CSV/Markdown/etc. por URL
-├── media/[id]/                   # Visualização de mídia
-├── occlusion/                    # Área de oclusão existente
-├── profile/                      # Preferências e badges
-├── search/                       # Busca semântica
-├── settings/fsrs-optimize/       # Otimização FSRS
-├── study/[deckId]/               # Sessão crítica de estudo
-├── tools/                        # Ferramentas e jobs
-├── layout.tsx                    # Shell global, worker e erros Edge
-└── globals.css
+### Dependências principais
 
-components/
-├── AppShell.tsx                  # Navegação e topbar
-├── EdgeErrorNotice.tsx           # Erros remotos globais
-├── RateLimitBanner.tsx            # Countdown para HTTP 429
-├── OcclusionEditor.tsx            # Desenho de máscaras percentuais
-├── OcclusionCard.tsx              # Revelação individual de máscaras
-├── MediaViewer.tsx                # Imagem, áudio e vídeo
-└── SemanticHitRow.tsx             # Resultado da busca semântica
+- Node.js e pnpm;
+- Next.js `16.1.0`;
+- React `19.2.0` e `react-dom` `19.2.0`;
+- TypeScript `5.9.3` em modo estrito;
+- `@supabase/ssr` e `@supabase/supabase-js`;
+- Dexie para IndexedDB;
+- Vitest para testes unitários;
+- Playwright para E2E;
+- `zod` e `clsx` estão instalados, mas cada uso deve ser confirmado no código antes de ser assumido como parte de um fluxo.
 
-lib/
-├── config/feature-flags.ts        # Flags v3
-├── db/
-│   ├── schema.ts                  # Schema Dexie versionado
-│   ├── sync-engine.ts             # Cursor, records e tombstones
-│   ├── sync-worker.ts             # Coordenação online/foco/intervalo
-│   ├── sync-registry.ts           # Registo de handlers
-│   ├── outbox-queue.ts            # Mutação pendente e retry
-│   └── repositories/               # CRUD local por entidade
-├── services/
-│   ├── http/edge-client.ts        # Wrapper único de Edge Functions
-│   ├── anki-service.ts            # Anki import/export
-│   ├── import-deck-service.ts     # Importação via import-deck
-│   ├── ingestion-service.ts       # IA, PDF, URL e rascunho
-│   ├── semantic-search-service.ts # Busca semântica/lexical
-│   ├── optimizer-service.ts       # FSRS optimization
-│   ├── media-service.ts           # Storage card-media
-│   ├── occlusion-service.ts       # RPC image occlusion
-│   ├── gamification-service.ts    # XP, perfis e badges
-│   ├── exam-service.ts             # Exames e fila
-│   └── study-service.ts            # Avaliação e revisão
-└── supabase/client.ts              # Browser client tipado
+### Scripts disponíveis
 
-tests/
-├── edge-client.test.ts             # Auth, retry, 429, 503 e timeout
-├── feature-services.test.ts        # Validação de oclusão
-└── sync-engine.test.ts             # Cursor, tombstone e sincronização
+| Comando | Comportamento |
+|---|---|
+| `pnpm dev` | Inicia `next dev`. |
+| `pnpm build` | Gera o build de produção com `next build`. |
+| `pnpm start` | Inicia o servidor de produção após build. |
+| `pnpm lint` | Está declarado como `next lint`; a disponibilidade depende da versão/configuração do Next instalada. |
+| `pnpm typecheck` | Executa `tsc --noEmit`. |
+| `pnpm test` | Executa `vitest run tests --exclude tests/e2e/**`. |
+| `pnpm test:e2e` | Executa Playwright e pode iniciar `pnpm dev` automaticamente. |
 
-docs/
-├── backend-contract-notes.md       # Notas dos contratos remotos
-├── integration-verification.md    # Verificação de integração
-└── browser-verification.md         # Evidências de UI/browser
-```
-
----
-
-## 5. Configuração local
-
-### Requisitos
-
-- Node.js compatível com Next.js 16;
-- pnpm;
-- acesso a um projeto Supabase compatível com o backend Flashi;
-- credenciais de um utilizador de teste para fluxos autenticados.
-
-### Instalação
-
-```bash
-git clone https://github.com/barrosrafa/app-flashi.git
-cd app-flashi
-git checkout feature/v3
-pnpm install
-cp .env.example .env.local
-```
-
-Preencha `.env.local`:
+### Variáveis mínimas
 
 ```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://ykyobzoxoiljyueasdwc.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://<projeto>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-A chave deve ser **publishable/anon**. Nunca coloque no frontend:
+O `.env.example` contém uma URL pública de projeto e uma chave de exemplo substituível. Os ficheiros `.env*` são ignorados pelo Git, exceto `.env.example`.
 
-- `service_role`;
-- `sb_secret`;
-- `OPENAI_API_KEY`;
-- tokens administrativos;
-- passwords de utilizadores.
+### Configuração de autenticação server-side
 
-A autorização é garantida por Auth, RLS e validações nas Edge Functions. A chave publishable pode aparecer no bundle do browser, mas não concede acesso além das policies configuradas.
-
-### Execução
-
-```bash
-pnpm dev
-```
-
-Abra `http://localhost:3000/login`, autentique-se e navegue para os decks.
+`proxy.ts` cria um `createServerClient` com `@supabase/ssr`, lê cookies do request, atualiza cookies quando necessário e chama `supabase.auth.getUser()`. O matcher cobre rotas não estáticas e exclui assets estáticos comuns. O proxy não implementa uma política de autorização de rota: a autorização de dados continua a ser feita por Auth, RLS, serviços e RPCs.
 
 ---
 
-## 6. Feature flags
+## 4. Rotas do frontend
 
-Todas as flags v3 são opt-in. O valor `1` ativa a funcionalidade; qualquer outro valor mantém-na desativada.
+Todas as rotas abaixo existem no App Router. A expressão **flag** significa que a página mostra estado “funcionalidade desativada” quando a variável correspondente não está ativa.
 
-| Flag | Variável | Escopo |
+| Rota | Implementação | Dependências e comportamento |
 |---|---|---|
-| `sync_v2` | `NEXT_PUBLIC_FF_SYNC_V2` | Worker e sincronização incremental |
-| `anki_io` | `NEXT_PUBLIC_FF_ANKI_IO` | Importação/exportação Anki |
-| `occlusion` | `NEXT_PUBLIC_FF_OCCLUSION` | Editor e cartões de oclusão |
-| `semantic_search` | `NEXT_PUBLIC_FF_SEMANTIC_SEARCH` | Busca semântica e fallback lexical |
-| `fsrs_opt` | `NEXT_PUBLIC_FF_FSRS_OPT` | Pedido/consulta de otimização FSRS |
-| `ai_ingest` | `NEXT_PUBLIC_FF_AI_INGEST` | Ingestão de texto, URL e PDF |
-| `gamification` | `NEXT_PUBLIC_FF_GAMIFICATION` | XP, nível, streak e badges |
-| `exams` | `NEXT_PUBLIC_FF_EXAMS` | Exames e fila ponderada |
-| `import_url` | `NEXT_PUBLIC_FF_IMPORT_URL` | Importação de conteúdos por URL |
-
-O repositório também conserva flags legadas (`MEDIA`, `SEMANTIC`, `ANKI`, `SYNC_WORKER`) para compatibilidade com a fundação v1/v2. Para uma funcionalidade nova, a UI deve usar `isEnabled(...)` de `lib/config/feature-flags.ts`.
-
-Exemplo:
-
-```dotenv
-NEXT_PUBLIC_FF_ANKI_IO=1
-NEXT_PUBLIC_FF_SEMANTIC_SEARCH=1
-NEXT_PUBLIC_FF_IMPORT_URL=1
-```
-
-Uma flag desativada não remove a rota do build; a rota renderiza uma mensagem de recurso desativado e não chama o backend.
+| `/` | `app/page.tsx` | Dashboard; carrega fila, sequência, estatísticas e decks. Sem sessão mostra estado de autenticação. |
+| `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; redireciona para `/`; apresenta erro/sucesso. |
+| `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
+| `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks através de `listDecks`; estado vazio e link para criação. |
+| `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
+| `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` | Carrega detalhe do deck e `CardBrowser`; inclui links para estudar, cards e oclusão. |
+| `/decks/[deckId]/cards` | `app/decks/[deckId]/cards/page.tsx` + `CardBrowser` | Cria, pesquisa e arquiva cards; criação usa `mcp_create_note`. |
+| `/decks/[deckId]/occlusion/new` | `app/decks/[deckId]/occlusion/new/page.tsx` | **Flag `occlusion`**; upload de imagem, editor de caixas percentuais e RPC de oclusão. |
+| `/study/[deckId]` | `app/study/[deckId]/page.tsx` | Fila real, frente/verso, ratings, review FSRS e fallback local. Também carrega template do card quando disponível. |
+| `/study/demo` | mesma página com `deckId=demo` | Fixture local para demonstrar o fluxo sem tocar no backend. |
+| `/study/search` | `app/study/search/page.tsx` | Página de busca relacionada ao estudo. |
+| `/search` | `app/search/page.tsx` | **Flag `semantic_search`**; debounce de 350 ms, busca semântica com fallback lexical para indisponibilidade 503. |
+| `/analytics` | `app/analytics/page.tsx` | Lê estatísticas diárias e reviews; calcula dados dos últimos sete dias. |
+| `/exams` | `app/exams/page.tsx` | **Flag `exams`**; cria/lista exames e usa RPC de fila com prioridade. |
+| `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings`; permite sair via Auth. |
+| `/profile/badges` | `app/profile/badges/page.tsx` | **Flag `gamification`**; lê perfil XP, badges do usuário e catálogo. |
+| `/tools` | `app/tools/page.tsx` | **Várias flags**; pesquisa, ingestão IA, FSRS, import/export Anki. |
+| `/tools/mcp` | `app/tools/mcp/page.tsx` | **Flag `mcp`**; lista e executa as duas ferramentas do adaptador MCP. |
+| `/settings/fsrs-optimize` | `app/settings/fsrs-optimize/page.tsx` | **Flag `fsrs_opt`**; solicita job de otimização. |
+| `/import/ai-ingest` | `app/import/ai-ingest/page.tsx` | **Flag `ai_ingest`**; submete texto a um job e não materializa notas diretamente. |
+| `/import/anki` | `app/import/anki/page.tsx` | **Flag `anki_io`**; usa `useAnkiImport` para upload `.apkg`. |
+| `/export/anki` | `app/export/anki/page.tsx` | Exportação de deck através de `anki-transfer`. |
+| `/import/url` | `app/import/url/page.tsx` | **Flag `import_url`**; browser faz `fetch` da URL, envia o arquivo ao bucket e chama `import-deck`. CORS é obrigatório. |
+| `/media/[id]` | `app/media/[id]/page.tsx` | Exibe mídia através de URL assinada. |
+| `/occlusion` | `app/occlusion/page.tsx` | **Flag `occlusion`**; formulário simples de nota e regiões percentuais. |
+| `/manifest.webmanifest` | `app/manifest.ts` | Resposta JSON gerada pelo Next; não é uma tela de UI. |
 
 ---
 
-## 7. Funcionalidades
+## 5. Shell, componentes e acessibilidade
 
-### 7.1 Sincronização local-first
+### Shell
 
-- Schema Dexie versionado para entidades sincronizáveis.
-- Cursor `last_usn` armazenado em `sync_meta`.
-- `executeIncrementalSync()` chama a Edge Function `sync` com `{ last_usn, limit }`.
-- Registros ativos são aplicados com `put`.
-- Tombstones são materializados localmente com `deleted_at`, sem apagar silenciosamente o histórico.
-- O cursor só avança depois de o lote completo ser aplicado numa transação Dexie.
-- Telemetria local regista `sync.success` e `sync.failure` sem conteúdo de cartões ou tokens.
+`components/AppShell.tsx` fornece:
 
-### 7.2 Outbox e avaliações
+- skip link para `#main-content`;
+- marca e link para `/`;
+- navegação com `aria-label` e `aria-current`;
+- ícones SVG decorativos;
+- avatar/link para `/profile`;
+- `Topbar` com título e subtítulo;
+- `SyncBadge`, que comunica “Online · salvo localmente”.
 
-- Mutações têm `client_mutation_id` idempotente.
-- A ordem é preservada por `created_at`.
-- Falhas incrementam retries e interrompem o lote no primeiro item pendente.
-- Reviews usam `client_review_id` estável para permitir deduplicação no backend.
-- A avaliação otimista não bloqueia a sessão de estudo enquanto aguarda a rede.
+`app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`, além de metadata, idioma `pt-BR`, manifest e Open Graph.
 
-### 7.3 Importação e exportação Anki
+### Componentes de domínio
 
-A importação aceita `.apkg` até **50 MiB** e envia o arquivo para o bucket privado `anki-transfers`, sob o caminho do utilizador:
+| Componente | Função |
+|---|---|
+| `DeckLibrary` | Busca e apresenta decks, progresso, estados de erro e vazio. |
+| `CardBrowser` | Lista cards de um deck, busca local, formulário de criação e arquivamento. |
+| `MediaViewer` | Renderiza áudio, vídeo ou imagem conforme MIME. |
+| `OcclusionEditor` | Converte pointer coordinates em percentuais e desenha caixas. |
+| `OcclusionCard` | Mostra imagem com regiões clicáveis para revelar/ocultar. |
+| `SemanticHitRow` | Apresenta score, tipo, campos e ID de uma nota encontrada. |
+| `RateLimitBanner` | Faz countdown client-side para erro 429. |
+| `EdgeErrorNotice` | Observa o event bus global e exibe Auth, rate limit ou erro genérico. |
+| `ServiceWorkerRegister` | Registra `/sw.js` no browser. |
+| `SyncWorkerRegister` | Inicia o worker local, sujeito a `NEXT_PUBLIC_FF_SYNC_WORKER`. |
+
+### CSS e acessibilidade
+
+`app/globals.css` contém o design system Aurora, superfícies, cards, formulários, tabela, estados, responsividade, `:focus-visible` e `prefers-reduced-motion`. A sessão de estudo usa região viva, labels de estado, barra de progresso, botão de revelar e ratings com atalhos `1`–`4`.
+
+O teste e2e não substitui auditoria de acessibilidade. Os checks existentes cobrem principalmente headings, labels, erros de runtime, overflow e tamanho mínimo de botões no smoke test.
+
+---
+
+## 6. Serviços de domínio
+
+### Dashboard, decks e cards
+
+- `dashboard-service.ts`: exige usuário; combina `get_due_cards`, `get_current_streak`, `daily_statistics`, `user_gamification_profiles` e `listDecks`.
+- `deck-service.ts`: lista decks e conta cards/estado de aprendizagem; usa Dexie como fallback de leitura em pontos definidos no código; `createDeck` exige sessão e insere `user_id`.
+- `card-service.ts`: lista cards; `createCard` valida frente/verso, chama `mcp_create_note`, lê o card criado e dispara atualização de embedding; `updateCard` atualiza note/card; `archiveCard` faz soft delete do card.
+- `study-service.ts`: chama `fsrs-review` para review; se a operação remota falhar, enfileira a mutação; busca fila por `get_due_cards` e possui fallback de leitura de cards quando a RPC não retorna itens.
+
+### Perfil, analytics e exames
+
+- `profile-service.ts`: lê `profiles` e `study_settings`; atualiza ambos com `upsert`.
+- `analytics-service.ts`: consulta `daily_statistics` e `review_logs`, normaliza os últimos sete dias e calcula volume/tempo/precisão.
+- `exam-service.ts`: CRUD de `deck_exams`, marca remoção como `status='done'` e consulta `get_due_cards_with_exam_schedule`.
+
+### Busca
+
+- `search-service.ts`: aceita `semantic` ou `lexical`, limita a consulta a 8.000 caracteres e repete em lexical quando a Edge Function reporta indisponibilidade.
+- `semantic-search-service.ts`: exige pelo menos três caracteres, limita `limit` entre 1 e 100 e usa `noRetryOnUnavailable` para controlar o fallback.
+
+### FSRS
+
+- `optimizer-service.ts`: solicita `fsrs-optimize` com `mode='request'`, consulta `fsrs_optimization_runs`, executa manualmente `mode='run'` e consulta status por RPC.
+- `fsrs-optimize-service.ts`: fachada usada pela página de configurações.
+- O cálculo dos pesos e o processamento de reviews pertencem às Edge Functions/backend; o browser não implementa o algoritmo FSRS.
+
+### IA e importação por URL
+
+- `ingestion-service.ts`: aceita `pdf_document`, `youtube_url`, `raw_text_block` e `web_page`; texto enviado pelo cliente é limitado a 2.000 caracteres; PDF é enviado para `import-media`; jobs são consultáveis por `ai_ingestion_jobs`.
+- `import-deck-service.ts`: aceita `csv`, `markdown`, `quizlet` e `remnote`; limita arquivos a 15 MiB; URL é baixada pelo browser e depende de CORS; o arquivo é enviado ao bucket `import-media` antes de `import-deck`.
+- `ai-ingest-worker` e materialização das sugestões são backend. A UI informa que o conteúdo não é salvo sem revisão, mas a geração e materialização não ocorrem no componente React.
+
+### Anki
+
+- `anki-service.ts`: exige extensão `.apkg`, limita a 50 MiB, envia para `anki-transfers/<user_id>/imports/`, chama `anki-transfer` e mostra progresso em dois marcos (`0.5` e `1`).
+- Exportação chama `anki-transfer`, cria URL assinada por 300 segundos e devolve metadados do arquivo.
+- `useAnkiImport.ts` centraliza busy, progresso, resultado, erro e limpeza do input.
+
+### Mídia e oclusão
+
+- `media-service.ts`: envia bytes para `card-media/<owner>/<cardId ou unattached>/<uuid>.<ext>` e cria URLs assinadas.
+- `occlusion-service.ts`: transforma máscaras em `x_pos`, `y_pos`, `width_pct`, `height_pct`, exige valores dentro de 0–100 e chama `create_image_occlusion_note(p_note_id, p_boxes)`.
+- O serviço não cria uma nota nova: recebe uma `noteId` existente.
+
+### Gamificação e MCP
+
+- `gamification-service.ts`: lê perfil, definições, badges do usuário e chama `add_user_xp`.
+- `template-renderer.ts`: valida e interpola `{{FieldName}}`, suporta múltiplas gerações e fallback `Front`/`Back`; é usado na sessão quando o card tem `template_id`.
+- `mcp-client.ts`: expõe `search_notes` e `create_note`, suporta `tools/list` e `tools/call`, e traduz `create_note` para a RPC `mcp_create_note`.
+
+---
+
+## 7. Persistência local, sincronização e outbox
+
+### Banco Dexie
+
+`lib/db/schema.ts` cria o banco `FlashiLocalDB` e versões 1, 2 e 3. As tabelas/indexes declarados incluem:
 
 ```text
-{user_id}/imports/{timestamp}-{filename}.apkg
+decks, notes, note_card_definitions, note_cloze_deletions,
+note_references, note_image_occlusion_boxes, cards, card_tags,
+card_media, card_learning_state, card_templates, field_definitions,
+tags, review_logs, study_settings, user_deck_settings,
+daily_statistics, fsrs_optimization_runs, deck_collaborators,
+deck_exams, user_gamification_profiles, user_badges,
+badges_definition, socratic_remediation_sessions, ai_ingestion_jobs,
+anki_transfer_jobs, profiles, mcp_tool_audit,
+learning, reviews, exams, outbox, sync_meta.
 ```
 
-Depois chama `anki-transfer` com:
-
-```json
-{
-  "action": "import",
-  "storage_path": "<path privado>",
-  "target_deck_name": "<opcional>"
-}
-```
-
-O backend trata deduplicação por pacote, notas, cartões, tags e mídia. A exportação envia `deck_id` e `include_media`, recebe o `storage_path` gerado e cria uma URL assinada temporária para download.
-
-Limites aplicados pelo backend incluem 50 MiB por pacote, 10.000 notas e 2.000 mídias vinculadas.
-
-### 7.4 Importação por URL
-
-A rota `/import/url` permite escolher:
-
-- CSV;
-- Markdown;
-- Quizlet;
-- RemNote.
-
-O browser baixa a URL, converte a resposta numa `File`, envia-a ao bucket `import-media` e chama `import-deck`. O backend real não recebe uma URL diretamente; recebe `deck_id`, `format` e `storage_path` privado. Por isso, a funcionalidade depende de a origem permitir CORS para o browser.
-
-O limite de arquivo é **15 MiB**, conforme `import-deck`.
-
-### 7.5 Busca semântica
-
-`semanticSearchService` chama `semantic-search` com:
-
-```json
-{
-  "query": "...",
-  "limit": 20,
-  "mode": "semantic"
-}
-```
-
-Se a operação semântica receber indisponibilidade `503`, o serviço tenta novamente em modo `lexical`. A resposta inclui `mode`, modelo/dimensões quando aplicável, hash da consulta e resultados com `note_id`, `fields`, `match_type` e `similarity`.
-
-### 7.6 Otimização FSRS
-
-- `optimizerService.request()` chama `fsrs-optimize` em modo `request`.
-- `optimizerService.run(runId)` chama a execução do job.
-- O estado de uma execução é consultado pela tabela `fsrs_optimization_runs`, porque a Edge Function backend não declara uma ação pública `status`.
-- A tela não faz polling agressivo; a consulta ocorre sob demanda.
-- A otimização definitiva continua a ser executada pelo backend/worker.
-
-### 7.7 Ingestão assistida por IA
-
-A UI suporta quatro tipos de origem:
-
-- `raw_text_block`;
-- `youtube_url`;
-- `web_page`;
-- `pdf_document`.
-
-O fluxo é deliberadamente de **revisão humana**:
-
-1. o utilizador informa deck e conteúdo;
-2. a aplicação cria um `ai_ingestion_job`;
-3. o estado `queued`, `processing`, `completed` ou `failed` é exibido;
-4. o conteúdo não é salvo automaticamente como nota;
-5. o utilizador revê e decide o que salvar.
-
-Rascunhos de texto são guardados em `localStorage` com a chave `flashi:ai-ingest-draft:<deckId>`. O PDF é enviado para `import-media` e referenciado por `storage_path`.
-
-### 7.8 Mídia
-
-`mediaService` usa o bucket privado `card-media` e produz caminhos por utilizador/cartão. URLs de leitura são assinadas por 30 minutos. `MediaViewer` seleciona automaticamente `<img>`, `<audio>` ou `<video>` conforme o MIME type.
-
-### 7.9 Oclusão de imagem
-
-O `OcclusionEditor` desenha retângulos relativos à imagem. As coordenadas são percentuais de 0 a 100:
-
-```json
-{
-  "cloze_ordinal": 1,
-  "label_text": "opcional",
-  "x_pos": 10,
-  "y_pos": 20,
-  "width_pct": 25,
-  "height_pct": 15,
-  "metadata": {}
-}
-```
-
-A criação chama a RPC real:
-
-```text
-create_image_occlusion_note(p_note_id, p_boxes)
-```
-
-O backend v2 associa a oclusão à nota existente. O `OcclusionCard` permite revelar cada máscara individualmente.
-
-### 7.10 Gamificação
-
-`gamificationService` consulta:
-
-- `user_gamification_profiles`;
-- `badges_definition`;
-- `user_badges`.
-
-A UI apresenta XP, nível, streak e badges desbloqueadas. Badges não obtidas permanecem visíveis com estado visual atenuado. A atribuição de XP usa a RPC existente `add_user_xp` quando ativada pelo fluxo correspondente.
-
-### 7.11 Exames e modo de estudo
-
-`examService` usa `deck_exams` e a RPC:
-
-```text
-get_due_cards_with_exam_schedule(p_deck_id, p_limit)
-```
-
-O agendamento é baseado em deck, data-alvo e prioridade. A fila devolve cartão, estado, vencimento, exame associado, dias restantes e fator de agendamento. O status inicial de um exame criado pelo frontend é `active`.
-
----
-
-## 8. Rotas
-
-| Rota | Funcionalidade | Flag |
-|---|---|---|
-| `/` | Dashboard, decks, XP e cartões do dia | — |
-| `/decks` | Biblioteca de decks com fallback local | — |
-| `/decks/new` | Criação de deck | — |
-| `/decks/[deckId]` | Detalhe e métricas do deck | — |
-| `/decks/[deckId]/cards` | CRUD de cards e notes | — |
-| `/decks/[deckId]/occlusion/new` | Upload e editor de oclusão | `occlusion` |
-| `/study/[deckId]` | Sessão de estudo e ratings | — |
-| `/search` | Busca semântica/lexical | `semantic_search` |
-| `/import/anki` | Upload `.apkg` | `anki_io` |
-| `/export/anki` | Exportação de deck `.apkg` | `anki_io` |
-| `/import/url` | Importação CSV/Markdown/etc. via URL | `import_url` |
-| `/import/ai-ingest` | Ingestão de texto, URL e PDF | `ai_ingest` |
-| `/media/[id]` | Visualização de mídia | `media`/fluxo de mídia |
-| `/settings/fsrs-optimize` | Pedido e consulta FSRS | `fsrs_opt` |
-| `/profile/badges` | XP, nível, streak e badges | `gamification` |
-| `/exams` | Exames e agenda de estudo | `exams` |
-| `/analytics` | Retenção, precisão e atividade | — |
-| `/profile` | Perfil e sign out | — |
-| `/login` | Login | — |
-| `/register` | Registo | — |
-
----
-
-## 9. Serviços frontend
-
-| Serviço | Responsabilidade | Acesso remoto |
-|---|---|---|
-| `http/edge-client.ts` | Auth, timeout, retry e normalização de erros | Todas as Edge Functions |
-| `anki-service.ts` | Upload/import/export Anki | `anki-transfer`, Storage |
-| `import-deck-service.ts` | Upload e processamento de formatos | `import-deck`, Storage |
-| `semantic-search-service.ts` | Busca com fallback | `semantic-search` |
-| `optimizer-service.ts` | FSRS request/run/status | `fsrs-optimize`, Data API |
-| `ingestion-service.ts` | Jobs IA, fontes e rascunhos | `ai-ingest`, Data API |
-| `media-service.ts` | Upload e URLs assinadas | Storage `card-media` |
-| `occlusion-service.ts` | Caixas e cartões de oclusão | RPC `create_image_occlusion_note` |
-| `gamification-service.ts` | Perfil, badges e XP | Tabelas e `add_user_xp` |
-| `exam-service.ts` | CRUD e fila de exames | `deck_exams`, RPC de agenda |
-| `study-service.ts` | Review otimista | `fsrs-review`, outbox |
-| `edge-service.ts` | Compatibilidade com serviços legados | Delegação para wrapper |
-
-Como regra, novas chamadas de Edge Function devem usar exclusivamente `invokeEdge`. Chamadas diretas a `functions.invoke` não devem ser adicionadas fora do wrapper.
-
----
-
-## 10. Persistência local, sincronização e outbox
-
-### Entidades locais
-
-O schema Dexie mantém tabelas para decks, notes, cards, templates, tags, reviews, estado de aprendizagem, mídia, jobs de IA, runs FSRS, gamificação, badges, exames, sessões socráticas, referências e metadados de sincronização.
-
-Cada entidade sincronizável pode carregar:
-
-- `id`;
-- `user_id`;
-- `usn`;
-- `updated_at`;
-- `deleted_at`;
-- `_dirty`;
-- `_synced_at`.
+`learning`, `reviews` e `exams` são nomes locais usados pelo schema/repositórios; as tabelas remotas principais correspondentes são `card_learning_state`, `review_logs` e `deck_exams`. O schema declara tipos locais para deck, card, learning, review, exam, template, profile, auditoria MCP, mutação offline e metadata do cursor.
 
 ### Sync incremental
 
-A chamada ao backend é:
+`executeIncrementalSync()`:
 
-```json
-{
-  "last_usn": 0,
-  "limit": 500
-}
-```
+1. lê `last_usn` em `sync_meta`;
+2. chama a Edge Function `sync` com `last_usn` e `limit=500`;
+3. separa registros ativos e tombstones;
+4. mapeia `entity_type` para tabela local;
+5. grava tombstones antes dos registros ativos;
+6. grava `_dirty=0` e `_synced_at` nos registros recebidos;
+7. avança o cursor na mesma transação Dexie;
+8. registra telemetria local de sucesso/falha.
 
-A resposta pode conter `data`, `next_usn` e `has_more`. O frontend normaliza a resposta, separa `is_deleted`, ordena pelo USN, materializa tombstones antes dos registros ativos e só então atualiza `sync_meta.last_usn`.
-
-### Repositórios
-
-`BaseRepository` fornece:
-
-- `create` com UUID e `_dirty`;
-- `update`;
-- `softDelete`;
-- `get`;
-- `listByUser`;
-- `dirtyFor`;
-- `markSynced`;
-- `bulkUpsertFromServer`.
-
-Os repositórios concretos ficam em `lib/db/repositories/` e são registados por `sync-registry.ts`.
+O mapa inclui aliases como `deck`, `note`, `card`, `card_learning_state`, `review_log`, `card_template`, `profile`, `mcp_tool_audit`, `ai_ingestion_job`, `deck_exam`, `user_badge` e `socratic_remediation_session`. Tipos desconhecidos são ignorados.
 
 ### Worker
 
-O worker é iniciado pelo shell global e pode reagir a:
+`startSyncWorker(intervalMs=60000)` só inicia no browser, com `NEXT_PUBLIC_FF_SYNC_WORKER` ativo e uma única instância. Executa ao iniciar, a cada intervalo, no evento `online` e no evento `focus`. Não executa em paralelo e não executa quando `navigator.onLine` é falso.
 
-- intervalo configurado;
-- evento `online`;
-- retorno de foco da janela;
-- pós-escrita local.
+Importante: o worker está desativado por padrão no `.env.example`. A sincronização local só é automática quando a flag está ativa e o componente está montado no layout.
 
-O worker deve continuar opt-in em ambientes de desenvolvimento até as regras de rollout remoto estarem definidas.
+### Outbox
+
+`enqueueMutation()` gera `client_mutation_id`, grava a mutação no IndexedDB, registra telemetria e dispara flush se o browser estiver online.
+
+A implementação de flush suporta explicitamente estas tabelas remotas:
+
+```text
+decks, notes, cards, card_media, deck_exams, review_logs
+```
+
+- ação `rpc` usa RPC direta quando `transport='rpc'`;
+- ação `rpc` usa Edge Function quando `transport='edge'`;
+- insert/update usa `upsert` após remover `client_mutation_id` do row payload;
+- delete exige `payload.id` e remove por ID;
+- erro incrementa retries e interrompe a fila no primeiro item que falhar;
+- após o flush, tenta sync incremental.
+
+A tabela local de outbox aceita mais nomes, mas isso não significa que todas as tabelas sejam flusháveis: nomes fora do union suportado retornam `OUTBOX_TABLE_NOT_SUPPORTED`.
+
+### Telemetria local
+
+`lib/db/telemetry.ts` grava no `localStorage` até os últimos 100 eventos em `flashi.telemetry`. Os eventos são `sync.success`, `sync.failure`, `outbox.enqueued`, `outbox.failure` e `outbox.flushed`. A telemetria não é enviada automaticamente para um serviço remoto neste código.
+
+### Repositórios
+
+`BaseRepository` e `lib/db/repositories/index.ts` expõem instâncias para decks, notes, cards, templates, tags, reviews, schedule, FSRS runs, mídia, IA, embeddings, gamificação, badges, exames, sessões socráticas, perfil e auditoria MCP. `sync-registry.ts` registra apenas o conjunto de handlers definido no próprio arquivo; registrar um repositório não cria automaticamente sincronização remota.
 
 ---
 
-## 11. Contratos com o backend
+## 8. Contratos backend usados pelo frontend
 
-O frontend foi validado contra [barrosrafa/Flashi, branch `v2`](https://github.com/barrosrafa/Flashi/tree/v2). As Edge Functions consumidas são:
+O backend `Flashi@v2` contém migrations PostgreSQL/Supabase, RLS, RPCs e Edge Functions. O frontend usa o cliente Supabase com JWT do usuário.
 
-| Função | Uso |
+### Edge Functions chamadas pelo frontend
+
+| Função | Chamador | Uso |
+|---|---|---|
+| `sync` | `sync-engine.ts` | Busca alterações por USN. |
+| `fsrs-review` | `study-service.ts` | Registra review e atualiza estado FSRS. |
+| `embeddings` | `embedding-service.ts`, `card-service.ts` | Indexa nota/deck. |
+| `semantic-search` | `search-service.ts`, `semantic-search-service.ts` | Busca semântica ou lexical. |
+| `fsrs-optimize` | `optimizer-service.ts` | Solicita/executa otimização do usuário. |
+| `anki-transfer` | `anki-service.ts` | Importa/exporta `.apkg`. |
+| `ai-ingest` | `ingestion-service.ts` | Enfileira conteúdo para IA. |
+| `import-deck` | `import-deck-service.ts` | Processa arquivo importado. |
+
+O backend também contém `fsrs-optimize-worker` e `ai-ingest-worker`; estes são workers protegidos e não fazem parte das chamadas browser.
+
+### RPCs/Data API usadas
+
+| Contrato | Uso no frontend |
 |---|---|
-| `sync` | Pull incremental por `last_usn` |
-| `fsrs-review` | Submissão idempotente de review |
-| `embeddings` | Atualização de embedding de nota |
-| `semantic-search` | Busca semântica/lexical |
-| `fsrs-optimize` | Enfileirar/executar otimização |
-| `anki-transfer` | Importar/exportar `.apkg` |
-| `ai-ingest` | Criar job de ingestão |
-| `import-deck` | Materializar CSV/Markdown/Quizlet/RemNote |
-
-RPCs e tabelas relevantes:
-
-- `create_image_occlusion_note`;
-- `get_due_cards_with_exam_schedule`;
-- `add_user_xp`;
-- `get_fsrs_optimization_status`;
-- `enqueue_fsrs_optimization`;
-- `claim_fsrs_optimization_job`;
-- `complete_fsrs_optimization_job`;
-- `fail_fsrs_optimization_job`;
-- `decks`;
-- `notes`;
-- `cards`;
-- `card_media`;
-- `deck_exams`;
-- `ai_ingestion_jobs`;
-- `anki_transfer_jobs`;
-- `user_gamification_profiles`;
-- `badges_definition`;
-- `user_badges`.
-
-### Divergências importantes do SDD
-
-| Tema | Exemplo do SDD | Contrato efetivo usado |
-|---|---|---|
-| Oclusão | `p_deck_id`, `p_media_asset_id` e resposta `{ note_id, card_ids }` | `p_note_id`, `p_boxes`, resposta com `card_id`/`cloze_ordinal` |
-| Importação URL | Edge Function recebe URL | Browser baixa e envia `storage_path` para `import-deck` |
-| FSRS status | Ação Edge `status` | Consulta a tabela `fsrs_optimization_runs` |
-| IA status | Ação Edge `status` | Consulta `ai_ingestion_jobs` |
-| Gamificação | `gamification_profiles` | `user_gamification_profiles` |
-| Badges | `badge_definitions` | `badges_definition` |
-| Exames | `socratic_enabled` em todos os writes | Campos/tipos disponíveis em `deck_exams` e RPC real |
-
-A regra adotada é não inventar RPCs, argumentos ou tabelas inexistentes no backend.
-
----
-
-## 12. Segurança e tratamento de erros
-
-### Auth
-
-`invokeEdge` verifica `auth.getSession()` antes da chamada. Sem sessão, lança `AuthRequiredError` com status lógico `401` e não executa a Edge Function.
-
-### Timeout e retry
-
-- timeout default: 30 segundos;
-- operações longas podem definir 60 ou 120 segundos;
-- falhas transitórias são repetidas com backoff exponencial;
-- `429` não é repetido automaticamente;
-- `401`/`403` não são repetidos;
-- `503` pode ser convertido em `UnavailableError` quando o serviço precisa acionar fallback lexical.
-
-### Rate limit
-
-`RateLimitError` expõe `retryAfterSec`. `RateLimitBanner` mostra countdown e `EdgeErrorNotice` apresenta feedback global. O event bus está em `lib/services/http/event-bus.ts`.
-
-### RLS e Storage
-
-- Todas as queries autenticadas devem filtrar por propriedade quando aplicável.
-- Buckets de mídia e Anki são privados.
-- Downloads usam URLs assinadas com TTL curto.
-- Caminhos de upload são derivados do `user.id` autenticado.
-- O frontend não usa credenciais administrativas.
-
-### Observabilidade
-
-A telemetria local não deve conter conteúdo de cartões, tokens ou passwords. Para investigar um problema, correlacione:
-
-1. mensagem exibida na UI;
-2. erro tipado do serviço;
-3. logs da Edge Function;
-4. `client_mutation_id`, `client_review_id` ou UUID da entidade.
-
----
-
-## 13. Testes e validação
-
-### Comandos frontend
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-Resultados da validação da `feature/v3`:
-
-- TypeScript: **passou sem erros**;
-- Vitest: **11 testes passaram**;
-- build Next.js: **passou**;
-- `git diff --check`: **passou**.
-
-A suíte unitária cobre:
-
-- sessão ausente e erro `401`;
-- resposta bem-sucedida de Edge Function;
-- rate limit `429` e `retryAfterSec`;
-- retry de falhas `5xx`;
-- fallback para indisponibilidade `503`;
-- timeout tipado;
-- validação das coordenadas de oclusão;
-- cursor, records e tombstones de sincronização.
-
-### Validação backend
-
-No clone do backend `Flashi@v2` foram executados:
-
-```bash
-python3 validate_sql.py
-python3 validate_snapshot.py
-python3 validate_readme.py
-python3 -m pytest -q
-```
-
-Resultado validado:
-
-- todas as migrations foram parseadas;
-- snapshot e README passaram;
-- **9 testes e 174 subtestes passaram**.
-
-Também foi executada uma auditoria automática de chamadas Edge: as 7 funções consumidas pelo frontend existem no inventário do backend; nenhuma função ficou sem implementação correspondente.
-
-### E2E
-
-```bash
-pnpm test:e2e
-```
-
-Os testes E2E dependem de Chromium e, nos cenários autenticados, de variáveis de uma conta de QA. Não devem ser interpretados como teste de contrato remoto quando executados sem sessão/configuração.
-
----
-
-## 14. Desenvolvimento
-
-### Criar uma nova feature
-
-1. Confirmar a tabela, RPC ou Edge Function no backend.
-2. Adicionar/ajustar a flag em `lib/config/feature-flags.ts`.
-3. Criar ou ajustar o serviço em `lib/services/`.
-4. Reutilizar `invokeEdge` para Edge Functions.
-5. Adicionar ou atualizar o repositório local quando a entidade for offline-first.
-6. Guardar a UI com `isEnabled(...)`.
-7. Adicionar testes unitários.
-8. Executar typecheck, testes e build.
-9. Atualizar esta documentação com qualquer divergência contratual.
-
-### Estilo de commits
-
-Prefira commits pequenos e descritivos, por exemplo:
-
-```text
-feat: add semantic search fallback
-fix: preserve sync tombstones
- test: cover edge rate limit
-```
-
-### Branch atual
-
-```text
-feature/v3
-```
-
-Commit de implementação documentado:
-
-```text
-9f889d7 feat: implement SDD v3 frontend features
-```
-
----
-
-## 15. Troubleshooting
-
-| Sintoma | Causa provável | Ação |
-|---|---|---|
-| `AUTH_REQUIRED` | Não existe sessão válida | Fazer login novamente e verificar cookies do Supabase |
-| `401` ou `403` numa Edge Function | JWT expirado ou RLS/policy | Reautenticar e consultar logs/backend |
-| `RATE_LIMITED` | Limite da função atingido | Aguardar o countdown exibido pelo `RateLimitBanner` |
-| Busca semântica falha com `503` | Provider de embeddings indisponível | O serviço tenta modo lexical; verificar logs se ambos falharem |
-| Importação URL falha por CORS | Origem não permite download pelo browser | Fazer upload manual do arquivo ou usar uma origem com CORS |
-| `APKG_TOO_LARGE` | Pacote acima de 50 MiB | Reduzir o pacote ou separar a importação |
-| `IMPORT_TOO_LARGE` | Arquivo acima de 15 MiB | Reduzir o arquivo antes do upload |
-| Oclusão rejeitada | Caixa fora de 0–100 ou sem área | Ajustar retângulos dentro dos limites da imagem |
-| Job IA fica `queued` | Worker backend ainda não processou | Consultar `ai_ingestion_jobs`; não salvar automaticamente |
-| Tela mostra recurso desativado | Flag correspondente está em `0` | Ativar a variável em `.env.local` e reiniciar o dev server |
-| Deck/cartão não aparece | RLS, sessão ou fallback local | Verificar sessão, console, policies e status remoto |
-| Build funciona mas integração falha | Ambiente sem URL/chave válida | Confirmar `.env.local`; nunca copiar `service_role` para o frontend |
-
----
-
-## 16. Limitações e decisões contratuais
-
-1. **A origem de importação por URL precisa de CORS.** O frontend não introduz um proxy server-side que não existe no contrato atual.
-2. **A oclusão usa uma nota existente.** O backend v2 não recebe `deck_id` e `media_asset_id` na RPC de oclusão; a associação da mídia pode exigir evolução posterior do backend.
-3. **O status de jobs é consultado por Data API.** Nem `fsrs-optimize` nem `ai-ingest` expõem uma ação pública de status no contrato auditado.
-4. **A criação de note + card legado continua sendo composta.** Quando aplicável, duas escritas consecutivas podem exigir uma RPC transacional futura.
-5. **A ativação das flags deve ser gradual.** Ativar todas as funcionalidades simultaneamente em produção não substitui testes com utilizadores, Storage e workers configurados.
-6. **A cobertura E2E autenticada depende de uma conta de QA.** Nenhuma credencial deve ser commitada ou colocada nesta documentação.
-7. **Findings do banco pertencem ao backend.** Policies, índices e funções `SECURITY DEFINER` devem ser revisados no repositório `Flashi`, não corrigidos com workarounds no frontend.
-
----
-
-## 17. Checklist de release
-
-- [ ] `pnpm install` concluído sem alterações inesperadas.
-- [ ] `.env.local` não está versionado.
-- [ ] `pnpm typecheck` passa.
-- [ ] `pnpm test` passa.
-- [ ] `pnpm build` passa.
-- [ ] Flags foram ativadas apenas para funcionalidades validadas.
-- [ ] Contratos do frontend foram comparados com a branch backend alvo.
-- [ ] Storage buckets e policies foram confirmados no Supabase.
-- [ ] Cenários `401`, `429`, `503` e timeout foram testados.
-- [ ] Importação Anki foi testada com pacote dentro do limite.
-- [ ] Importação URL foi testada com origem CORS compatível.
-- [ ] Oclusão foi testada com coordenadas percentuais válidas.
-- [ ] Jobs IA não salvam notas sem revisão humana.
-- [ ] Teste E2E autenticado foi executado com conta de QA, quando disponível.
-- [ ] Diff foi verificado com `git diff --check`.
-- [ ] Branch e commit foram publicados no remoto.
-
----
-
-## 18. Referências
-
-- [Repositório frontend — `barrosrafa/app-flashi`](https://github.com/barrosrafa/app-flashi)
-- [Branch frontend — `feature/v4`](https://github.com/barrosrafa/app-flashi/tree/feature/v4)
-- [Repositório backend — `barrosrafa/Flashi`](https://github.com/barrosrafa/Flashi)
-- [Backend branch — `v2`](https://github.com/barrosrafa/Flashi/tree/v2)
-- [Next.js Proxy](https://nextjs.org/docs/app/getting-started/proxy)
-- [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
-- [Supabase JavaScript `functions.invoke`](https://supabase.com/docs/reference/javascript/functions-invoke)
-- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
-
----
-
-## 19. Evolução SDD — feature/v4
-
-A `feature/v4` completa as lacunas que permaneciam abertas no SDD anterior e mantém a regra de integração exclusiva com contratos existentes no backend `Flashi@v2`. Esta etapa não cria tabelas, RPCs ou Edge Functions novas no backend.
-
-### 19.1. Materialização local expandida
-
-O schema Dexie foi atualizado para a versão 3 (`FlashiLocalDB`) e passa a incluir explicitamente as entidades adicionais necessárias ao frontend:
-
-- `profiles`;
-- `mcp_tool_audit`;
-- `card_templates`;
-- `field_definitions`;
-- `note_card_definitions`;
-- `note_cloze_deletions`;
-- `note_references`;
-- `note_image_occlusion_boxes`;
-- `card_learning_state`;
-- `daily_statistics`;
-- `study_settings`;
-- `user_deck_settings`;
-- `deck_collaborators`;
-- `deck_exams`;
-- `user_gamification_profiles`;
-- `user_badges`;
-- `badges_definition`;
-- `socratic_remediation_sessions`;
-- `ai_ingestion_jobs`;
-- `anki_transfer_jobs`.
-
-As entidades continuam a ser indexadas por `id`, `usn`, `updated_at`, `deck_id` e `user_id`, conforme aplicável. O `SyncEngine` também reconhece os aliases de entidade publicados pelo backend, incluindo `card_template`, `profile`, `mcp_tool_audit`, `deck_exam`, `user_badge` e `ai_ingestion_job`.
-
-Os repositórios em `lib/db/repositories/` expõem CRUD, `softDelete`, consulta por utilizador, seleção de linhas dirty, marcação de sincronização e upsert em lote. Os novos repositórios relevantes são:
-
-- `profile-repository.ts`;
-- `mcp-tool-audit-repository.ts`;
-- `card-template-repository.ts`;
-- `media-repository.ts`;
-- `exam-repository.ts`;
-- `ai-ingest-job-repository.ts`;
-- `gamification-repository.ts`;
-- `user-badge-repository.ts`.
-
-A outbox e o cursor USN permanecem compatíveis com a versão v3: tombstones são materializados antes dos registros ativos e o cursor só avança depois do commit local completo.
-
-### 19.2. Materializador de templates
-
-O novo `lib/services/template-renderer.ts` implementa a renderização client-side de cartões com base em `card_templates`:
-
-```typescript
-const template = {
-  field_definitions: [{ name: 'Front' }, { name: 'Back' }],
-  card_generation: [
-    { name: 'normal', front: '{{Front}}', back: '{{Back}}' },
-    { name: 'reverse', front: '{{Back}}', back: '{{Front}}' },
-  ],
-};
-
-renderCard(template, { Front: 'Pergunta', Back: 'Resposta' });
-// [
-//   { name: 'normal', front: 'Pergunta', back: 'Resposta' },
-//   { name: 'reverse', front: 'Resposta', back: 'Pergunta' },
-// ]
-```
-
-O materializador:
-
-- suporta tokens `{{FieldName}}` com espaços opcionais;
-- transforma campos ausentes em string vazia, sem lançar erro na sessão;
-- suporta várias gerações de cartão, incluindo reversed;
-- valida templates recebidos da Data API;
-- mantém fallback para `Front`/`Back` quando não existe template;
-- é utilizado pelo fluxo de estudo depois de consultar `template_id` do cartão.
-
-A renderização não executa HTML, JavaScript ou código vindo do template. O backend continua a ser responsável por validar a propriedade do template e pela criação transacional de notes/cards via `mcp_create_note`.
-
-### 19.3. Adaptador MCP
-
-`lib/services/mcp-client.ts` fornece um adaptador JSON-RPC local para as ferramentas MCP que já existem como RPCs no backend. O adaptador não abre um endpoint público novo; ele traduz chamadas autorizadas do frontend para as RPCs Supabase existentes.
-
-Ferramentas expostas:
-
-| Ferramenta | Implementação backend | Finalidade |
-|---|---|---|
-| `search_notes` | `mcp_search_notes` via `semantic-search`/`search-service` | Busca lexical ou semântica com contexto do utilizador |
-| `create_note` | RPC `mcp_create_note` | Criação transacional de nota, cartões, learning state e auditoria |
-
-O protocolo suportado inclui:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "request-1",
-  "method": "tools/list"
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "request-2",
-  "method": "tools/call",
-  "params": {
-    "name": "search_notes",
-    "arguments": {
-      "query": "sincronização offline",
-      "limit": 10,
-      "mode": "lexical"
-    }
-  }
-}
-```
-
-A rota `/tools/mcp` disponibiliza uma interface de teste protegida pela flag `NEXT_PUBLIC_FF_MCP`. O backend regista as chamadas em `mcp_tool_audit`; o frontend não insere auditoria manualmente nem tenta contornar RLS.
-
-### 19.4. Anki com hook reutilizável
-
-O hook `lib/hooks/useAnkiImport.ts` centraliza:
-
-- progresso de upload/processamento;
-- estado busy;
-- resultado da importação;
-- mensagem de erro;
-- limpeza do input após a operação.
-
-A rota `/import/anki` passou a utilizar o hook em vez de duplicar o ciclo de estado. O serviço mantém os limites do backend: `.apkg` obrigatório, máximo de 50 MiB, bucket privado `anki-transfers` e paths sob `{user_id}/imports/`.
-
-### 19.5. Feature flags v4
-
-Foram adicionadas:
-
-```dotenv
-NEXT_PUBLIC_FF_MCP=0
-NEXT_PUBLIC_FF_TEMPLATE_RENDERER=1
-```
-
-`mcp` está desativada por defeito. `template_renderer` fica ativada por defeito, mas pode ser desativada explicitamente com `0`, mantendo o fallback simples de frente/verso.
-
-### 19.6. Validação v4
-
-A validação executada na branch `feature/v4` produziu os seguintes resultados:
-
-| Verificação | Resultado |
+| `get_due_cards` | Fila básica de estudo/dashboard. |
+| `get_due_cards_with_exam_schedule` | Fila priorizada por exame. |
+| `get_incremental_sync` | Indiretamente pela Edge Function `sync`. |
+| `get_current_streak` | Dashboard. |
+| `get_fsrs_optimization_status` | Status FSRS. |
+| `mcp_create_note` | Criação transacional de note/cards e criação de card pelo `CardBrowser`. |
+| `create_image_occlusion_note` | Criação de cards Cloze a partir de caixas. |
+| `add_user_xp` | Gamificação. |
+| `mcp_search_notes` | Indiretamente pela Edge Function `semantic-search`. |
+| `enqueue_fsrs_optimization` | Indiretamente por `fsrs-optimize`. |
+| `create_anki_transfer_job` | Indiretamente por `anki-transfer`. |
+
+Além das RPCs, os serviços fazem operações Data API em `profiles`, `study_settings`, `decks`, `notes`, `cards`, `card_learning_state`, `review_logs`, `daily_statistics`, `deck_exams`, `fsrs_optimization_runs`, `ai_ingestion_jobs`, `user_gamification_profiles`, `user_badges`, `badges_definition` e `card_media`, conforme o fluxo.
+
+### Storage
+
+Buckets usados pelo código:
+
+| Bucket | Uso |
 |---|---|
-| `pnpm typecheck` | passou |
-| `pnpm test` | passou: 17 testes |
-| `pnpm build` | passou; 22 rotas geradas |
-| `git diff --check` | passou |
-| `validate_sql.py` no backend | passou em 26 migrations |
-| `validate_snapshot.py` | passou |
-| `validate_readme.py` do backend | passou |
-| `pytest` do backend | passou: 9 testes e 174 subtestes |
-| Auditoria de Edge Functions | 7 chamadas, 0 ausentes |
+| `card-media` | Mídia associada a cards e oclusão. |
+| `anki-transfers` | Upload/download temporário de `.apkg`. |
+| `import-media` | Arquivos de importação de deck e PDF de ingestão. |
 
-Novos testes frontend:
+O frontend gera paths começando pelo UUID do usuário quando o serviço conhece a sessão. URLs de mídia e exportação são assinadas; não são tratadas como URLs públicas permanentes.
 
+---
+
+## 9. Cliente Edge, erros e segurança
+
+### `invokeEdge`
+
+`lib/services/http/edge-client.ts`:
+
+- verifica sessão via `auth.getSession()` antes da chamada;
+- timeout padrão de 30 segundos;
+- retries padrão de 2;
+- usa `AbortController` e `Promise.race`;
+- não repete 429;
+- classifica 401/403 como `AuthRequiredError`;
+- pode classificar 503 como `UnavailableError` quando `noRetryOnUnavailable` está ativo;
+- repete falhas transitórias até o limite;
+- publica erros no `edgeErrorBus`.
+
+Os tipos são `EdgeError`, `RateLimitError`, `AuthRequiredError`, `UnavailableError` e `EdgeTimeoutError`. `RateLimitBanner` apresenta o countdown quando a página trata `retryAfterSec`.
+
+### Regras de segurança implementadas/esperadas
+
+- chave privada/service role não está no frontend;
+- o user ID é obtido do Supabase Auth em serviços que precisam construir paths ou payloads;
+- RLS do backend é a autoridade final de ownership;
+- o frontend não executa ZIP, SQLite ou conteúdo Anki como código;
+- upload Anki e mídia usa buckets privados e URLs assinadas;
+- workers backend com service role não são chamados do browser;
+- payloads são limitados em tamanho nos serviços e no backend;
+- não existe mecanismo no frontend para contornar RLS.
+
+A autenticação de uma rota não equivale à autorização de cada operação: as RPCs e policies precisam continuar ativas no backend.
+
+---
+
+## 10. Feature flags
+
+Existem duas camadas de leitura de flags: `lib/feature-flags.ts` e `lib/config/feature-flags.ts`. A primeira aceita `1` ou `true`; a segunda compara diretamente com `1` para as flags v2/v3/v4 e usa fallback para a primeira camada em `isEnabled`.
+
+| Variável | Flag | Uso observado |
+|---|---|---|
+| `NEXT_PUBLIC_FF_SYNC_WORKER` | `sync_worker` | Worker de sincronização. |
+| `NEXT_PUBLIC_FF_MEDIA` | `media` | Flag declarada; uso de mídia também aparece diretamente em rotas/serviços. |
+| `NEXT_PUBLIC_FF_SEMANTIC` | `semantic` | Flag legada. |
+| `NEXT_PUBLIC_FF_ANKI` | `anki` | Flag legada. |
+| `NEXT_PUBLIC_FF_ANKI_IO` | `anki_io` | Importação Anki. |
+| `NEXT_PUBLIC_FF_AI_INGEST` | `ai_ingest` | Ingestão IA. |
+| `NEXT_PUBLIC_FF_GAMIFICATION` | `gamification` | Badges e perfil XP. |
+| `NEXT_PUBLIC_FF_COLLAB` | `collab` | Flag declarada para colaboração. |
+| `NEXT_PUBLIC_FF_FSRS_OPT` | `fsrs_opt` | Otimização FSRS. |
+| `NEXT_PUBLIC_FF_EXAMS` | `exams` | Exames. |
+| `NEXT_PUBLIC_FF_OCCLUSION` | `occlusion` | Oclusão. |
+| `NEXT_PUBLIC_FF_SYNC_V2` | `sync_v2` | Flag de configuração v2. |
+| `NEXT_PUBLIC_FF_SEMANTIC_SEARCH` | `semantic_search` | Rota `/search`. |
+| `NEXT_PUBLIC_FF_IMPORT_URL` | `import_url` | Importação por URL. |
+| `NEXT_PUBLIC_FF_MCP` | `mcp` | Rota `/tools/mcp`. |
+| `NEXT_PUBLIC_FF_TEMPLATE_RENDERER` | `template_renderer` | A flag existe e vem ativada por defeito na camada v4; a sessão também mantém fallback de template. |
+
+O `.env.example` deixa as flags, exceto `template_renderer`, desligadas. Alterar `.env.local` exige reiniciar o processo Next.js.
+
+---
+
+## 11. PWA e offline de navegação
+
+`app/manifest.ts` declara:
+
+- nome e nome curto `Flashi`;
+- idioma `pt-BR`;
+- display `standalone`;
+- cores de fundo/tema;
+- categorias `education` e `productivity`;
+- atalhos para `/study/demo` e `/decks`;
+- `icons: []`, ou seja, não há ícones PWA configurados neste código.
+
+`public/sw.js` usa cache `flashi-shell-v2`, pré-cacheia um conjunto de rotas públicas e aplica network-first para navegação. Quando a navegação falha, tenta o request em cache e depois `/`. Assets GET também usam cache-first com preenchimento posterior.
+
+Isso torna a **navegação do shell** resiliente depois de aquecida. Não significa que a Data API, Storage, Edge Functions ou todas as páginas dinâmicas funcionem sem rede. Dados locais e reviews dependem adicionalmente de Dexie, outbox e flags descritas na secção de sincronização.
+
+---
+
+## 12. Testes e validação
+
+### Testes unitários atuais
+
+`pnpm test` executa 17 testes em cinco ficheiros:
+
+- `tests/edge-client.test.ts`: autenticação, retorno normal, 429, retry 503, indisponibilidade sem retry e timeout;
+- `tests/feature-services.test.ts`: validação de oclusão e coordenadas percentuais;
+- `tests/sync-engine.test.ts`: aliases de entidades, tipos desconhecidos, mutation ID e ratings;
 - `tests/template-renderer.test.ts`: interpolação, múltiplas gerações e template inválido;
-- `tests/mcp-client.test.ts`: listagem de ferramentas, `tools/list` JSON-RPC e erro de ferramenta desconhecida.
+- `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida.
 
-### 19.7. Decisões contratuais do SDD v4
+### E2E Playwright
 
-O SDD fornecido contém exemplos de contratos de oclusão e sync que não correspondem à versão efetivamente publicada no backend. As decisões mantidas na v4 são:
+`tests/e2e/routes.spec.ts` cobre:
 
-- oclusão usa `create_image_occlusion_note(p_note_id, p_boxes)`, não `p_deck_id/p_image_path`;
-- sync usa o payload e cursor adotados pelo backend v2 e pela implementação validada da v3;
-- MCP usa `p_query`, `p_limit`, `p_query_embedding` e `p_request_id` em `mcp_search_notes`;
-- criação MCP usa `p_deck_id`, `p_fields`, `p_template_id`, `p_card_definitions`, `p_source` e `p_request_id`;
-- auditoria MCP é gerada no backend;
-- entidades sem tabela/RPC efetivamente publicada não foram inventadas no frontend.
+- abertura de rotas públicas e principais;
+- ausência de `pageerror`;
+- gestor de cards e labels;
+- fluxo `/study/demo` de revelar, avaliar e concluir;
+- presença dos painéis de `/tools`;
+- navegação offline depois do service worker aquecer;
+- fluxo autenticado opcional de login, criação de deck e card.
 
-### 19.8. Ficheiros principais adicionados ou atualizados
+O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definidos. Sem essas variáveis, é intencionalmente skipped; não há credenciais no repositório.
+
+### Scripts auxiliares
+
+| Script | Uso |
+|---|---|
+| `scripts/ui-smoke.mjs` | Percorre 13 rotas em desktop/tablet/mobile, verifica overflow, page errors e dimensões mínimas de botões, e clica em botões visíveis. |
+| `scripts/capture-screens.mjs` | Captura 11 rotas em desktop/mobile e escreve `artifacts/screens/manifest.json`. |
+| `scripts/make-contact-sheet.py` | Agrupa capturas em folhas de contacto; requer Pillow no ambiente. |
+| `scripts/supabase-smoke.mjs` | Faz checks REST/Edge com URL e publishable key fornecidas no ambiente; não autentica um usuário. |
+
+### Validação realizada para esta documentação
+
+Nesta revisão foram inspecionados todos os ficheiros versionados do frontend e o backend de referência, incluindo rotas, componentes, serviços, schema local, testes, scripts, PWA, proxy, migrations e Edge Functions. A branch foi previamente validada com:
 
 ```text
-lib/db/schema.ts                         # Dexie v3 e entidades locais
-lib/db/sync-engine.ts                   # aliases e sync USN
-lib/db/repositories/                    # repositórios de perfil/auditoria/templates
-lib/services/template-renderer.ts       # interpolação de templates
-lib/services/mcp-client.ts              # JSON-RPC MCP sobre RPCs existentes
-lib/hooks/useAnkiImport.ts               # estado reutilizável de importação
-app/tools/mcp/page.tsx                   # UI de ferramentas MCP
-app/import/anki/page.tsx                 # UI Anki com hook
-app/study/[deckId]/page.tsx              # renderização de templates
-.env.example                             # flags v4
-tests/template-renderer.test.ts         # testes de templates
- tests/mcp-client.test.ts                # testes MCP
+pnpm typecheck       passou
+pnpm test            17 testes passaram
+pnpm build           passou; 22 rotas geradas
+backend validators   SQL/snapshot/README passaram
+backend pytest       9 testes e 174 subtestes passaram
+Edge audit           7 chamadas frontend sem função publicada em falta
 ```
 
-**Última atualização:** implementação e validação da `feature/v4`.
+Os números acima são resultados do estado validado; repetir os comandos é necessário após novas alterações.
+
+---
+
+## 13. Limitações e pontos que não devem ser inferidos
+
+1. O README não afirma que todas as entidades de `SYNC_TABLES` são escritas/flushadas pelo frontend: a outbox implementa apenas seis tabelas de upsert/delete.
+2. A existência de um repositório Dexie não prova que uma página use esse repositório em vez da Data API.
+3. `SyncWorkerRegister` está sempre montado, mas o worker não inicia com a flag padrão desligada.
+4. A UI de ingestão cria jobs; o worker, o provedor de IA e a materialização das notas estão no backend.
+5. A importação por URL não contorna CORS: o download é feito pelo browser.
+6. A oclusão recebe uma nota existente e cria cartões Cloze; não cria automaticamente um deck ou uma nota a partir do ID do deck.
+7. O template renderer interpola texto; não é um motor de HTML seguro, não executa código e não implementa editor de templates.
+8. O adaptador MCP é um cliente local da aplicação; esta branch não expõe um servidor MCP HTTP público.
+9. `fsrs-optimize-worker` e `ai-ingest-worker` são componentes backend protegidos e não devem receber chamadas do browser.
+10. O service worker cobre shell/cache de navegação, não sincronização de dados remotos.
+11. O manifest não possui ícones porque `icons` está vazio.
+12. Os documentos de auditoria em `docs/` podem descrever checkpoints anteriores, fixtures e números antigos; não devem ser interpretados como estado atual sem confirmação no código.
+13. `NEXT_PUBLIC_FF_MEDIA`, `NEXT_PUBLIC_FF_SEMANTIC`, `NEXT_PUBLIC_FF_ANKI` e `NEXT_PUBLIC_FF_COLLAB` existem na configuração, mas a ativação efetiva de uma tela deve ser confirmada na rota correspondente.
+14. Não há teste E2E autenticado executado sem credenciais de homologação; testes públicos não comprovam persistência real para um usuário específico.
+
+---
+
+## 14. Inventário técnico do código
+
+### Rotas e shell
+
+```text
+app/(auth)/login/page.tsx
+app/(auth)/register/page.tsx
+app/analytics/page.tsx
+app/decks/[deckId]/cards/page.tsx
+app/decks/[deckId]/occlusion/new/page.tsx
+app/decks/[deckId]/page.tsx
+app/decks/new/page.tsx
+app/decks/page.tsx
+app/exams/page.tsx
+app/export/anki/page.tsx
+app/import/ai-ingest/page.tsx
+app/import/anki/page.tsx
+app/import/url/page.tsx
+app/layout.tsx
+app/manifest.ts
+app/media/[id]/page.tsx
+app/occlusion/page.tsx
+app/page.tsx
+app/profile/badges/page.tsx
+app/profile/page.tsx
+app/search/page.tsx
+app/settings/fsrs-optimize/page.tsx
+app/study/[deckId]/page.tsx
+app/study/search/page.tsx
+app/tools/mcp/page.tsx
+app/tools/page.tsx
+```
+
+### Componentes
+
+```text
+AppShell.tsx              CardBrowser.tsx       DeckLibrary.tsx
+EdgeErrorNotice.tsx       MediaViewer.tsx       OcclusionCard.tsx
+OcclusionEditor.tsx       RateLimitBanner.tsx   SemanticHitRow.tsx
+ServiceWorkerRegister.tsx SyncWorkerRegister.tsx
+```
+
+### Serviços e hooks
+
+```text
+analytics-service.ts       anki-service.ts          card-service.ts
+dashboard-service.ts       deck-service.ts          edge-service.ts
+embedding-service.ts       exam-service.ts          fsrs-optimize-service.ts
+gamification-service.ts    import-deck-service.ts  ingestion-service.ts
+mcp-client.ts               media-service.ts        occlusion-service.ts
+optimizer-service.ts       profile-service.ts      search-service.ts
+semantic-search-service.ts  study-service.ts        template-renderer.ts
+supabase-client-compat.ts   useAnkiImport.ts
+```
+
+### Banco local e infraestrutura
+
+```text
+lib/db/schema.ts
+lib/db/outbox-queue.ts
+lib/db/sync-engine.ts
+lib/db/sync-registry.ts
+lib/db/sync-worker.ts
+lib/db/telemetry.ts
+lib/db/repositories/*.ts
+lib/config/feature-flags.ts
+lib/feature-flags.ts
+lib/services/http/edge-client.ts
+lib/services/http/errors.ts
+lib/services/http/event-bus.ts
+lib/supabase/client.ts
+src/types/database.ts
+```
+
+### Testes, scripts e documentação auxiliar
+
+```text
+tests/*.test.ts
+tests/e2e/routes.spec.ts
+scripts/capture-screens.mjs
+scripts/make-contact-sheet.py
+scripts/supabase-smoke.mjs
+scripts/ui-smoke.mjs
+docs/backend-contract-notes.md
+docs/browser-verification.md
+docs/flashcard-refactor-audit.md
+docs/integration-verification.md
+docs/redesign-report.md
+docs/redesign-visual-notes.md
+docs/reference-benchmark-notes.md
+docs/ux-audit-notes.md
+docs/ux-ui-audit.md
+design-system/flashi-aurora/MASTER.md
+FLASHI_SSD_CONSOLIDADO.md
+```
+
+Os repositórios individuais em `lib/db/repositories/` são, em grande parte, reexports de instâncias criadas em `index.ts`; isso é uma convenção de importação, não uma implementação independente por ficheiro.
+
+---
+
+## 15. Procedimento para alterações
+
+1. Confirmar o contrato em `src/types/database.ts` e no backend `Flashi` antes de criar uma chamada.
+2. Não adicionar nomes de RPC, tabelas, buckets ou Edge Functions sem verificar que existem no backend alvo.
+3. Implementar validação no serviço, estado de loading/erro/vazio na página e feedback acessível.
+4. Atualizar testes unitários do contrato alterado.
+5. Executar `pnpm typecheck`, `pnpm test`, `pnpm build` e, quando aplicável, `pnpm test:e2e`.
+6. Se o fluxo for offline, testar cursor, tombstone, outbox, retries e comportamento sem rede separadamente.
+7. Executar `git diff --check` e rever o diff para evitar documentação ou código duplicado.
+8. Descrever no commit/PR quais contratos backend foram consumidos e quais limitações permanecem.
+
+### Referências técnicas
+
+- [Next.js App Router](https://nextjs.org/docs/app)
+- [Supabase JavaScript](https://supabase.com/docs/reference/javascript/introduction)
+- [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
+- [Dexie](https://dexie.org/docs/)
+- [Playwright](https://playwright.dev/docs/intro)
+- [Vitest](https://vitest.dev/guide/)
+- [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
+
+**Última auditoria técnica:** 2026-10-02.
