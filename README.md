@@ -758,7 +758,7 @@ Commit de implementação documentado:
 ## 18. Referências
 
 - [Repositório frontend — `barrosrafa/app-flashi`](https://github.com/barrosrafa/app-flashi)
-- [Branch frontend — `feature/v3`](https://github.com/barrosrafa/app-flashi/tree/feature/v3)
+- [Branch frontend — `feature/v4`](https://github.com/barrosrafa/app-flashi/tree/feature/v4)
 - [Repositório backend — `barrosrafa/Flashi`](https://github.com/barrosrafa/Flashi)
 - [Backend branch — `v2`](https://github.com/barrosrafa/Flashi/tree/v2)
 - [Next.js Proxy](https://nextjs.org/docs/app/getting-started/proxy)
@@ -768,4 +768,190 @@ Commit de implementação documentado:
 
 ---
 
-**Última atualização:** implementação e validação da `feature/v3`.
+## 19. Evolução SDD — feature/v4
+
+A `feature/v4` completa as lacunas que permaneciam abertas no SDD anterior e mantém a regra de integração exclusiva com contratos existentes no backend `Flashi@v2`. Esta etapa não cria tabelas, RPCs ou Edge Functions novas no backend.
+
+### 19.1. Materialização local expandida
+
+O schema Dexie foi atualizado para a versão 3 (`FlashiLocalDB`) e passa a incluir explicitamente as entidades adicionais necessárias ao frontend:
+
+- `profiles`;
+- `mcp_tool_audit`;
+- `card_templates`;
+- `field_definitions`;
+- `note_card_definitions`;
+- `note_cloze_deletions`;
+- `note_references`;
+- `note_image_occlusion_boxes`;
+- `card_learning_state`;
+- `daily_statistics`;
+- `study_settings`;
+- `user_deck_settings`;
+- `deck_collaborators`;
+- `deck_exams`;
+- `user_gamification_profiles`;
+- `user_badges`;
+- `badges_definition`;
+- `socratic_remediation_sessions`;
+- `ai_ingestion_jobs`;
+- `anki_transfer_jobs`.
+
+As entidades continuam a ser indexadas por `id`, `usn`, `updated_at`, `deck_id` e `user_id`, conforme aplicável. O `SyncEngine` também reconhece os aliases de entidade publicados pelo backend, incluindo `card_template`, `profile`, `mcp_tool_audit`, `deck_exam`, `user_badge` e `ai_ingestion_job`.
+
+Os repositórios em `lib/db/repositories/` expõem CRUD, `softDelete`, consulta por utilizador, seleção de linhas dirty, marcação de sincronização e upsert em lote. Os novos repositórios relevantes são:
+
+- `profile-repository.ts`;
+- `mcp-tool-audit-repository.ts`;
+- `card-template-repository.ts`;
+- `media-repository.ts`;
+- `exam-repository.ts`;
+- `ai-ingest-job-repository.ts`;
+- `gamification-repository.ts`;
+- `user-badge-repository.ts`.
+
+A outbox e o cursor USN permanecem compatíveis com a versão v3: tombstones são materializados antes dos registros ativos e o cursor só avança depois do commit local completo.
+
+### 19.2. Materializador de templates
+
+O novo `lib/services/template-renderer.ts` implementa a renderização client-side de cartões com base em `card_templates`:
+
+```typescript
+const template = {
+  field_definitions: [{ name: 'Front' }, { name: 'Back' }],
+  card_generation: [
+    { name: 'normal', front: '{{Front}}', back: '{{Back}}' },
+    { name: 'reverse', front: '{{Back}}', back: '{{Front}}' },
+  ],
+};
+
+renderCard(template, { Front: 'Pergunta', Back: 'Resposta' });
+// [
+//   { name: 'normal', front: 'Pergunta', back: 'Resposta' },
+//   { name: 'reverse', front: 'Resposta', back: 'Pergunta' },
+// ]
+```
+
+O materializador:
+
+- suporta tokens `{{FieldName}}` com espaços opcionais;
+- transforma campos ausentes em string vazia, sem lançar erro na sessão;
+- suporta várias gerações de cartão, incluindo reversed;
+- valida templates recebidos da Data API;
+- mantém fallback para `Front`/`Back` quando não existe template;
+- é utilizado pelo fluxo de estudo depois de consultar `template_id` do cartão.
+
+A renderização não executa HTML, JavaScript ou código vindo do template. O backend continua a ser responsável por validar a propriedade do template e pela criação transacional de notes/cards via `mcp_create_note`.
+
+### 19.3. Adaptador MCP
+
+`lib/services/mcp-client.ts` fornece um adaptador JSON-RPC local para as ferramentas MCP que já existem como RPCs no backend. O adaptador não abre um endpoint público novo; ele traduz chamadas autorizadas do frontend para as RPCs Supabase existentes.
+
+Ferramentas expostas:
+
+| Ferramenta | Implementação backend | Finalidade |
+|---|---|---|
+| `search_notes` | `mcp_search_notes` via `semantic-search`/`search-service` | Busca lexical ou semântica com contexto do utilizador |
+| `create_note` | RPC `mcp_create_note` | Criação transacional de nota, cartões, learning state e auditoria |
+
+O protocolo suportado inclui:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "request-1",
+  "method": "tools/list"
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "request-2",
+  "method": "tools/call",
+  "params": {
+    "name": "search_notes",
+    "arguments": {
+      "query": "sincronização offline",
+      "limit": 10,
+      "mode": "lexical"
+    }
+  }
+}
+```
+
+A rota `/tools/mcp` disponibiliza uma interface de teste protegida pela flag `NEXT_PUBLIC_FF_MCP`. O backend regista as chamadas em `mcp_tool_audit`; o frontend não insere auditoria manualmente nem tenta contornar RLS.
+
+### 19.4. Anki com hook reutilizável
+
+O hook `lib/hooks/useAnkiImport.ts` centraliza:
+
+- progresso de upload/processamento;
+- estado busy;
+- resultado da importação;
+- mensagem de erro;
+- limpeza do input após a operação.
+
+A rota `/import/anki` passou a utilizar o hook em vez de duplicar o ciclo de estado. O serviço mantém os limites do backend: `.apkg` obrigatório, máximo de 50 MiB, bucket privado `anki-transfers` e paths sob `{user_id}/imports/`.
+
+### 19.5. Feature flags v4
+
+Foram adicionadas:
+
+```dotenv
+NEXT_PUBLIC_FF_MCP=0
+NEXT_PUBLIC_FF_TEMPLATE_RENDERER=1
+```
+
+`mcp` está desativada por defeito. `template_renderer` fica ativada por defeito, mas pode ser desativada explicitamente com `0`, mantendo o fallback simples de frente/verso.
+
+### 19.6. Validação v4
+
+A validação executada na branch `feature/v4` produziu os seguintes resultados:
+
+| Verificação | Resultado |
+|---|---|
+| `pnpm typecheck` | passou |
+| `pnpm test` | passou: 17 testes |
+| `pnpm build` | passou; 22 rotas geradas |
+| `git diff --check` | passou |
+| `validate_sql.py` no backend | passou em 26 migrations |
+| `validate_snapshot.py` | passou |
+| `validate_readme.py` do backend | passou |
+| `pytest` do backend | passou: 9 testes e 174 subtestes |
+| Auditoria de Edge Functions | 7 chamadas, 0 ausentes |
+
+Novos testes frontend:
+
+- `tests/template-renderer.test.ts`: interpolação, múltiplas gerações e template inválido;
+- `tests/mcp-client.test.ts`: listagem de ferramentas, `tools/list` JSON-RPC e erro de ferramenta desconhecida.
+
+### 19.7. Decisões contratuais do SDD v4
+
+O SDD fornecido contém exemplos de contratos de oclusão e sync que não correspondem à versão efetivamente publicada no backend. As decisões mantidas na v4 são:
+
+- oclusão usa `create_image_occlusion_note(p_note_id, p_boxes)`, não `p_deck_id/p_image_path`;
+- sync usa o payload e cursor adotados pelo backend v2 e pela implementação validada da v3;
+- MCP usa `p_query`, `p_limit`, `p_query_embedding` e `p_request_id` em `mcp_search_notes`;
+- criação MCP usa `p_deck_id`, `p_fields`, `p_template_id`, `p_card_definitions`, `p_source` e `p_request_id`;
+- auditoria MCP é gerada no backend;
+- entidades sem tabela/RPC efetivamente publicada não foram inventadas no frontend.
+
+### 19.8. Ficheiros principais adicionados ou atualizados
+
+```text
+lib/db/schema.ts                         # Dexie v3 e entidades locais
+lib/db/sync-engine.ts                   # aliases e sync USN
+lib/db/repositories/                    # repositórios de perfil/auditoria/templates
+lib/services/template-renderer.ts       # interpolação de templates
+lib/services/mcp-client.ts              # JSON-RPC MCP sobre RPCs existentes
+lib/hooks/useAnkiImport.ts               # estado reutilizável de importação
+app/tools/mcp/page.tsx                   # UI de ferramentas MCP
+app/import/anki/page.tsx                 # UI Anki com hook
+app/study/[deckId]/page.tsx              # renderização de templates
+.env.example                             # flags v4
+tests/template-renderer.test.ts         # testes de templates
+ tests/mcp-client.test.ts                # testes MCP
+```
+
+**Última atualização:** implementação e validação da `feature/v4`.

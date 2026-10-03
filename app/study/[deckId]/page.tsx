@@ -6,6 +6,8 @@ import { AppShell, Topbar } from '../../../components/AppShell';
 import { getDueCards, submitReview, type DueCard } from '../../../lib/services/study-service';
 import type { Json } from '../../../src/types/database';
 import type { Rating } from '../../../lib/db/schema';
+import { createClient } from '../../../lib/supabase/client';
+import { normalizeTemplate, renderCard, renderDefaultCard, type RenderedCard } from '../../../lib/services/template-renderer';
 
 function cardFields(value: Json) {
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
@@ -44,6 +46,7 @@ export default function Study({ params }: { params: Promise<{ deckId: string }> 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [renderedContent, setRenderedContent] = useState<RenderedCard | null>(null);
 
   useEffect(() => {
     if (deckId === 'demo') {
@@ -64,7 +67,8 @@ export default function Study({ params }: { params: Promise<{ deckId: string }> 
   }, [deckId]);
 
   const current = cards[done];
-  const currentContent = current ? cardFields(current.fields) : null;
+  const currentContent = renderedContent ?? (current ? renderDefaultCard(current.fields as Record<string, unknown>) : null);
+  useEffect(() => { let cancelled = false; async function loadTemplate() { if (!current || deckId === 'demo') { setRenderedContent(null); return; } const supabase = createClient(); const { data: card } = await supabase.from('cards').select('template_id').eq('id', current.card_id).maybeSingle(); if (!card?.template_id) { setRenderedContent(null); return; } const { data: template } = await supabase.from('card_templates').select('field_definitions,card_generation').eq('id', card.template_id).maybeSingle(); const normalized = normalizeTemplate(template); const rendered = normalized ? renderCard(normalized, current.fields as Record<string, unknown>)[0] : null; if (!cancelled) setRenderedContent(rendered ?? null); } void loadTemplate(); return () => { cancelled = true; }; }, [current, deckId]);
   const progress = cards.length === 0 ? 0 : Math.min((done / cards.length) * 100, 100);
   const completed = !loading && !error && done >= cards.length && cards.length > 0;
 

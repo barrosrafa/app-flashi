@@ -9,7 +9,7 @@ Object.assign(ENTITY_TABLE_MAP, {
   tag:'tags', card_template:'card_templates', study_settings:'study_settings', user_deck_settings:'user_deck_settings', daily_statistics:'daily_statistics',
   note_card_definition:'note_card_definitions', note_cloze_deletion:'note_cloze_deletions', fsrs_optimization_run:'fsrs_optimization_runs',
   ai_ingestion_job:'ai_ingestion_jobs', note_image_occlusion_box:'note_image_occlusion_boxes', note_reference:'note_references',
-  user_gamification_profile:'user_gamification_profiles', user_badge:'user_badges', deck_exam:'deck_exams', socratic_remediation_session:'socratic_remediation_sessions', card_tag:'card_tags'
+  user_gamification_profile:'user_gamification_profiles', profile:'profiles', mcp_tool_audit:'mcp_tool_audit', user_badge:'user_badges', deck_exam:'deck_exams', socratic_remediation_session:'socratic_remediation_sessions', card_tag:'card_tags'
 });
 function normalize(data: SyncResponse | null) { const rows = Array.isArray(data) ? data : data?.data ?? []; return { records: rows.filter((c) => !c.is_deleted), graves: rows.filter((c) => c.is_deleted), nextUsn: Array.isArray(data) ? undefined : data?.next_usn }; }
 export async function executeIncrementalSync(): Promise<boolean> {
@@ -20,7 +20,7 @@ export async function executeIncrementalSync(): Promise<boolean> {
     const highestUsn = Number(nextUsn ?? all.reduce((max, change) => Math.max(Number(change.usn) || max, cursor), cursor));
     await db.transaction('rw', db.tables, async () => {
       for (const change of graves) { const table = ENTITY_TABLE_MAP[change.entity_type]; if (table) await db.table(table).put({ id: change.entity_key, ...(change.payload ?? {}), deleted_at: (change.payload as { deleted_at?: string } | null)?.deleted_at ?? new Date().toISOString(), usn: change.usn, _dirty: 0, _synced_at: new Date().toISOString() } as never); }
-      for (const change of records) { const table = ENTITY_TABLE_MAP[change.entity_type]; if (table && change.payload) await db.table(table).put({ ...change.payload, id:change.payload.id ?? change.entity_key, usn:change.usn }); }
+      for (const change of records) { const table = ENTITY_TABLE_MAP[change.entity_type]; if (table && change.payload) await db.table(table).put({ ...change.payload, id:change.payload.id ?? change.entity_key, usn:change.usn, _dirty: 0, _synced_at: new Date().toISOString() }); }
       if (highestUsn > cursor) await db.sync_meta.put({ key:'last_usn', value:highestUsn });
     });
     recordTelemetry('sync.success', { duration_ms:Math.round(performance.now()-startedAt), changes:all.length, cursor:highestUsn }); return true;

@@ -1,0 +1,4 @@
+'use client';
+import { useCallback, useState } from 'react';
+import { ankiService, type ImportResult } from '../services/anki-service';
+export function useAnkiImport() { const [progress, setProgress] = useState(0); const [error, setError] = useState<string | null>(null); const [result, setResult] = useState<ImportResult | null>(null); const [busy, setBusy] = useState(false); const importApkg = useCallback(async (file: File, targetDeckName?: string) => { setBusy(true); setProgress(0); setError(null); setResult(null); try { const value = await ankiService.importApkg({ file, targetDeckName, onProgress: setProgress }); setResult(value); return value; } catch (reason) { const message = reason instanceof Error ? reason.message : 'Não foi possível importar o pacote.'; setError(message); throw reason; } finally { setBusy(false); } }, []); return { importApkg, progress, error, result, busy }; }

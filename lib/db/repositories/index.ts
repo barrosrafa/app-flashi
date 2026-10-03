@@ -18,3 +18,5 @@ export const userBadgeRepository = new BaseRepository(db.table('user_badges'));
 export const examRepository = new BaseRepository(db.table('deck_exams'));
 export const examSessionRepository = new BaseRepository(db.table('socratic_remediation_sessions'));
 export const socraticPromptRepository = new BaseRepository(db.table('socratic_remediation_sessions'));
+export const profileRepository = new BaseRepository(db.table('profiles'));
+export const mcpToolAuditRepository = new BaseRepository(db.table('mcp_tool_audit'));
