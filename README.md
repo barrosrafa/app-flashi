@@ -119,8 +119,9 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
 | `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks através de `listDecks`; estado vazio e link para criação. |
 | `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
-| `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` | Carrega detalhe do deck e `CardBrowser`; inclui links para estudar, cards e oclusão. |
+| `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` + `DeckDetailClient` | Carrega detalhe do deck; integra cards, notes, mídia e colaboração quando os contratos/flags estão disponíveis. |
 | `/decks/[deckId]/cards` | `app/decks/[deckId]/cards/page.tsx` + `CardBrowser` | Cria, pesquisa e arquiva cards; criação usa `mcp_create_note`. |
+| `/decks/[deckId]/notes` | `app/decks/[deckId]/notes/page.tsx` + `NoteWorkspace` | CRUD de notes, seleção de template, definições de campo, cloze e referências. |
 | `/decks/[deckId]/occlusion/new` | `app/decks/[deckId]/occlusion/new/page.tsx` | **Flag `occlusion`**; upload de imagem, editor de caixas percentuais e RPC de oclusão. |
 | `/study/[deckId]` | `app/study/[deckId]/page.tsx` | Fila real, frente/verso, ratings, review FSRS e fallback local. Também carrega template do card quando disponível. |
 | `/study/demo` | mesma página com `deckId=demo` | Fixture local para demonstrar o fluxo sem tocar no backend. |
@@ -137,7 +138,7 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | `/import/anki` | `app/import/anki/page.tsx` | **Flag `anki_io`**; usa `useAnkiImport` para upload `.apkg`. |
 | `/export/anki` | `app/export/anki/page.tsx` | Exportação de deck através de `anki-transfer`. |
 | `/import/url` | `app/import/url/page.tsx` | **Flag `import_url`**; browser faz `fetch` da URL, envia o arquivo ao bucket e chama `import-deck`. CORS é obrigatório. |
-| `/media/[id]` | `app/media/[id]/page.tsx` | Exibe mídia através de URL assinada. |
+| `/media/[id]` | `app/media/[id]/page.tsx` | Exibe mídia através de URL assinada; estados sem recurso/sem registro não fabricam conteúdo. |
 | `/occlusion` | `app/occlusion/page.tsx` | **Flag `occlusion`**; formulário simples de nota e regiões percentuais. |
 | `/manifest.webmanifest` | `app/manifest.ts` | Resposta JSON gerada pelo Next; não é uma tela de UI. |
 
@@ -165,7 +166,12 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 |---|---|
 | `DeckLibrary` | Busca e apresenta decks, progresso, estados de erro e vazio. |
 | `CardBrowser` | Lista cards de um deck, busca local, formulário de criação e arquivamento. |
+| `NoteWorkspace` | Lista, pesquisa, cria, edita e exclui notes; carrega definições de template, cria campos, clozes e referências. |
+| `ReferenceEditor` | Adiciona e remove referências direcionadas entre notes com validação de auto-referência. |
+| `MediaManager` | Faz upload, associa, lista, edita metadados, visualiza e remove mídia do escopo do deck/card. |
 | `MediaViewer` | Renderiza áudio, vídeo ou imagem conforme MIME. |
+| `CollaboratorManager` | Lista colaboradores e oferece operações de administração previstas pelo contrato de colaboração. |
+| `WorkerJobMonitor` | Lista jobs AI/FSRS, atualiza status e expõe retry somente para estados suportados pelo serviço. |
 | `OcclusionEditor` | Converte pointer coordinates em percentuais e desenha caixas. |
 | `OcclusionCard` | Mostra imagem com regiões clicáveis para revelar/ocultar. |
 | `SemanticHitRow` | Apresenta score, tipo, campos e ID de uma nota encontrada. |
@@ -222,9 +228,23 @@ O teste e2e não substitui auditoria de acessibilidade. Os checks existentes cob
 
 ### Mídia e oclusão
 
-- `media-service.ts`: envia bytes para `card-media/<owner>/<cardId ou unattached>/<uuid>.<ext>` e cria URLs assinadas.
+- `media-service.ts`: lista mídia por card/deck, envia bytes para `card-media/<owner>/<cardId ou unattached>/<uuid>.<ext>`, cria URLs assinadas, atualiza metadados, remove o registro e tenta limpar o objeto de Storage; também consulta mídia órfã conforme o RPC disponível.
+- `MediaManager` é a interface de upload/associação/preview/edição/exclusão. Upload sem card usa o segmento `unattached` para que o fluxo de oclusão possa associar o arquivo depois.
 - `occlusion-service.ts`: transforma máscaras em `x_pos`, `y_pos`, `width_pct`, `height_pct`, exige valores dentro de 0–100 e chama `create_image_occlusion_note(p_note_id, p_boxes)`.
 - O serviço não cria uma nota nova: recebe uma `noteId` existente.
+
+### Notes, cloze e referências
+
+- `note-service.ts`: CRUD de notes e operações de `note_card_definitions`, `note_cloze_deletions` e `note_references`, mantendo os campos estruturados como JSON compatível com os tipos gerados.
+- `NoteWorkspace` usa templates existentes quando selecionados; sem template, mantém os campos `Front` e `Back`, permite adicionar campos e salva a note antes de permitir clozes/referências dependentes.
+- `reference-service.ts`: cria e remove referências direcionadas e rejeita auto-referência no cliente antes da validação final por RLS/RPC.
+
+### Colaboração e jobs
+
+- `collaborator-service.ts`: lista colaboradores, cria/atualiza/remove relações conforme o papel do usuário e usa o backend como autoridade de autorização; não concede acesso alterando apenas estado local.
+- `ingestion-service.ts` e `fsrs-optimize-service.ts`: expõem listagem de histórico, atualização e retry apenas para jobs e estados que o backend aceita.
+- `WorkerJobMonitor` é usado nas telas de ingestão AI e otimização FSRS para mostrar histórico, status, erro e retry. Cancelamento não é inventado quando não existe RPC correspondente.
+- `mcp-audit-service.ts`: consulta `mcp_tool_audit` para exibir ferramenta, status, latência, request ID e data no painel MCP; não exibe secrets.
 
 ### Gamificação e MCP
 
@@ -410,6 +430,10 @@ Existem duas camadas de leitura de flags: `lib/feature-flags.ts` e `lib/config/f
 | `NEXT_PUBLIC_FF_IMPORT_URL` | `import_url` | Importação por URL. |
 | `NEXT_PUBLIC_FF_MCP` | `mcp` | Rota `/tools/mcp`. |
 | `NEXT_PUBLIC_FF_TEMPLATE_RENDERER` | `template_renderer` | A flag existe e vem ativada por defeito na camada v4; a sessão também mantém fallback de template. |
+| `NEXT_PUBLIC_FF_TAGS` | `tags` | Edição e persistência de tags em cards. |
+| `NEXT_PUBLIC_FF_SOCRATIC` | `socratic` | Lista e detalhe de sessões socráticas. |
+| `NEXT_PUBLIC_FF_TEMPLATES` | `templates` | Lista e detalhe de templates. |
+| `NEXT_PUBLIC_FF_REFERENCES` | `references` | Editor de referências entre notes. |
 
 O `.env.example` deixa as flags, exceto `template_renderer`, desligadas. Alterar `.env.local` exige reiniciar o processo Next.js.
 
@@ -433,17 +457,34 @@ Isso torna a **navegação do shell** resiliente depois de aquecida. Não signif
 
 ---
 
-## 12. Testes e validação
+## 12. Implementação v5 de paridade de funcionalidades
+
+Esta branch fechou as lacunas de interface que existiam apesar de os contratos já estarem no backend. O escopo implementado é:
+
+1. **Notes:** rota própria e workspace para CRUD, campos definidos pelo template, cloze e referências; a note é salva antes das operações dependentes do seu ID.
+2. **Mídia:** serviço e `MediaManager` para upload em bucket privado, associação a card, preview por URL assinada, atualização de metadados, exclusão e tratamento de mídia não associada.
+3. **Colaboração:** `CollaboratorManager` integrado ao detalhe do deck, com operações de relação delegadas ao serviço autenticado, sem simular permissões no cliente.
+4. **Workers:** histórico, status, erro, atualização e retry controlado de jobs de ingestão AI e FSRS nas páginas respectivas; workers protegidos continuam sendo backend-only.
+5. **Auditoria MCP:** histórico de chamadas `mcp_tool_audit` visível no painel MCP, sem persistir ou renderizar tokens.
+6. **Sincronização:** flags centralizadas em `lib/config/feature-flags.ts`; o sync local é isolado por usuário, preserva cursores bigint como string e reseta estado local ao trocar de conta.
+7. **Cards e templates:** tags normalizadas são persistidas pelo contrato de tags; o detalhe do deck deixou de ser somente uma tela estática e carrega dados reais.
+
+Essas telas não alteram o schema nem substituem RLS. Quando uma flag está desligada, a rota mostra o estado de recurso desativado; quando um contrato depende de usuário, deck, note ou job existente, o estado vazio é mostrado em vez de dados de demonstração.
+
+O manual visual e operacional, incluindo screenshots, está em [`docs/manual_usuario.md`](docs/manual_usuario.md). Este README mantém somente contratos de implementação, rotas e limites técnicos; não repete o passo a passo de cada botão do manual.
+
+## 13. Testes e validação
 
 ### Testes unitários atuais
 
-`pnpm test` executa 17 testes em cinco ficheiros:
+`pnpm test` executa os testes unitários presentes em `tests/`. Na validação desta branch foram executados **20 testes em 6 ficheiros**:
 
 - `tests/edge-client.test.ts`: autenticação, retorno normal, 429, retry 503, indisponibilidade sem retry e timeout;
 - `tests/feature-services.test.ts`: validação de oclusão e coordenadas percentuais;
 - `tests/sync-engine.test.ts`: aliases de entidades, tipos desconhecidos, mutation ID e ratings;
 - `tests/template-renderer.test.ts`: interpolação, múltiplas gerações e template inválido;
-- `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida.
+- `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida;
+- `tests/v5-features.test.ts`: contratos de serviços introduzidos na paridade v5.
 
 ### E2E Playwright
 
@@ -474,18 +515,16 @@ Nesta revisão foram inspecionados todos os ficheiros versionados do frontend e 
 
 ```text
 pnpm typecheck       passou
-pnpm test            17 testes passaram
-pnpm build           passou; 22 rotas geradas
-backend validators   SQL/snapshot/README passaram
-backend pytest       9 testes e 174 subtestes passaram
-Edge audit           7 chamadas frontend sem função publicada em falta
+pnpm test            20 testes passaram em 6 ficheiros
+pnpm build           passou; 29 rotas App Router listadas, 24 páginas estáticas geradas
+backend validate_readme.py  passou
 ```
 
 Os números acima são resultados do estado validado; repetir os comandos é necessário após novas alterações.
 
 ---
 
-## 13. Limitações e pontos que não devem ser inferidos
+## 14. Limitações e pontos que não devem ser inferidos
 
 1. O README não afirma que todas as entidades de `SYNC_TABLES` são escritas/flushadas pelo frontend: a outbox implementa apenas seis tabelas de upsert/delete.
 2. A existência de um repositório Dexie não prova que uma página use esse repositório em vez da Data API.
@@ -504,7 +543,7 @@ Os números acima são resultados do estado validado; repetir os comandos é nec
 
 ---
 
-## 14. Inventário técnico do código
+## 15. Inventário técnico do código
 
 ### Rotas e shell
 
@@ -604,7 +643,7 @@ Os repositórios individuais em `lib/db/repositories/` são, em grande parte, re
 
 ---
 
-## 15. Procedimento para alterações
+## 16. Procedimento para alterações
 
 1. Confirmar o contrato em `src/types/database.ts` e no backend `Flashi` antes de criar uma chamada.
 2. Não adicionar nomes de RPC, tabelas, buckets ou Edge Functions sem verificar que existem no backend alvo.
@@ -631,7 +670,7 @@ Os repositórios individuais em `lib/db/repositories/` são, em grande parte, re
 
 ---
 
-## 16. Implementação do SDD v5
+## 17. Implementação do SDD v5
 
 A feature/v5 implementa as funcionalidades do SDD que tinham contrato disponível no backend `Flashi@v2`. A implementação foi feita sobre os serviços e componentes existentes; não foram criadas RPCs, tabelas, buckets ou Edge Functions novas.
 
