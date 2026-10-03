@@ -5,6 +5,7 @@ import { createClient } from '../lib/supabase/client';
 import { resetLocalSyncState } from '../lib/db/sync-engine';
 export function SyncWorkerRegister() {
   useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return;
     const supabase = createClient();
     let currentUserId: string | null = null;
     let stopped = false;
