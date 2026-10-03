@@ -314,3 +314,17 @@ A branch `feature/v1` implementa a primeira fatia vertical do SDD sem alterar co
 - worker opt-in acionado por intervalo, `focus` e `online`.
 
 Para ativar o worker em desenvolvimento, defina `NEXT_PUBLIC_FF_SYNC_WORKER=1`. As fases de mídia, Anki, IA, colaboração, gamificação, oclusão e busca semântica permanecem atrás das respetivas flags até serem implementadas em fatias posteriores.
+
+
+## 17. Evolução SDD — feature/v2
+
+A branch `feature/v2` adapta o SDD recebido à aplicação Next.js web existente (o documento original assume Expo Router/React Native) e implementa os módulos possíveis com os contratos verificados do backend Flashi v2:
+
+- wrapper único `invokeEdge` com timeout, retry de falhas transitórias e `RateLimitError` sem retry;
+- aviso global de rate limit/erro para a UI;
+- flags opt-in para semântica, FSRS, IA, Anki, exames, gamificação, mídia e oclusão;
+- serviços de busca semântica, otimização FSRS, gamificação, mídia privada com SHA-256 e oclusão por RPC via outbox;
+- telas web guardadas por flag para busca, FSRS, badges, ingestão IA, importação Anki, mídia e oclusão;
+- testes unitários de sucesso, timeout, retry, 429 e validação de caixas de oclusão.
+
+Não foram criados os contratos `gamification`, `exam-schedule`, `socratic`, `sync-push`, `sync-pull` ou `occlusion-create` citados no SDD, porque não existem no inventário backend verificado. A gamificação usa as tabelas existentes, os exames usam as RPCs/tabelas existentes e a oclusão usa `create_image_occlusion_note` via outbox.
