@@ -19,6 +19,10 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 const STORAGE_KEY = 'flashi_locale';
 const COOKIE_KEY = 'NEXT_LOCALE';
 
+function isSupabaseConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+}
+
 function readStoredLocale(): SupportedLocale {
   if (typeof window === 'undefined') return defaultLocale;
   const value = window.localStorage.getItem(STORAGE_KEY) ?? document.cookie.match(/(?:^|; )NEXT_LOCALE=([^;]+)/)?.[1];
@@ -44,6 +48,7 @@ async function persistLocale(locale: SupportedLocale) {
     document.cookie = `${COOKIE_KEY}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
     document.documentElement.lang = locale;
   }
+  if (!isSupabaseConfigured()) return;
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
@@ -62,6 +67,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initial = readStoredLocale();
     applyLocale(initial);
+    if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     const syncProfileLocale = async () => {
       const { data: { user } } = await supabase.auth.getUser();
