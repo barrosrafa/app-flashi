@@ -4,7 +4,13 @@ import { recordTelemetry } from './telemetry';
 type SyncChange = { entity_type: string; entity_key: string; usn: number; is_deleted?: boolean; payload?: SyncableRecord | null };
 type SyncResponse = SyncChange[] | { records?: SyncChange[]; graves?: SyncChange[]; changes?: SyncChange[]; next_usn?: number };
 const ENTITY_TABLE_MAP: Record<string, SyncTableName> = Object.fromEntries(SYNC_TABLES.map((table) => [table, table]));
-Object.assign(ENTITY_TABLE_MAP, { deck:'decks', card:'cards', card_learning_state:'card_learning_state', review_log:'review_logs', deck_exam:'deck_exams' });
+Object.assign(ENTITY_TABLE_MAP, {
+  deck:'decks', card:'cards', note:'notes', card_media:'card_media', card_learning_state:'card_learning_state', review_log:'review_logs',
+  tag:'tags', card_template:'card_templates', study_settings:'study_settings', user_deck_settings:'user_deck_settings', daily_statistics:'daily_statistics',
+  note_card_definition:'note_card_definitions', note_cloze_deletion:'note_cloze_deletions', fsrs_optimization_run:'fsrs_optimization_runs',
+  ai_ingestion_job:'ai_ingestion_jobs', note_image_occlusion_box:'note_image_occlusion_boxes', note_reference:'note_references',
+  user_gamification_profile:'user_gamification_profiles', user_badge:'user_badges', deck_exam:'deck_exams', socratic_remediation_session:'socratic_remediation_sessions', card_tag:'card_tags'
+});
 function normalize(data: SyncResponse | null) { if (Array.isArray(data)) return { records:data.filter((c) => !c.is_deleted), graves:data.filter((c) => c.is_deleted), nextUsn:undefined }; return { records:data?.records ?? data?.changes ?? [], graves:data?.graves ?? [], nextUsn:data?.next_usn }; }
 export async function executeIncrementalSync(): Promise<boolean> {
   const startedAt = performance.now(); const cursor = (await db.sync_meta.get('last_usn'))?.value ?? 0;
