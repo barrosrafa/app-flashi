@@ -1,4 +1,5 @@
 import type { SupportedLocale } from '../locales';
+import { featureEnglish, featureSpanish } from './featureTranslations';
 
 const ptToEnglish: Record<string, string> = {
   'Pular para o conteúdo principal': 'Skip to main content',
@@ -455,8 +456,8 @@ const ptToSpanish: Record<string, string> = {
 
 export const autoTranslations: Record<SupportedLocale, Record<string, string>> = {
   'pt-BR': {},
-  en: ptToEnglish,
-  es: ptToSpanish,
+  en: { ...ptToEnglish, ...featureEnglish },
+  es: { ...ptToSpanish, ...featureSpanish },
 };
 
 export function translateUiText(value: string, locale: SupportedLocale): string {
@@ -464,9 +465,57 @@ export function translateUiText(value: string, locale: SupportedLocale): string 
   const translated = autoTranslations[locale][trimmed];
   if (translated) return value.replace(trimmed, translated);
   if (locale === 'en') {
+    const searchMatch = trimmed.match(/^(\d+) resultado\(s\) em modo (semantic|lexical)\.$/);
+    if (searchMatch) return value.replace(trimmed, `${searchMatch[1]} result(s) in ${searchMatch[2]} mode.`);
+    const dynamicRules: [RegExp, string][] = [
+      [/^Limite atingido em (.+)\. Tente novamente em (\d+)s\.$/, 'Rate limit reached for $1. Try again in $2s.'],
+      [/^Não foi possível concluir (.+)\.$/, 'Could not complete $1.'],
+      [/^(\d+) notas e (\d+) cards importados\.$/, '$1 notes and $2 cards imported.'],
+      [/^Job criado enviado para processamento\. Nada é salvo sem revisão\.$/, 'Job created and submitted for processing. Nothing is saved without review.'],
+      [/^Job (.+) enviado para processamento\. Nada é salvo sem revisão\.$/, 'Job $1 submitted for processing. Nothing is saved without review.'],
+      [/^Job de ingestão criado: (.+)\.$/, 'Ingestion job created: $1.'],
+      [/^Importação (.+) concluída: (\d+) cartões?\.$/, 'Import $1 completed: $2 cards.'],
+      [/^Exportação pronta: (\d+) cards?\.$/, 'Export ready: $1 cards.'],
+      [/^Otimização solicitada: (.+)\.$/, 'Optimization requested: $1.'],
+      [/^Importação enviada: (.+)\.$/, 'Import submitted: $1.'],
+      [/^Exames ativos \((\d+)\)$/, 'Active exams ($1)'],
+      [/^([\d.,]+) job\(s\) visível\(is\) para sua conta\.$/, '$1 job(s) visible to your account.'],
+      [/^([\d.,]+) execução\(ões\) registrada\(s\)\.$/, '$1 run(s) recorded.'],
+      [/^([\d.,]+) região\(ões\) definida\(s\)\.$/, '$1 region(s) defined.'],
+      [/^Exportar (.+)$/, 'Export $1'],
+      [/^Nota ([0-9a-f-]+)$/i, 'Note $1'],
+      [/^Card ([0-9a-f-]+)$/, 'Card $1'],
+    ];
+    for (const [pattern, replacement] of dynamicRules) {
+      if (pattern.test(trimmed)) return value.replace(trimmed, trimmed.replace(pattern, replacement));
+    }
     return value.replace(/^(\d+) ativos$/, '$1 active').replace(/^(\d+) dias$/, '$1 days').replace(/^(\d+) novos · (\d+) em revisão$/, '$1 new · $2 in review');
   }
   if (locale === 'es') {
+    const searchMatch = trimmed.match(/^(\d+) resultado\(s\) em modo (semantic|lexical)\.$/);
+    if (searchMatch) return value.replace(trimmed, `${searchMatch[1]} resultado(s) en modo ${searchMatch[2] === 'semantic' ? 'semántico' : 'léxico'}.`);
+    const dynamicRules: [RegExp, string][] = [
+      [/^Limite atingido em (.+)\. Tente novamente em (\d+)s\.$/, 'Se alcanzó el límite en $1. Inténtalo de nuevo en $2s.'],
+      [/^Não foi possível concluir (.+)\.$/, 'No se pudo completar $1.'],
+      [/^(\d+) notas e (\d+) cards importados\.$/, '$1 notas y $2 tarjetas importadas.'],
+      [/^Job criado enviado para processamento\. Nada é salvo sem revisão\.$/, 'Tarea creada y enviada a procesamiento. No se guarda nada sin revisión.'],
+      [/^Job (.+) enviado para processamento\. Nada é salvo sem revisão\.$/, 'Tarea $1 enviada a procesamiento. No se guarda nada sin revisión.'],
+      [/^Job de ingestão criado: (.+)\.$/, 'Tarea de ingesta creada: $1.'],
+      [/^Importação (.+) concluída: (\d+) cartões?\.$/, 'Importación $1 completada: $2 tarjetas.'],
+      [/^Exportação pronta: (\d+) cards?\.$/, 'Exportación lista: $1 tarjetas.'],
+      [/^Otimização solicitada: (.+)\.$/, 'Optimización solicitada: $1.'],
+      [/^Importação enviada: (.+)\.$/, 'Importación enviada: $1.'],
+      [/^Exames ativos \((\d+)\)$/, 'Exámenes activos ($1)'],
+      [/^([\d.,]+) job\(s\) visível\(is\) para sua conta\.$/, '$1 tarea(s) visible(s) para tu cuenta.'],
+      [/^([\d.,]+) execução\(ões\) registrada\(s\)\.$/, '$1 ejecución(es) registrada(s).'],
+      [/^([\d.,]+) região\(ões\) definida\(s\)\.$/, '$1 región(es) definida(s).'],
+      [/^Exportar (.+)$/, 'Exportar $1'],
+      [/^Nota ([0-9a-f-]+)$/i, 'Nota $1'],
+      [/^Card ([0-9a-f-]+)$/, 'Tarjeta $1'],
+    ];
+    for (const [pattern, replacement] of dynamicRules) {
+      if (pattern.test(trimmed)) return value.replace(trimmed, trimmed.replace(pattern, replacement));
+    }
     return value.replace(/^(\d+) ativos$/, '$1 activas').replace(/^(\d+) dias$/, '$1 días').replace(/^(\d+) novos · (\d+) em revisão$/, '$1 nuevas · $2 en repaso');
   }
   return value;
