@@ -838,3 +838,24 @@ Validações executadas após a implementação:
 | Persistência de endpoint/token MCP | Não implementada; valores ficam em memória. |
 | Persistência de edição de oclusão | O editor é controlado; a página deve chamar Data API/RPC quando o fluxo de edição for conectado. |
 | Gráficos avançados | Não foi adicionada dependência: o projeto não tinha biblioteca de gráficos aprovada; a UI usa o gráfico CSS existente. |
+
+
+## 14. Sistema de temas (light/dark)
+
+A interface oferece três opções em **Perfil → Aparência**: **Claro**, **Escuro** e **Sistema**. A seleção é persistida em `localStorage` com a chave `flashi-theme`; quando Sistema está selecionado, o Flashi acompanha `prefers-color-scheme` e reage a alterações da preferência do dispositivo.
+
+A implementação usa tokens CSS em `app/globals.css`, aplica `data-theme` no elemento `<html>` e executa um script inline no `app/layout.tsx` para evitar flash de tema incorreto (FOUC). O seletor é um radio group acessível, com `aria-checked`, foco visível e suporte a teclado. A Topbar não possui mais alternância de tema; o ponto de controle oficial é a página de perfil.
+
+Documentação detalhada: [`docs/theme-system.md`](docs/theme-system.md).
+
+### Validação local
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm dev
+```
+
+O smoke E2E cobre as principais rotas, o fluxo de estudo demo, contratos da tela de ferramentas e carregamento offline após aquecimento do service worker. Os testes autenticados continuam opcionais e exigem `E2E_EMAIL` e `E2E_PASSWORD`.
