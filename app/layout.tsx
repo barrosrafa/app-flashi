@@ -3,6 +3,7 @@ import './globals.css';
 import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 import { SyncWorkerRegister } from '../components/SyncWorkerRegister';
 import { EdgeErrorNotice } from '../components/EdgeErrorNotice';
+import { ThemeProvider } from '../lib/theme/ThemeProvider';
 
 export const metadata: Metadata = {
   title: {
@@ -23,5 +24,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body><ServiceWorkerRegister /><SyncWorkerRegister /><EdgeErrorNotice />{children}</body></html>;
+  return <html lang="pt-BR" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('flashi-theme')||'system';var d=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;document.documentElement.dataset.theme=d;document.documentElement.style.colorScheme=d}catch(e){}})()` }} /></head><body><ThemeProvider><ServiceWorkerRegister /><SyncWorkerRegister /><EdgeErrorNotice />{children}</ThemeProvider></body></html>;
 }

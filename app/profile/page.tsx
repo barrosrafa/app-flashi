@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AppShell, Topbar } from '../../components/AppShell';
 import { createClient } from '../../lib/supabase/client';
 import { getProfileData, updateProfilePreferences, type ProfileData } from '../../lib/services/profile-service';
+import { ThemeSwitcher } from '../../components/ThemeSwitcher';
 
 export default function Profile() {
   const [data, setData] = useState<ProfileData | null>(null);
@@ -56,13 +57,19 @@ export default function Profile() {
   return <AppShell>
     <Topbar title="Seu perfil" subtitle="Preferências, conta e sincronização." />
     {message && <div className={`notice ${message.includes('Não foi') || message.includes('Entre') ? 'error' : ''}`} role="status" aria-live="polite">{message}</div>}
-    {loading ? <div className="card" role="status">Carregando suas preferências…</div> : <section className="card" aria-labelledby="profile-heading">
+    {loading ? <div className="card" role="status">Carregando suas preferências…</div> : <>
+      <section className="card" aria-labelledby="profile-heading">
       <div className="profile-summary"><div className="avatar profile-avatar" aria-hidden="true">{initials}</div><div><h2 id="profile-heading">Preferências da conta</h2><p className="subtitle">{data?.email ?? 'Conta Supabase · local-first'}</p></div></div>
       <form className="form" onSubmit={savePreferences}>
         <div className="field"><label htmlFor="display-name">Nome de exibição</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></div>
         <div className="field"><label htmlFor="new-cards">Meta diária de cartões novos</label><input id="new-cards" type="number" min="0" max="999" value={newCardsPerDay} onChange={(event) => setNewCardsPerDay(Number(event.target.value))} inputMode="numeric" /><span className="status-text">Uma meta menor ajuda a manter a sessão sustentável.</span></div>
         <div className="section-head-actions"><button className="btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar preferências'}</button><button className="btn ghost" type="button" onClick={() => void signOut()} disabled={saving}>Sair da conta</button></div>
       </form>
-    </section>}
+      </section>
+      <section className="card appearance-card" aria-labelledby="appearance-heading">
+        <div className="section-head compact-head"><div><h2 id="appearance-heading">Aparência</h2><p className="subtitle">Escolha como o Flashi deve aparecer. A preferência é salva automaticamente.</p></div></div>
+        <ThemeSwitcher />
+      </section>
+    </>}
   </AppShell>;
 }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { isEnabled } from '../lib/config/feature-flags';
 
 const items = [
@@ -33,7 +34,10 @@ function Icon({ name }: { name: IconName }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
+  const pathname = usePathname();
+  const [path, setPath] = useState('');
+
+  useEffect(() => setPath(pathname), [pathname]);
 
   return (
     <div className="app">
