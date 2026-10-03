@@ -1,4 +1,9 @@
 import { syncEngine } from './sync-engine';
-import { deckRepository, noteRepository, cardRepository, mediaRepository, examRepository, aiIngestJobRepository, gamificationRepository, userBadgeRepository } from './repositories';
+import { db, SYNC_TABLES } from './schema';
+import { BaseRepository } from './repositories/base-repository';
 let registered = false;
-export function registerAllHandlers() { if (registered) return; registered = true; syncEngine.register({ name: 'decks', repo: deckRepository }); syncEngine.register({ name: 'notes', repo: noteRepository }); syncEngine.register({ name: 'cards', repo: cardRepository }); syncEngine.register({ name: 'card_media', repo: mediaRepository }); syncEngine.register({ name: 'deck_exams', repo: examRepository }); syncEngine.register({ name: 'ai_ingestion_jobs', repo: aiIngestJobRepository }); syncEngine.register({ name: 'user_gamification_profiles', repo: gamificationRepository }); syncEngine.register({ name: 'user_badges', repo: userBadgeRepository }); }
+export function registerAllHandlers() {
+  if (registered) return;
+  registered = true;
+  for (const name of SYNC_TABLES) syncEngine.register({ name, repo: new BaseRepository(db.table(name) as any) });
+}

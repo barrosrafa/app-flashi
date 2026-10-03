@@ -476,3 +476,7 @@ pre { background: var(--bg); color: var(--text-secondary); border-color: var(--b
 .analytics-day { flex: 1; text-align: center; }
 .analytics-bar { border-radius: 8px 8px 3px 3px; background: var(--surface-active); }
 .analytics-bar.peak { background: var(--primary); }
+.sidebar-sync { display: grid; gap: 4px; }
+.sidebar-sync-head { display: flex; align-items: center; gap: 4px; color: #c7d6e8; }
+.sidebar-sync .link-button { min-height: 28px; font-size: 12px; justify-content: flex-start; }
+.status-dot.offline { background: #f5cb76; box-shadow: 0 0 0 4px rgba(245,203,118,.1); }

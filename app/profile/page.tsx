@@ -1,79 +1,22 @@
 'use client';
-
 import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { AppShell, Topbar } from '../../components/AppShell';
 import { createClient } from '../../lib/supabase/client';
 import { getProfileData, updateProfilePreferences, type ProfileData } from '../../lib/services/profile-service';
 import { ThemeSwitcher } from '../../components/ThemeSwitcher';
 import { LanguageSelector } from '../../components/profile/LanguageSelector';
 import { useTranslation } from '../../contexts/LanguageContext';
+import type { Database } from '../../src/types/database';
+
+const defaults = { newCardsPerDay: 20, maxReviewsPerDay: 200, algorithm: 'fsrs' as Database['public']['Enums']['srs_algorithm'], learningSteps: [1, 10], relearningSteps: [10], graduating: 1, easy: 4, startingEase: 2.5, dayStartHour: 4, retention: 0.9, maximumInterval: 36500, threshold: 1000, weights: [] as number[], params: {} };
+function csvNumbers(value: string) { return value.split(',').map((item) => Number(item.trim())).filter((item) => Number.isFinite(item)); }
 
 export default function Profile() {
-  const { t } = useTranslation();
-  const [data, setData] = useState<ProfileData | null>(null);
-  const [displayName, setDisplayName] = useState('');
-  const [newCardsPerDay, setNewCardsPerDay] = useState(20);
-  const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getProfileData()
-      .then((profileData) => {
-        setData(profileData);
-        setDisplayName(profileData.profile?.display_name ?? profileData.email.split('@')[0]);
-        setNewCardsPerDay(profileData.settings?.new_cards_per_day ?? 20);
-      })
-      .catch((reason: unknown) => {
-        setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-          ? t('profile.authLoad')
-          : t('profile.loadError'));
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function savePreferences(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setMessage(t('common.saving'));
-    try {
-      await updateProfilePreferences({ displayName: displayName.trim(), newCardsPerDay });
-      setMessage(t('profile.saved'));
-    } catch (reason: unknown) {
-      setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-        ? t('profile.authSave')
-        : t('profile.saveError'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function signOut() {
-    setSaving(true);
-    const { error } = await createClient().auth.signOut();
-    setMessage(error ? error.message : t('profile.signedOut'));
-    setSaving(false);
-  }
-
+  const { t } = useTranslation(); const [data, setData] = useState<ProfileData | null>(null); const [displayName, setDisplayName] = useState(''); const [timezone, setTimezone] = useState('America/Sao_Paulo'); const [newCardsPerDay, setNewCardsPerDay] = useState(defaults.newCardsPerDay); const [maxReviewsPerDay, setMaxReviewsPerDay] = useState(defaults.maxReviewsPerDay); const [algorithm, setAlgorithm] = useState(defaults.algorithm); const [learningSteps, setLearningSteps] = useState(defaults.learningSteps.join(', ')); const [relearningSteps, setRelearningSteps] = useState(defaults.relearningSteps.join(', ')); const [graduating, setGraduating] = useState(defaults.graduating); const [easy, setEasy] = useState(defaults.easy); const [startingEase, setStartingEase] = useState(defaults.startingEase); const [dayStartHour, setDayStartHour] = useState(defaults.dayStartHour); const [retention, setRetention] = useState(defaults.retention); const [maximumInterval, setMaximumInterval] = useState(defaults.maximumInterval); const [threshold, setThreshold] = useState(defaults.threshold); const [weights, setWeights] = useState(''); const [params, setParams] = useState('{}'); const [message, setMessage] = useState(''); const [saving, setSaving] = useState(false); const [loading, setLoading] = useState(true);
+  useEffect(() => { getProfileData().then((profileData) => { const settings = profileData.settings; setData(profileData); setDisplayName(profileData.profile?.display_name ?? profileData.email.split('@')[0]); setTimezone(profileData.profile?.timezone ?? 'America/Sao_Paulo'); setNewCardsPerDay(settings?.new_cards_per_day ?? defaults.newCardsPerDay); setMaxReviewsPerDay(settings?.max_reviews_per_day ?? defaults.maxReviewsPerDay); setAlgorithm(settings?.algorithm ?? defaults.algorithm); setLearningSteps((settings?.learning_steps_minutes ?? defaults.learningSteps).join(', ')); setRelearningSteps((settings?.relearning_steps_minutes ?? defaults.relearningSteps).join(', ')); setGraduating(settings?.graduating_interval_days ?? defaults.graduating); setEasy(settings?.easy_interval_days ?? defaults.easy); setStartingEase(settings?.starting_ease ?? defaults.startingEase); setDayStartHour(settings?.day_start_hour ?? defaults.dayStartHour); setRetention(settings?.fsrs_desired_retention ?? defaults.retention); setMaximumInterval(settings?.fsrs_maximum_interval_days ?? defaults.maximumInterval); setThreshold(settings?.fsrs_optimizer_threshold ?? defaults.threshold); setWeights((settings?.fsrs_weights ?? []).join(', ')); setParams(JSON.stringify(settings?.fsrs_params ?? defaults.params, null, 2)); }).catch((reason: unknown) => setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? t('profile.authLoad') : t('profile.loadError'))).finally(() => setLoading(false)); }, [t]);
+  async function savePreferences(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setSaving(true); setMessage(t('common.saving')); try { let parsedParams: unknown; try { parsedParams = JSON.parse(params || '{}'); } catch { throw new Error('FSRS_PARAMS_INVALID'); } await updateProfilePreferences({ displayName: displayName.trim(), timezone, newCardsPerDay, maxReviewsPerDay, algorithm, learningStepsMinutes: csvNumbers(learningSteps), relearningStepsMinutes: csvNumbers(relearningSteps), graduatingIntervalDays: graduating, easyIntervalDays: easy, startingEase, dayStartHour, fsrsDesiredRetention: retention, fsrsMaximumIntervalDays: maximumInterval, fsrsOptimizerThreshold: threshold, fsrsWeights: csvNumbers(weights), fsrsParams: parsedParams as never }); setMessage(t('profile.saved')); } catch (reason: unknown) { setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? t('profile.authSave') : reason instanceof Error ? reason.message : t('profile.saveError')); } finally { setSaving(false); } }
+  async function signOut() { setSaving(true); const { error } = await createClient().auth.signOut(); setMessage(error ? error.message : t('profile.signedOut')); setSaving(false); }
   const initials = (displayName || data?.email || 'F').slice(0, 1).toUpperCase();
-
-  return <AppShell>
-    <Topbar title={t('profile.title')} subtitle={t('profile.subtitle')} />
-    {message && <div className={`notice ${message.includes('Não foi') || message.includes('Entre') ? 'error' : ''}`} role="status" aria-live="polite">{message}</div>}
-    {loading ? <div className="card" role="status">{t('profile.loading')}</div> : <>
-      <section className="card" aria-labelledby="profile-heading">
-      <div className="profile-summary"><div className="avatar profile-avatar" aria-hidden="true">{initials}</div><div><h2 id="profile-heading">{t('profile.accountPreferences')}</h2><p className="subtitle">{data?.email ?? t('profile.supabaseAccount')}</p></div></div>
-      <form className="form" onSubmit={savePreferences}>
-        <div className="field"><label htmlFor="display-name">{t('profile.displayName')}</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></div>
-        <div className="field"><label htmlFor="new-cards">{t('profile.dailyNewCards')}</label><input id="new-cards" type="number" min="0" max="999" value={newCardsPerDay} onChange={(event) => setNewCardsPerDay(Number(event.target.value))} inputMode="numeric" /><span className="status-text">{t('profile.sustainableGoal')}</span></div>
-        <LanguageSelector />
-        <div className="section-head-actions"><button className="btn" type="submit" disabled={saving}>{saving ? t('common.saving') : t('profile.savePreferences')}</button><button className="btn ghost" type="button" onClick={() => void signOut()} disabled={saving}>{t('profile.signOut')}</button></div>
-      </form>
-      </section>
-      <section className="card appearance-card" aria-labelledby="appearance-heading">
-        <div className="section-head compact-head"><div><h2 id="appearance-heading">{t('profile.appearance')}</h2><p className="subtitle">{t('profile.appearanceSubtitle')}</p></div></div>
-        <ThemeSwitcher />
-      </section>
-    </>}
-  </AppShell>;
+  return <AppShell><Topbar title={t('profile.title')} subtitle="Preferências completas de revisão, idioma, aparência e conta." />{message && <div className="notice" role="status" aria-live="polite">{message}</div>}{loading ? <div className="card" role="status">{t('profile.loading')}</div> : <><section className="card" aria-labelledby="profile-heading"><div className="profile-summary"><div className="avatar profile-avatar" aria-hidden="true">{initials}</div><div><h2 id="profile-heading">{t('profile.accountPreferences')}</h2><p className="subtitle">{data?.email ?? t('profile.supabaseAccount')}</p></div></div><form className="form" onSubmit={savePreferences}><div className="field"><label htmlFor="display-name">Nome de exibição</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" maxLength={120} /></div><div className="field"><label htmlFor="timezone">Timezone</label><input id="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="America/Sao_Paulo" /></div><div className="grid stats"><div className="field"><label htmlFor="new-cards">Novos por dia</label><input id="new-cards" type="number" min="0" max="9999" value={newCardsPerDay} onChange={(event) => setNewCardsPerDay(Number(event.target.value))} /></div><div className="field"><label htmlFor="max-reviews">Revisões por dia</label><input id="max-reviews" type="number" min="0" max="9999" value={maxReviewsPerDay} onChange={(event) => setMaxReviewsPerDay(Number(event.target.value))} /></div></div><div className="field"><label htmlFor="algorithm">Algoritmo SRS</label><select id="algorithm" value={algorithm} onChange={(event) => setAlgorithm(event.target.value as typeof algorithm)}><option value="sm2">SM-2</option><option value="fsrs">FSRS</option><option value="custom">Customizado</option></select></div><div className="grid stats"><div className="field"><label htmlFor="learning-steps">Passos de aprendizagem (min)</label><input id="learning-steps" value={learningSteps} onChange={(event) => setLearningSteps(event.target.value)} placeholder="1, 10" /></div><div className="field"><label htmlFor="relearning-steps">Passos de reaprendizagem (min)</label><input id="relearning-steps" value={relearningSteps} onChange={(event) => setRelearningSteps(event.target.value)} placeholder="10" /></div></div><div className="grid stats"><div className="field"><label htmlFor="graduating">Intervalo de graduação (dias)</label><input id="graduating" type="number" min="1" value={graduating} onChange={(event) => setGraduating(Number(event.target.value))} /></div><div className="field"><label htmlFor="easy">Intervalo fácil (dias)</label><input id="easy" type="number" min="1" value={easy} onChange={(event) => setEasy(Number(event.target.value))} /></div><div className="field"><label htmlFor="starting-ease">Facilidade inicial</label><input id="starting-ease" type="number" min="1" max="5" step="0.01" value={startingEase} onChange={(event) => setStartingEase(Number(event.target.value))} /></div><div className="field"><label htmlFor="day-start">Início do dia (hora)</label><input id="day-start" type="number" min="0" max="23" value={dayStartHour} onChange={(event) => setDayStartHour(Number(event.target.value))} /></div></div><div className="grid stats"><div className="field"><label htmlFor="retention">Retenção desejada FSRS</label><input id="retention" type="number" min="0.5" max="0.99" step="0.01" value={retention} onChange={(event) => setRetention(Number(event.target.value))} /></div><div className="field"><label htmlFor="maximum-interval">Intervalo FSRS máximo</label><input id="maximum-interval" type="number" min="1" value={maximumInterval} onChange={(event) => setMaximumInterval(Number(event.target.value))} /></div><div className="field"><label htmlFor="threshold">Mínimo para otimização</label><input id="threshold" type="number" min="100" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} /></div></div><div className="field"><label htmlFor="weights">Pesos FSRS (opcional, 21 números)</label><input id="weights" value={weights} onChange={(event) => setWeights(event.target.value)} placeholder="Deixe vazio para o padrão" /></div><div className="field"><label htmlFor="params">Parâmetros FSRS (JSON)</label><textarea id="params" rows={5} value={params} onChange={(event) => setParams(event.target.value)} /></div><LanguageSelector /><div className="section-head-actions"><button className="btn" type="submit" disabled={saving}>{saving ? t('common.saving') : t('profile.savePreferences')}</button><button className="btn ghost" type="button" onClick={() => void signOut()} disabled={saving}>{t('profile.signOut')}</button></div></form></section><section className="card appearance-card" aria-labelledby="appearance-heading"><div className="section-head compact-head"><div><h2 id="appearance-heading">Aparência e progresso</h2><p className="subtitle">Acesse as conquistas e o ranking sem esconder nenhuma capacidade.</p></div><div className="section-head-actions"><Link className="btn secondary" href="/profile/badges">Conquistas</Link><Link className="btn secondary" href="/leaderboard">Ranking</Link></div></div><ThemeSwitcher /></section></>}</AppShell>;
 }

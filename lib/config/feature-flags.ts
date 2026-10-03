@@ -1,14 +1,14 @@
 import { isFeatureEnabled as readFlag, type FeatureFlag as ExistingFlag } from '../feature-flags';
 
-/** One source of truth; legacy names remain aliases for existing callers. */
+/** Todas as funcionalidades são expostas ao usuário final; flags permanecem como contrato de compatibilidade. */
 export const FF = {
   sync_worker: readFlag('sync_worker'),
-  sync_v2: process.env.NEXT_PUBLIC_FF_SYNC_V2 === '1' || readFlag('sync_worker'),
+  sync_v2: readFlag('sync_worker'),
   media: readFlag('media'),
-  semantic: readFlag('semantic') || process.env.NEXT_PUBLIC_FF_SEMANTIC_SEARCH === '1',
-  semantic_search: readFlag('semantic') || process.env.NEXT_PUBLIC_FF_SEMANTIC_SEARCH === '1',
-  anki: readFlag('anki') || readFlag('anki_io'),
-  anki_io: readFlag('anki_io') || readFlag('anki'),
+  semantic: readFlag('semantic'),
+  semantic_search: readFlag('semantic'),
+  anki: readFlag('anki'),
+  anki_io: readFlag('anki_io'),
   ai_ingest: readFlag('ai_ingest'),
   gamification: readFlag('gamification'),
   collab: readFlag('collab'),
@@ -18,10 +18,13 @@ export const FF = {
   tags: readFlag('tags'),
   socratic: readFlag('socratic'),
   templates: readFlag('templates'),
-  template_renderer: process.env.NEXT_PUBLIC_FF_TEMPLATE_RENDERER !== '0',
+  template_renderer: true,
   references: readFlag('references'),
-  import_url: process.env.NEXT_PUBLIC_FF_IMPORT_URL === '1',
-  mcp: process.env.NEXT_PUBLIC_FF_MCP === '1',
+  import_url: true,
+  mcp: true,
 } as const;
+
 export type FeatureFlag = keyof typeof FF;
-export function isEnabled(flag: FeatureFlag): boolean { return FF[flag] ?? readFlag(flag as ExistingFlag); }
+export function isEnabled(flag: FeatureFlag): boolean {
+  return FF[flag] ?? readFlag(flag as ExistingFlag);
+}

@@ -885,3 +885,26 @@ pnpm test:e2e
 ```
 
 Para testar manualmente, abra `/profile`, altere o seletor entre Português, English e Español, confirme a atualização imediata da navegação e recarregue a página. Com um utilizador autenticado, a preferência também é persistida no Supabase.
+
+## SDD — entrega completa
+
+Todas as capacidades do SDD ficam disponíveis no produto final, sem gates de UI: estudo offline-first com outbox e retry, fila priorizada por exames, XP idempotente por sessão, leaderboard, badges, preferências SRS/FSRS, decks com hierarquia/visibilidade/arquivamento/restauração, importações CSV/Markdown/Quizlet/RemNote/URL, ingestão por IA, workers, mídia, oclusão, busca semântica, Anki e colaboração.
+
+### Rotas principais
+
+- `/study/[deckId]`: fila por exame, ratings 1–4, session ID, sincronização XP e suporte a image occlusion.
+- `/profile`: timezone, algoritmo SRS, passos, limites diários, parâmetros/pesos FSRS, idioma e aparência.
+- `/decks`: CRUD, hierarquia, visibilidade, arquivar/excluir/restaurar e configurações por deck.
+- `/import/deck`, `/import/ai-ingest` e `/tools`: pipelines de importação, ingestão, Anki, busca e otimização.
+- `/leaderboard`, `/profile/badges`, `/occlusion` e `/search`: capacidades avançadas diretamente acessíveis.
+
+### Validação local
+
+```bash
+pnpm install --frozen-lockfile
+pnpm exec tsc --noEmit
+pnpm test -- --run
+pnpm build
+```
+
+O frontend usa `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e mantém buckets privados, RLS e jobs autenticados.
