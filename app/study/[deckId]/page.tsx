@@ -78,6 +78,12 @@ export default function Study({ params }: { params: Promise<{ deckId: string }> 
     setStatus('');
     setPending(true);
     try {
+      if (deckId === 'demo') {
+        setDone((value) => value + 1);
+        setRevealed(false);
+        setStatus('Prévia concluída; nenhuma avaliação foi enviada ao backend.');
+        return;
+      }
       const result = await submitReview(current.card_id, rating);
       setDone((value) => value + 1);
       setRevealed(false);

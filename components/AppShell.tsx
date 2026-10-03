@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { isEnabled } from '../lib/config/feature-flags';
 
 const items = [
   { href: '/', label: 'Visão geral', icon: 'home' },
@@ -42,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           flash<span>i</span>
         </Link>
         <nav className="nav" aria-label="Áreas do Flashi">
-          {items.map(({ href, label, icon }) => {
+          {items.filter(({ href }) => href !== '/exams' || isEnabled('exams')).filter(({ href }) => href !== '/templates' || isEnabled('templates')).filter(({ href }) => href !== '/socratic' || isEnabled('socratic')).map(({ href, label, icon }) => {
             const active = href === '/' ? path === href : path === href || path.startsWith(`${href}/`);
             return (
               <Link className={active ? 'active' : ''} href={href} key={href} aria-current={active ? 'page' : undefined}>
@@ -54,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="sidebar-bottom" aria-label="Estado do modo local">
           <span className="status-dot" aria-hidden="true" /> Modo local-first
-          <strong>Sincronização protegida</strong>
+          <strong>{isEnabled('sync_worker') ? 'Sincronização protegida' : 'Sincronização manual'}</strong>
         </div>
       </aside>
       <main className="main" id="main-content" tabIndex={-1}>{children}</main>

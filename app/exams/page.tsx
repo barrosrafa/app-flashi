@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AppShell, Topbar } from '../../components/AppShell';
 import { createDeckExam, listDeckExams, type DeckExam, type ExamPriority } from '../../lib/services/exam-service';
 import { listDecks, type Deck } from '../../lib/services/deck-service';
+import { isEnabled } from '../../lib/config/feature-flags';
 
 const priorities: ExamPriority[] = ['exam_urgent', 'currently_studying', 'maintaining', 'paused'];
 const priorityLabels: Record<ExamPriority, string> = {
@@ -18,6 +19,7 @@ function isPriority(value: string): value is ExamPriority {
 }
 
 export default function Exams() {
+  if (!isEnabled('exams')) return <AppShell><Topbar title="Exames" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
   const [decks, setDecks] = useState<Deck[]>([]);
   const [exams, setExams] = useState<DeckExam[]>([]);
   const [message, setMessage] = useState('');
