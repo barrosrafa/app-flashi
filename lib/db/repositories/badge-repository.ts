@@ -1,0 +1,1 @@
+export { badgeRepository } from './index';

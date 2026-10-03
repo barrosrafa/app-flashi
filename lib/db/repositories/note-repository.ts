@@ -1,0 +1,1 @@
+export { noteRepository } from './index';

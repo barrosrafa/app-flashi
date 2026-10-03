@@ -1,7 +1,4 @@
-import { enqueueMutation } from '../db/outbox-queue';
-export type OcclusionMask = { x: number; y: number; w: number; h: number; label?: string };
-export async function createImageOcclusionNote(noteId: string, boxes: OcclusionMask[]) {
-  if (!noteId || !boxes.length) throw new Error('OCCLUSION_INPUT_REQUIRED');
-  if (boxes.some((box) => [box.x, box.y, box.w, box.h].some((value) => value < 0 || value > 1))) throw new Error('OCCLUSION_BOXES_MUST_BE_PERCENTAGES');
-  return enqueueMutation('notes', 'rpc', { p_note_id: noteId, p_boxes: boxes }, { rpc_name: 'create_image_occlusion_note', transport: 'rpc' });
-}
+import { createClient } from '../supabase/client';
+export type OcclusionMask = { x: number; y: number; w: number; h: number; label?: string; cloze_ordinal?: number };
+export const occlusionService = { async createNote(params: { noteId: string; masks: OcclusionMask[] }) { if (!params.noteId || !params.masks.length) throw new Error('OCCLUSION_INPUT_REQUIRED'); const boxes = params.masks.map((mask, index) => { if (mask.x < 0 || mask.y < 0 || mask.w <= 0 || mask.h <= 0 || mask.x + mask.w > 100 || mask.y + mask.h > 100) throw new Error('OCCLUSION_BOXES_MUST_BE_PERCENTAGES'); return { cloze_ordinal: mask.cloze_ordinal ?? index + 1, label_text: mask.label ?? null, x_pos: mask.x, y_pos: mask.y, width_pct: mask.w, height_pct: mask.h, metadata: {} }; }); const { data, error } = await createClient().rpc('create_image_occlusion_note', { p_note_id: params.noteId, p_boxes: boxes }); if (error) throw error; return data as Array<{ card_id: string; cloze_ordinal: number }>; } };
+export async function createImageOcclusionNote(noteId: string, masks: OcclusionMask[]) { return occlusionService.createNote({ noteId, masks }); }

@@ -1,0 +1,1 @@
+export { reviewLogRepository } from './index';

@@ -1,0 +1,1 @@
+export { tagRepository } from './index';

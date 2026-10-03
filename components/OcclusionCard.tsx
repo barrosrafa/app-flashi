@@ -1,0 +1,4 @@
+'use client';
+import { useState } from 'react';
+import type { OcclusionMask } from '../lib/services/occlusion-service';
+export function OcclusionCard({ imageUrl, masks }: { imageUrl: string; masks: OcclusionMask[] }) { const [revealed, setRevealed] = useState<Set<number>>(new Set()); return <div className="relative"><img src={imageUrl} alt="Cartão com oclusão" className="block w-full" />{masks.map((mask, index) => <button type="button" key={index} aria-label={`Revelar oclusão ${index + 1}`} onClick={() => setRevealed((old) => { const next = new Set(old); next.has(index) ? next.delete(index) : next.add(index); return next; })} className={`absolute border border-white ${revealed.has(index) ? 'bg-transparent' : 'bg-black/85'}`} style={{ left: `${mask.x}%`, top: `${mask.y}%`, width: `${mask.w}%`, height: `${mask.h}%` }}>{revealed.has(index) && mask.label ? mask.label : ''}</button>)}</div>; }

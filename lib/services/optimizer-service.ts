@@ -1,39 +1,10 @@
 import { createClient, type Tables } from '../supabase/client';
-import type { Database } from '../../src/types/database';
-import { invokeUserFunction } from './edge-service';
-
+import { invokeEdge } from './http/edge-client';
 export type OptimizationRun = Tables<'fsrs_optimization_runs'>;
-export type OptimizationRequest = { mode: 'request' | 'run'; run_id?: string };
-
-export async function requestFsrsOptimization() {
-  return invokeUserFunction<{ run_id: string; status: string }>('fsrs-optimize', {
-    mode: 'request',
-  });
-}
-
-export async function runFsrsOptimization(runId: string) {
-  if (!runId) throw new Error('RUN_ID_REQUIRED');
-  return invokeUserFunction<{ run_id: string; status: string }>('fsrs-optimize', {
-    mode: 'run',
-    run_id: runId,
-  });
-}
-
-export async function getFsrsOptimizationStatus() {
-  const { data, error } = await createClient().rpc('get_fsrs_optimization_status');
-  if (error) throw error;
-  return data?.[0] ?? null;
-}
-
-export async function listFsrsOptimizationRuns() {
-  const { data, error } = await createClient()
-    .from('fsrs_optimization_runs')
-    .select('id,user_id,status,requested_at,started_at,completed_at,error_message,source_review_count,old_loss,new_loss,old_weights,new_weights,usn')
-    .order('requested_at', { ascending: false })
-    .limit(20);
-  if (error) throw error;
-  return data;
-}
-
-export type OptimizationStatus =
-  Database['public']['Functions']['get_fsrs_optimization_status']['Returns'][number];
+export type RunState = 'queued' | 'running' | 'completed' | 'failed';
+export type OptimizationStatus = { run_id?: string; state?: RunState; status?: string; weights?: number[]; error?: string; updated_at?: string };
+export const optimizerService = { request(deckId?: string) { return invokeEdge<{ run_id: string; status: string }>('fsrs-optimize', { body: { mode: 'request', deck_id: deckId ?? null } }); }, async status(runId: string) { if (!runId) throw new Error('RUN_ID_REQUIRED'); const { data, error } = await createClient().from('fsrs_optimization_runs').select('*').eq('id', runId).maybeSingle(); if (error) throw error; return data as OptimizationStatus | null; }, run(runId: string) { return invokeEdge<{ run_id: string; status: string }>('fsrs-optimize', { body: { mode: 'run', run_id: runId } }); } };
+export async function requestFsrsOptimization() { return optimizerService.request(); }
+export async function runFsrsOptimization(runId: string) { return optimizerService.run(runId); }
+export async function getFsrsOptimizationStatus() { const { data, error } = await createClient().rpc('get_fsrs_optimization_status'); if (error) throw error; return data?.[0] ?? null; }
+export async function listFsrsOptimizationRuns() { const { data, error } = await createClient().from('fsrs_optimization_runs').select('*').order('requested_at', { ascending: false }).limit(20); if (error) throw error; return data; }

@@ -1,33 +1,27 @@
 import { createClient } from '../../supabase/client';
-import { EdgeError, EdgeTimeoutError, RateLimitError } from './errors';
+import { AuthRequiredError, EdgeError, EdgeTimeoutError, RateLimitError, UnavailableError } from './errors';
 import { edgeErrorBus } from './event-bus';
-
-type InvokeOptions = { body?: unknown; timeoutMs?: number; maxRetries?: number; signal?: AbortSignal };
+export interface InvokeOptions { body?: unknown; timeoutMs?: number; maxRetries?: number; signal?: AbortSignal; noRetryOnUnavailable?: boolean; }
+const statusOf = (e: unknown) => Number((e as { context?: { status?: number } })?.context?.status ?? (e as { status?: number })?.status ?? 0);
+const retryAfterOf = (e: unknown) => Number((e as { context?: { headers?: { get?: (n: string) => string | null } } })?.context?.headers?.get?.('retry-after') ?? 0);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-function statusOf(error: unknown) { return Number((error as { context?: { status?: number } })?.context?.status ?? 0); }
-function retryAfterOf(error: unknown) { return Number((error as { context?: { headers?: { get?: (name: string) => string | null } } })?.context?.headers?.get?.('retry-after') ?? 0); }
-
-export async function invokeEdge<T>(fnName: string, { body, timeoutMs = 30_000, maxRetries = 2, signal }: InvokeOptions = {}): Promise<T> {
+export async function invokeEdge<T>(fnName: string, opts: InvokeOptions = {}): Promise<T> {
+  const { body, timeoutMs = 30_000, maxRetries = 2, signal, noRetryOnUnavailable = false } = opts;
+  const { data: session } = await createClient().auth.getSession();
+  if (!session.session) { const error = new AuthRequiredError(fnName); edgeErrorBus.emit(error); throw error; }
   let attempt = 0;
   while (true) {
-    if (signal?.aborted) throw new EdgeError(fnName, 499, 'Operação cancelada');
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const abort = () => controller.abort(); signal?.addEventListener('abort', abort);
     try {
-      const request = createClient().functions.invoke<T>(fnName, { body: body as Record<string, unknown> });
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new EdgeTimeoutError(fnName, timeoutMs)), timeoutMs));
-      const result = await Promise.race([request, timeout]);
-      if (!result.error) return result.data as T;
-      const status = statusOf(result.error);
-      if (status === 429) throw new RateLimitError(fnName, retryAfterOf(result.error));
-      throw new EdgeError(fnName, status, result.error.message);
+      const request = createClient().functions.invoke<T>(fnName, { body: body as Record<string, unknown>, signal: controller.signal }); const result = await Promise.race([request, new Promise<never>((_, reject) => setTimeout(() => reject(new EdgeTimeoutError(fnName, timeoutMs)), timeoutMs))]);
+      if (result.error) { const status = statusOf(result.error); const payload = (result.error as { context?: { body?: unknown } }).context?.body; if (status === 429) throw new RateLimitError(fnName, retryAfterOf(result.error) || 30, payload); if (status === 401 || status === 403) throw new AuthRequiredError(fnName); if (status === 503 && noRetryOnUnavailable) throw new UnavailableError(fnName, 'Serviço indisponível', payload); throw new EdgeError(fnName, status, result.error.message, payload); }
+      return result.data as T;
     } catch (error) {
-      if (error instanceof RateLimitError) { edgeErrorBus.emit({ error, fn: fnName }); throw error; }
-      attempt += 1;
-      const rawStatus = statusOf(error); const retryable = error instanceof EdgeTimeoutError || (rawStatus === 0 || rawStatus >= 500) || (error instanceof EdgeError && error.status >= 500);
-      if (!retryable || attempt > maxRetries) {
-        const typedStatus = statusOf(error); const typed = error instanceof EdgeError ? error : new EdgeError(fnName, typedStatus, error instanceof Error ? error.message : 'Falha desconhecida');
-        edgeErrorBus.emit({ error: typed, fn: fnName }); throw typed;
-      }
+      const typed = error instanceof EdgeTimeoutError || (error instanceof Error && error.name === 'AbortError') ? new EdgeTimeoutError(fnName, timeoutMs) : error instanceof EdgeError ? error : new EdgeError(fnName, statusOf(error), error instanceof Error ? error.message : 'Falha desconhecida');
+      if (typed instanceof RateLimitError || typed instanceof AuthRequiredError || (typed instanceof UnavailableError && noRetryOnUnavailable)) { edgeErrorBus.emit(typed); throw typed; }
+      attempt += 1; if (attempt > maxRetries) { edgeErrorBus.emit(typed); throw typed; }
       await sleep(2 ** attempt * 300);
-    }
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
 }

@@ -1,15 +1,6 @@
-import { createClient, type Inserts, type Tables } from '../supabase/client';
-import { enqueueMutation } from '../db/outbox-queue';
+import { createClient, type Tables } from '../supabase/client';
 export type CardMedia = Tables<'card_media'>;
-const BUCKET = 'card-media'; const URL_TTL = 30 * 60;
-async function sha256(file: File) { const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer()); return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''); }
-export async function uploadCardMedia(file: File, userId: string, cardId: string) {
-  if (!file.size) throw new Error('MEDIA_EMPTY');
-  const assetId = crypto.randomUUID(); const hash = await sha256(file); const extension = file.name.split('.').pop()?.toLowerCase() || 'bin'; const path = `${userId}/${cardId}/${assetId}.${extension}`;
-  const { error } = await createClient().storage.from(BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-  if (error) throw error;
-  const payload = { id: assetId, card_id: cardId, user_id: userId, storage_bucket: BUCKET, storage_path: path, mime_type: file.type || null, file_size_bytes: file.size, sha256_hash: hash, media_type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('video/') ? 'video' : 'other', metadata: {} } as unknown as Inserts<'card_media'>;
-  await enqueueMutation('card_media', 'insert', payload as Record<string, unknown>);
-  return payload;
-}
-export async function createSignedMediaUrl(storagePath: string) { const { data, error } = await createClient().storage.from(BUCKET).createSignedUrl(storagePath, URL_TTL); if (error) throw error; return data.signedUrl; }
+const BUCKET = 'card-media'; const TTL = 30 * 60;
+export const mediaService = { async upload(file: File, userId?: string, cardId?: string) { if (!file.size) throw new Error('MEDIA_EMPTY'); const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); const owner = userId ?? user?.id; if (!owner) throw new Error('AUTH_REQUIRED'); const assetId = crypto.randomUUID(); const path = `${owner}/${cardId ?? 'unattached'}/${assetId}.${file.name.split('.').pop() ?? 'bin'}`; const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false }); if (error) throw error; return { id: assetId, storage_key: path, mime: file.type, size: file.size }; }, async signMany(paths: string[]) { const supabase = createClient(); return Promise.all(paths.map(async (path) => { const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, TTL); if (error) throw error; return { id: path, url: data.signedUrl, mime: '' }; })); }, async signedUrl(path: string) { const result = await this.signMany([path]); return result[0]?.url; } };
+export async function uploadCardMedia(file: File, userId: string, cardId: string) { return mediaService.upload(file, userId, cardId); }
+export async function createSignedMediaUrl(path: string) { return mediaService.signedUrl(path); }

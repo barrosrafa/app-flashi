@@ -1,0 +1,1 @@
+export { cardTemplateRepository } from './index';

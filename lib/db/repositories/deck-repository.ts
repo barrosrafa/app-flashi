@@ -1,0 +1,1 @@
+export { deckRepository } from './index';

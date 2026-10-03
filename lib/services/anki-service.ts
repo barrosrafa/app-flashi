@@ -1,69 +1,8 @@
 import { createClient } from '../supabase/client';
-import { invokeUserFunction } from './edge-service';
-
-const MAX_APKG_BYTES = 50 * 1024 * 1024;
-
-function safeFilename(filename: string) {
-  const normalized = filename.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '-');
-  return normalized || 'deck.apkg';
-}
-
-async function sha256(file: File) {
-  const bytes = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export async function importAnkiPackage(file: File, targetDeckName?: string) {
-  if (!file.name.toLowerCase().endsWith('.apkg')) throw new Error('APKG_REQUIRED');
-  if (file.size > MAX_APKG_BYTES) throw new Error('APKG_TOO_LARGE');
-
-  const {
-    data: { user },
-  } = await createClient().auth.getUser();
-  if (!user) throw new Error('AUTH_REQUIRED');
-
-  const storagePath = `${user.id}/imports/${Date.now()}-${safeFilename(file.name)}`;
-  const { error: uploadError } = await createClient()
-    .storage
-    .from('anki-transfers')
-    .upload(storagePath, file, { contentType: 'application/zip', upsert: false });
-  if (uploadError) throw uploadError;
-
-  return invokeUserFunction<{
-    job_id: string;
-    status: string;
-    deck_id?: string;
-    deck_name?: string;
-    imported_cards?: number;
-    imported_notes?: number;
-  }>('anki-transfer', {
-    action: 'import',
-    storage_path: storagePath,
-    ...(targetDeckName?.trim() ? { target_deck_name: targetDeckName.trim() } : {}),
-    file_sha256: await sha256(file),
-  });
-}
-
-export async function exportAnkiPackage(deckId: string, includeMedia = true) {
-  if (!deckId) throw new Error('DECK_REQUIRED');
-  const result = await invokeUserFunction<{
-    job_id: string;
-    status: string;
-    storage_path: string;
-    file_sha256: string;
-    total_cards: number;
-    bytes: number;
-  }>('anki-transfer', {
-    action: 'export',
-    deck_id: deckId,
-    include_media: includeMedia,
-  });
-
-  const { data, error } = await createClient()
-    .storage
-    .from('anki-transfers')
-    .createSignedUrl(result.storage_path, 300);
-  if (error) throw error;
-  return { ...result, signed_url: data.signedUrl };
-}
+import { invokeEdge } from './http/edge-client';
+const BUCKET = 'anki-transfers'; const MAX = 50 * 1024 * 1024;
+export type ImportResult = { job_id: string; status: string; total_notes?: number; imported_notes?: number; imported_cards?: number; uploaded_media?: number; skipped_notes?: number };
+export type ExportResult = { job_id: string; status: string; storage_path: string; file_sha256: string; total_cards: number; bytes: number; download_url?: string; signed_url?: string; expires_at?: string };
+export const ankiService = { async importApkg({ file, onProgress, targetDeckName }: { file: File; onProgress?: (p: number) => void; targetDeckName?: string }) { if (!file.name.toLowerCase().endsWith('.apkg')) throw new Error('APKG_REQUIRED'); if (file.size > MAX) throw new Error('APKG_TOO_LARGE'); const { data: { user } } = await createClient().auth.getUser(); if (!user) throw new Error('AUTH_REQUIRED'); const path = `${user.id}/imports/${Date.now()}-${file.name.replace(/[^\w.-]/g, '-')}`; const { error } = await createClient().storage.from(BUCKET).upload(path, file, { contentType: 'application/zip', upsert: false }); if (error) throw error; onProgress?.(0.5); const result = await invokeEdge<ImportResult>('anki-transfer', { body: { action: 'import', storage_path: path, target_deck_name: targetDeckName }, timeoutMs: 120_000 }); onProgress?.(1); return result; }, async exportDeck(deckId: string, includeMedia = true) { if (!deckId) throw new Error('DECK_REQUIRED'); const result = await invokeEdge<ExportResult>('anki-transfer', { body: { action: 'export', deck_id: deckId, include_media: includeMedia }, timeoutMs: 120_000 }); const { data, error } = await createClient().storage.from(BUCKET).createSignedUrl(result.storage_path, 300); if (error) throw error; return { ...result, download_url: data.signedUrl, signed_url: data.signedUrl, expires_at: new Date(Date.now() + 300000).toISOString() }; } };
+export async function importAnkiPackage(file: File, targetDeckName?: string) { return ankiService.importApkg({ file, targetDeckName }); }
+export async function exportAnkiPackage(deckId: string, includeMedia = true) { return ankiService.exportDeck(deckId, includeMedia); }

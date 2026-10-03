@@ -1,0 +1,1 @@
+export { examRepository } from './index';
