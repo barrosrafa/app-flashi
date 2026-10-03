@@ -8,6 +8,8 @@ import { CollaboratorManager } from './CollaboratorManager';
 import { DeckSettingsForm } from './DeckSettingsForm';
 import { listDecks, type Deck } from '../../lib/services/deck-service';
 import { isEnabled } from '../../lib/config/feature-flags';
+import { NoteWorkspace } from '../notes/NoteWorkspace';
+import { MediaManager } from '../MediaManager';
 
 export function DeckDetailClient({ deckId }: { deckId: string }) {
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -30,9 +32,11 @@ export function DeckDetailClient({ deckId }: { deckId: string }) {
         <article className="card"><div className="stat-label">Progresso</div><div className="stat-value">{deck.progress}%</div></article>
       </div>
       <section aria-labelledby="deck-actions-heading">
-        <div className="section-head"><div><h2 id="deck-actions-heading">Ações do deck</h2><p className="subtitle">Gerencie conteúdo ou comece uma revisão real.</p></div><div className="section-head-actions"><Link className="btn secondary" href={`/decks/${deckId}/cards`}>Gerenciar cards</Link><Link className="btn" href={`/study/${deckId}`}>Estudar agora <span aria-hidden="true">→</span></Link></div></div>
+        <div className="section-head"><div><h2 id="deck-actions-heading">Ações do deck</h2><p className="subtitle">Gerencie conteúdo ou comece uma revisão real.</p></div><div className="section-head-actions"><Link className="btn secondary" href={`/decks/${deckId}/cards`}>Gerenciar cards</Link><Link className="btn secondary" href={`/decks/${deckId}/notes`}>Gerenciar notes</Link><Link className="btn" href={`/study/${deckId}`}>Estudar agora <span aria-hidden="true">→</span></Link></div></div>
       </section>
       <CardBrowser deckId={deckId} />
+      <NoteWorkspace deckId={deckId} />
+      {isEnabled('media') && <MediaManager deckId={deckId} />}
       <DeckSettingsForm deckId={deckId} />
       {isEnabled('collab') && <CollaboratorManager deckId={deckId} />}
     </>}
