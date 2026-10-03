@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
+import { SyncWorkerRegister } from '../components/SyncWorkerRegister';
 
 export const metadata: Metadata = {
   title: {
@@ -21,5 +22,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body><ServiceWorkerRegister />{children}</body></html>;
+  return <html lang="pt-BR"><body><ServiceWorkerRegister /><SyncWorkerRegister />{children}</body></html>;
 }

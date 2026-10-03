@@ -1,106 +1,15 @@
 import { createClient, type Inserts } from '../supabase/client';
 import { executeIncrementalSync } from './sync-engine';
 import { db, type OfflineMutation } from './schema';
-
-type SyncTable = 'decks' | 'notes' | 'cards' | 'deck_exams' | 'review_logs';
-type MutationAction = OfflineMutation['action'];
-
-export async function enqueueMutation(
-  table_name: string,
-  action: MutationAction,
-  payload: Record<string, unknown>,
-  rpc_name?: string,
-) {
-  const id = crypto.randomUUID();
-  await db.outbox.add({
-    id,
-    table_name,
-    action,
-    payload,
-    rpc_name,
-    created_at: new Date().toISOString(),
-    retries: 0,
-  });
-
-  if (typeof navigator !== 'undefined' && navigator.onLine) {
-    void flushOutboxQueue();
-  }
-
-  return id;
+import { recordTelemetry } from './telemetry';
+type SyncTable = 'decks'|'notes'|'cards'|'deck_exams'|'review_logs';
+type EnqueueOptions = { rpc_name?:string; transport?:'edge'|'rpc'; client_mutation_id?:string };
+export async function enqueueMutation(table_name:string, action:OfflineMutation['action'], payload:Record<string,unknown>, options:EnqueueOptions|string = {}) {
+  const normalized = typeof options === 'string' ? { rpc_name:options } : options; const clientMutationId = normalized.client_mutation_id ?? crypto.randomUUID();
+  const item:OfflineMutation = { id:crypto.randomUUID(), table_name, action, payload:{...payload, client_mutation_id:clientMutationId}, rpc_name:normalized.rpc_name, transport:normalized.transport ?? 'edge', client_mutation_id:clientMutationId, created_at:new Date().toISOString(), retries:0 };
+  await db.outbox.add(item); recordTelemetry('outbox.enqueued', { action, table_name }); if (typeof navigator !== 'undefined' && navigator.onLine) void flushOutboxQueue(); return item.id;
 }
-
-function isSyncTable(tableName: string): tableName is SyncTable {
-  return ['decks', 'notes', 'cards', 'deck_exams', 'review_logs'].includes(tableName);
-}
-
-async function upsertMutation(
-  tableName: SyncTable,
-  payload: Record<string, unknown>,
-) {
-  const supabase = createClient();
-
-  switch (tableName) {
-    case 'decks':
-      return supabase.from('decks').upsert(payload as Inserts<'decks'>);
-    case 'notes':
-      return supabase.from('notes').upsert(payload as Inserts<'notes'>);
-    case 'cards':
-      return supabase.from('cards').upsert(payload as Inserts<'cards'>);
-    case 'deck_exams':
-      return supabase.from('deck_exams').upsert(payload as Inserts<'deck_exams'>);
-    case 'review_logs':
-      return supabase.from('review_logs').upsert(payload as Inserts<'review_logs'>);
-  }
-}
-
-async function deleteMutation(
-  tableName: SyncTable,
-  payload: Record<string, unknown>,
-) {
-  const id = payload.id;
-  if (typeof id !== 'string' || id.length === 0) {
-    return { error: new Error('OUTBOX_ID_REQUIRED') };
-  }
-
-  const supabase = createClient();
-  return supabase.from(tableName).delete().eq('id', id);
-}
-
-async function flushMutation(item: OfflineMutation) {
-  const supabase = createClient();
-
-  if (item.action === 'rpc' && item.rpc_name) {
-    const { error } = await supabase.functions.invoke(item.rpc_name, {
-      body: item.payload,
-    });
-    return error;
-  }
-
-  if (!isSyncTable(item.table_name)) {
-    return new Error(`OUTBOX_TABLE_NOT_SUPPORTED:${item.table_name}`);
-  }
-
-  const result =
-    item.action === 'delete'
-      ? await deleteMutation(item.table_name, item.payload)
-      : await upsertMutation(item.table_name, item.payload);
-
-  return result.error ?? null;
-}
-
-export async function flushOutboxQueue() {
-  const items = await db.outbox.orderBy('created_at').toArray();
-
-  for (const item of items) {
-    try {
-      const error = await flushMutation(item);
-      if (error) throw error;
-      await db.outbox.delete(item.id);
-    } catch {
-      await db.outbox.update(item.id, { retries: item.retries + 1 });
-      break;
-    }
-  }
-
-  await executeIncrementalSync();
-}
+function isSyncTable(tableName:string):tableName is SyncTable { return ['decks','notes','cards','deck_exams','review_logs'].includes(tableName); }
+async function upsertMutation(tableName:SyncTable, payload:Record<string,unknown>) { const supabase=createClient(); switch(tableName) { case 'decks':return supabase.from('decks').upsert(payload as Inserts<'decks'>); case 'notes':return supabase.from('notes').upsert(payload as Inserts<'notes'>); case 'cards':return supabase.from('cards').upsert(payload as Inserts<'cards'>); case 'deck_exams':return supabase.from('deck_exams').upsert(payload as Inserts<'deck_exams'>); case 'review_logs':return supabase.from('review_logs').upsert(payload as Inserts<'review_logs'>); } }
+async function flushMutation(item:OfflineMutation) { const supabase=createClient(); if (item.action==='rpc' && item.rpc_name) { if (item.transport==='rpc') return (await supabase.rpc(item.rpc_name as never, item.payload as never)).error; return (await supabase.functions.invoke(item.rpc_name, { body:item.payload })).error; } if (!isSyncTable(item.table_name)) return new Error(`OUTBOX_TABLE_NOT_SUPPORTED:${item.table_name}`); if (item.action==='delete') { const id=item.payload.id; if (typeof id!=='string'||!id) return new Error('OUTBOX_ID_REQUIRED'); return (await supabase.from(item.table_name).delete().eq('id',id)).error; } return (await upsertMutation(item.table_name,item.payload)).error ?? null; }
+export async function flushOutboxQueue() { const startedAt=performance.now(); const items=await db.outbox.orderBy('created_at').toArray(); let flushed=0; for (const item of items) { try { const error=await flushMutation(item); if(error) throw error; await db.outbox.delete(item.id); flushed++; } catch { await db.outbox.update(item.id,{ retries:item.retries+1 }); recordTelemetry('outbox.failure',{ table_name:item.table_name,retries:item.retries+1 }); break; } } if(flushed) recordTelemetry('outbox.flushed',{ count:flushed,duration_ms:Math.round(performance.now()-startedAt) }); await executeIncrementalSync(); }

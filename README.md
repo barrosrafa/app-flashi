@@ -301,3 +301,16 @@ Os findings de segurança e performance existentes no projeto Supabase continuam
 [^2]: [Supabase — Creating a Supabase client for SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client), que documenta `@supabase/ssr`, variáveis públicas e a separação entre clientes de navegador e servidor.
 [^3]: [Supabase — JavaScript `functions.invoke`](https://supabase.com/docs/reference/javascript/functions-invoke), referência oficial de chamadas de Edge Functions e uso do cliente JavaScript.
 [^4]: [Repositório de destino — barrosrafa/app-flashi](https://github.com/barrosrafa/app-flashi), onde esta implementação será publicada.
+
+## 16. Evolução SDD — Fases 0 e 1
+
+A branch `feature/v1` implementa a primeira fatia vertical do SDD sem alterar contratos do Supabase:
+
+- feature flags opt-in por ambiente (`NEXT_PUBLIC_FF_*`), incluindo `NEXT_PUBLIC_FF_SYNC_WORKER`;
+- telemetria local limitada aos últimos 100 eventos, sem conteúdo de cartões, tokens ou credenciais;
+- schema Dexie v2 com as entidades sincronizáveis do contrato Flashi v2 e índices por `id`, `usn`, `updated_at`, `deck_id` e `user_id`;
+- sync incremental atómico: tombstones são aplicados antes dos records e `last_usn` só avança depois do commit;
+- outbox com `client_mutation_id` estável, retry ordenado e suporte explícito a transporte Edge Function ou RPC;
+- worker opt-in acionado por intervalo, `focus` e `online`.
+
+Para ativar o worker em desenvolvimento, defina `NEXT_PUBLIC_FF_SYNC_WORKER=1`. As fases de mídia, Anki, IA, colaboração, gamificação, oclusão e busca semântica permanecem atrás das respetivas flags até serem implementadas em fatias posteriores.

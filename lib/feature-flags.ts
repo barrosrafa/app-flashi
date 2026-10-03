@@ -1,0 +1,12 @@
+export type FeatureFlag = 'media' | 'semantic' | 'anki' | 'ai_ingest' | 'gamification' | 'collab' | 'fsrs_opt' | 'sync_worker';
+const ENV_KEYS: Record<FeatureFlag, string> = {
+  media: 'NEXT_PUBLIC_FF_MEDIA', semantic: 'NEXT_PUBLIC_FF_SEMANTIC', anki: 'NEXT_PUBLIC_FF_ANKI', ai_ingest: 'NEXT_PUBLIC_FF_AI_INGEST',
+  gamification: 'NEXT_PUBLIC_FF_GAMIFICATION', collab: 'NEXT_PUBLIC_FF_COLLAB', fsrs_opt: 'NEXT_PUBLIC_FF_FSRS_OPT', sync_worker: 'NEXT_PUBLIC_FF_SYNC_WORKER',
+};
+export function isFeatureEnabled(flag: FeatureFlag): boolean {
+  const value = process.env[ENV_KEYS[flag]];
+  return value === '1' || value === 'true';
+}
+export function getFeatureFlags(): Record<FeatureFlag, boolean> {
+  return (Object.keys(ENV_KEYS) as FeatureFlag[]).reduce((flags, flag) => ({ ...flags, [flag]: isFeatureEnabled(flag) }), {} as Record<FeatureFlag, boolean>);
+}
