@@ -1,0 +1,1 @@
+export { fsrsParamsRepository } from './index';

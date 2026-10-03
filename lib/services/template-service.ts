@@ -1,0 +1,11 @@
+import { createClient } from '../supabase/client';
+import type { Json } from '../../src/types/database';
+import type { CardTemplate } from '../types/card-template';
+function rows(data: unknown): CardTemplate[] { return (data ?? []) as CardTemplate[]; }
+export const templateService = {
+  async list() { const { data, error } = await createClient().from('card_templates').select('*').order('name'); if (error) throw error; return rows(data); },
+  async get(id: string) { const { data, error } = await createClient().from('card_templates').select('*').eq('id', id).maybeSingle(); if (error) throw error; return data as CardTemplate | null; },
+  async create(input: Pick<CardTemplate, 'name' | 'field_definitions' | 'card_generation'>) { const { data: { user } } = await createClient().auth.getUser(); if (!user) throw new Error('AUTH_REQUIRED'); const { data, error } = await createClient().from('card_templates').insert({ name: input.name, field_definitions: input.field_definitions as unknown as Json, card_generation: input.card_generation as unknown as Json, user_id: user.id, is_system: false }).select('*').single(); if (error) throw error; return data as CardTemplate; },
+  async update(id: string, patch: Partial<Pick<CardTemplate, 'name' | 'field_definitions' | 'card_generation'>>) { const { error } = await createClient().from('card_templates').update({ ...patch, field_definitions: patch.field_definitions as unknown as Json | undefined, card_generation: patch.card_generation as unknown as Json | undefined }).eq('id', id); if (error) throw error; },
+  async remove(id: string) { const { error } = await createClient().from('card_templates').delete().eq('id', id); if (error) throw error; },
+};

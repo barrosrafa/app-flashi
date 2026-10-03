@@ -1,0 +1,1 @@
+export { examSessionRepository } from './index';

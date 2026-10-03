@@ -1,5 +1,9 @@
 'use client';
 
+import { TagSelector } from './tags/TagSelector';
+import { ReferenceEditor } from './notes/ReferenceEditor';
+import { isEnabled } from '../lib/config/feature-flags';
+
 import { useEffect, useState, type FormEvent } from 'react';
 import { archiveCard, createCard, listCards, type Flashcard } from '../lib/services/card-service';
 import type { Json } from '../src/types/database';
@@ -86,6 +90,6 @@ export default function CardBrowser({ deckId }: { deckId: string }) {
       <button className="btn" type="submit" disabled={busy}>{busy ? 'Adicionando card…' : 'Adicionar card'}</button>
     </form>
     <div className="field" style={{ marginTop: 24 }}><label htmlFor="card-search">Buscar cards</label><input id="card-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrar por frente ou verso" /></div>
-    {loading ? <p className="muted" role="status">Carregando cards…</p> : visible.length === 0 ? <div className="empty-state"><strong>{query ? 'Nenhum card corresponde à busca.' : 'Este deck ainda não tem cards.'}</strong><span>{query ? 'Tente outras palavras.' : 'Use o formulário acima para adicionar o primeiro.'}</span></div> : <div className="table-wrap"><table className="table"><caption className="sr-only">Cards ativos deste deck</caption><thead><tr><th scope="col">Frente</th><th scope="col">Verso</th><th scope="col">Ação</th></tr></thead><tbody>{visible.map((card) => <tr key={card.id}><td>{fieldText(card.fields, 'front') || fieldText(card.fields, 'Front')}</td><td>{fieldText(card.fields, 'back') || fieldText(card.fields, 'Back')}</td><td><button className="link-button" type="button" onClick={() => void remove(card)} disabled={Boolean(archivingId)}>{archivingId === card.id ? 'Arquivando…' : 'Arquivar'}</button></td></tr>)}</tbody></table></div>}
+    {loading ? <p className="muted" role="status">Carregando cards…</p> : visible.length === 0 ? <div className="empty-state"><strong>{query ? 'Nenhum card corresponde à busca.' : 'Este deck ainda não tem cards.'}</strong><span>{query ? 'Tente outras palavras.' : 'Use o formulário acima para adicionar o primeiro.'}</span></div> : <div className="table-wrap"><table className="table"><caption className="sr-only">Cards ativos deste deck</caption><thead><tr><th scope="col">Frente</th><th scope="col">Verso</th><th scope="col">Ação</th><th scope="col">Tags</th><th scope="col">Referências</th></tr></thead><tbody>{visible.map((card) => <tr key={card.id}><td>{fieldText(card.fields, 'front') || fieldText(card.fields, 'Front')}</td><td>{fieldText(card.fields, 'back') || fieldText(card.fields, 'Back')}</td><td><button className="link-button" type="button" onClick={() => void remove(card)} disabled={Boolean(archivingId)}>{archivingId === card.id ? 'Arquivando…' : 'Arquivar'}</button></td><td>{isEnabled('tags') ? <TagSelector cardId={card.id} /> : <span className="muted">Desativadas</span>}</td><td>{isEnabled('references') && card.note_id ? <ReferenceEditor noteId={card.note_id} /> : <span className="muted">—</span>}</td></tr>)}</tbody></table></div>}
   </section>;
 }

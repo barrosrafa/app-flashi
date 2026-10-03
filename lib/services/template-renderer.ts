@@ -1,0 +1,9 @@
+export interface TemplateField { name: string; type?: 'text' | 'image' | 'audio'; }
+export interface CardGeneration { name?: string; front: string; back: string; }
+export interface CardTemplate { field_definitions: TemplateField[]; card_generation: CardGeneration[]; }
+export interface RenderedCard { name?: string; front: string; back: string; }
+const TOKEN = /\{\{\s*([\w.-]+)\s*\}\}/g;
+export function interpolate(template: string, fields: Record<string, unknown>): string { return template.replace(TOKEN, (_match, key: string) => { const value = fields[key]; return value === null || value === undefined ? '' : String(value); }); }
+export function renderCard(template: CardTemplate, fields: Record<string, unknown>): RenderedCard[] { const generations = Array.isArray(template.card_generation) ? template.card_generation : []; return generations.map((generation) => ({ name: generation.name, front: interpolate(generation.front ?? '', fields), back: interpolate(generation.back ?? '', fields) })); }
+export function renderDefaultCard(fields: Record<string, unknown>): RenderedCard { const front = fields.Front ?? fields.front ?? ''; const back = fields.Back ?? fields.back ?? ''; return { front: String(front), back: String(back) }; }
+export function normalizeTemplate(value: unknown): CardTemplate | null { if (!value || typeof value !== 'object') return null; const candidate = value as Partial<CardTemplate>; if (!Array.isArray(candidate.card_generation)) return null; return { field_definitions: Array.isArray(candidate.field_definitions) ? candidate.field_definitions : [], card_generation: candidate.card_generation.filter((item): item is CardGeneration => !!item && typeof item === 'object' && typeof (item as CardGeneration).front === 'string' && typeof (item as CardGeneration).back === 'string') }; }

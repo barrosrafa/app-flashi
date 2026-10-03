@@ -1,0 +1,1 @@
+export { embeddingRepository } from './index';

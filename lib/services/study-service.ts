@@ -1,5 +1,6 @@
 import { createClient } from '../supabase/client';
 import { db, type Rating } from '../db/schema';
+import { enqueueMutation } from '../db/outbox-queue';
 import type { Database } from '../../src/types/database';
 
 export type DueCard =
@@ -25,39 +26,11 @@ export async function submitReview(cardId: string, rating: Rating): Promise<Revi
 
   if (typeof window !== 'undefined') {
     await db.reviews.put(review);
-    await db.outbox.add({
-      id: reviewId,
-      table_name: 'review_logs',
-      action: 'rpc',
-      rpc_name: 'fsrs-review',
-      payload: {
-        card_id: cardId,
-        rating,
-        client_review_id: reviewId,
-        time_spent_ms: 0,
-      },
-      created_at: reviewedAt,
-      retries: 0,
-    });
+    await enqueueMutation('review_logs', 'rpc', {
+      card_id: cardId, rating, client_review_id: reviewId, time_spent_ms: 0,
+    }, { rpc_name: 'fsrs-review', transport: 'edge', client_mutation_id: reviewId });
   }
-
-  try {
-    const { data, error } = await createClient().functions.invoke('fsrs-review', {
-      body: {
-        card_id: cardId,
-        rating,
-        client_review_id: reviewId,
-        time_spent_ms: 0,
-      },
-    });
-    if (error) throw error;
-    return {
-      ...(typeof data === 'object' && data !== null ? data : {}),
-      client_review_id: reviewId,
-    } as ReviewResponse;
-  } catch {
-    return { queued: true, client_review_id: reviewId };
-  }
+  return { queued: true, client_review_id: reviewId };
 }
 
 export async function getDueCards(deckId: string | null, limit = 40): Promise<DueCard[]> {

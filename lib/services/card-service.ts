@@ -1,6 +1,7 @@
 import { createClient, type Tables } from '../supabase/client';
 import type { Database, Json } from '../../src/types/database';
 import { refreshNoteEmbedding } from './embedding-service';
+import { tagService } from './tag-service';
 
 export type Flashcard = Pick<
   Tables<'cards'>,
@@ -73,6 +74,11 @@ export async function createCard(input: {
     .eq('id', cardId)
     .single();
   if (cardError) throw cardError;
+
+  for (const tagName of [...new Set(fields.tags.map((tag) => tag.trim()).filter(Boolean))]) {
+    const tag = await tagService.create(tagName);
+    await tagService.addToCard(cardId, tag.id);
+  }
 
   void refreshNoteEmbedding(result.note_id).catch(() => undefined);
   return card;

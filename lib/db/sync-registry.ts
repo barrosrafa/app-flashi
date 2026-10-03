@@ -1,0 +1,4 @@
+import { syncEngine } from './sync-engine';
+import { deckRepository, noteRepository, cardRepository, mediaRepository, examRepository, aiIngestJobRepository, gamificationRepository, userBadgeRepository } from './repositories';
+let registered = false;
+export function registerAllHandlers() { if (registered) return; registered = true; syncEngine.register({ name: 'decks', repo: deckRepository }); syncEngine.register({ name: 'notes', repo: noteRepository }); syncEngine.register({ name: 'cards', repo: cardRepository }); syncEngine.register({ name: 'card_media', repo: mediaRepository }); syncEngine.register({ name: 'deck_exams', repo: examRepository }); syncEngine.register({ name: 'ai_ingestion_jobs', repo: aiIngestJobRepository }); syncEngine.register({ name: 'user_gamification_profiles', repo: gamificationRepository }); syncEngine.register({ name: 'user_badges', repo: userBadgeRepository }); }

@@ -1,0 +1,1 @@
+export { socraticPromptRepository } from './index';

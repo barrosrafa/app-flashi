@@ -303,3 +303,27 @@ pre { background: #07111f; border: 1px solid #263c5b; }
 @media (prefers-reduced-motion: reduce) {
   .nav a:hover, .btn:hover, .deck-card:hover { transform: none; }
 }
+
+.notes-layout { display: grid; grid-template-columns: minmax(190px, .7fr) minmax(0, 1.5fr); gap: 22px; }
+.notes-list { display: grid; gap: 7px; margin-top: 12px; max-height: 560px; overflow: auto; }
+.note-list-item { display: grid; gap: 4px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.note-list-item:hover, .note-list-item.active { border-color: var(--primary); background: var(--primary-soft); }
+.note-list-item span { color: var(--muted); font-size: 12px; }
+.note-editor { display: grid; gap: 13px; }
+.inline-form, .inline-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.inline-form input, .inline-form select { min-height: 44px; flex: 1; min-width: 120px; border: 1px solid #cdd3df; border-radius: 10px; padding: 10px; background: #fff; }
+.inline-row { justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.subpanel { display: grid; gap: 10px; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.subpanel h3, .job-columns h3 { margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; }
+.media-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.media-item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfe; }
+.media-item img, .media-item video, .media-item audio { width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px; background: #151827; }
+.job-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.job-columns > div { display: grid; gap: 10px; }
+.job-list { display: grid; gap: 8px; }
+.job-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbfe; }
+.job-row > div { display: grid; gap: 3px; min-width: 0; }
+.job-row span { color: var(--muted); font-size: 12px; }
+.job-row small { overflow-wrap: anywhere; }
+@media (max-width: 800px) { .notes-layout, .job-columns { grid-template-columns: 1fr; } .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .media-grid { grid-template-columns: 1fr; } .job-row { align-items: flex-start; flex-direction: column; } }

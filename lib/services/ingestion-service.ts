@@ -1,41 +1,11 @@
-import { createClient, type Tables } from '../supabase/client';
-import type { Database } from '../../src/types/database';
-import { invokeUserFunction } from './edge-service';
+import { createClient } from '../supabase/client';
+import { invokeEdge } from './http/edge-client';
+export type SourceType = 'pdf_document' | 'youtube_url' | 'raw_text_block' | 'web_page';
+export type IngestJob = { job_id?: string; status: 'queued' | 'running' | 'processing' | 'completed' | 'failed'; created_at?: string; error?: string; result?: { notes?: Array<{ front: string; back: string }> } };
+const DRAFT = 'flashi:ai-ingest-draft:';
+export const ingestionService = { createFromText(deckId: string, text: string) { return this.create(deckId, 'raw_text_block', text); }, createFromUrl(deckId: string, content: string, type: 'youtube_url' | 'web_page') { return this.create(deckId, type, content); }, async createFromPdf(deckId: string, file: File) { const { data: { user } } = await createClient().auth.getUser(); if (!user) throw new Error('AUTH_REQUIRED'); const path = `${user.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, '-')}`; const { error } = await createClient().storage.from('import-media').upload(path, file, { contentType: 'application/pdf' }); if (error) throw error; return invokeEdge<IngestJob>('ai-ingest', { body: { deck_id: deckId, source_type: 'pdf_document', storage_path: path }, timeoutMs: 60_000 }); }, create(deckId: string, sourceType: SourceType, content: string) { if (!deckId) throw new Error('DECK_REQUIRED'); if (!content.trim()) throw new Error('SOURCE_REQUIRED'); if (content.length > 2000) throw new Error('SOURCE_TOO_LONG'); return invokeEdge<IngestJob>('ai-ingest', { body: { deck_id: deckId, source_type: sourceType, content: content.trim() }, timeoutMs: 60_000 }); }, async status(jobId: string) { const { data, error } = await createClient().from('ai_ingestion_jobs').select('*').eq('id', jobId).maybeSingle(); if (error) throw error; return data as IngestJob | null; }, async retry(job: { deck_id: string; source_type: SourceType; source_reference: string | null }) { if (!job.source_reference) throw new Error('JOB_SOURCE_MISSING'); return createIngestionJob({ deckId: job.deck_id, sourceType: job.source_type, content: job.source_reference }); }, saveDraft(deckId: string, value: string) { if (typeof localStorage !== 'undefined') localStorage.setItem(DRAFT + deckId, value); }, loadDraft(deckId: string) { return typeof localStorage === 'undefined' ? '' : localStorage.getItem(DRAFT + deckId) ?? ''; } };
+export type IngestionSource = SourceType;
+export type IngestionJob = IngestJob;
+export async function createIngestionJob(input: { deckId: string; sourceType: SourceType; content?: string; storagePath?: string }) { if (input.storagePath) return invokeEdge<IngestJob>('ai-ingest', { body: { deck_id: input.deckId, source_type: input.sourceType, storage_path: input.storagePath } }); return ingestionService.create(input.deckId, input.sourceType, input.content ?? ''); }
 
-export type IngestionSource = Database['public']['Enums']['generation_source_type'];
-export type IngestionJob = Tables<'ai_ingestion_jobs'>;
-
-export type IngestionRequest = {
-  deckId: string;
-  sourceType: IngestionSource;
-  content?: string;
-  storagePath?: string;
-};
-
-export async function createIngestionJob(input: IngestionRequest) {
-  if (!input.deckId) throw new Error('DECK_REQUIRED');
-  if (!input.content && !input.storagePath) throw new Error('SOURCE_REQUIRED');
-  if (input.content && input.content.length > 2000) throw new Error('SOURCE_TOO_LONG');
-  if (input.sourceType === 'pdf_document' && input.storagePath && !input.storagePath.toLowerCase().endsWith('.pdf')) {
-    throw new Error('PDF_REQUIRED');
-  }
-
-  return invokeUserFunction<{ job_id?: string; status: string; source_type: IngestionSource }>('ai-ingest', {
-    deck_id: input.deckId,
-    source_type: input.sourceType,
-    ...(input.content ? { content: input.content } : {}),
-    ...(input.storagePath ? { storage_path: input.storagePath } : {}),
-  });
-}
-
-export async function listIngestionJobs(deckId?: string) {
-  let query = createClient()
-    .from('ai_ingestion_jobs')
-    .select('id,user_id,deck_id,source_type,source_reference,status,error_message,notes_generated_count,cards_generated_count,created_at,updated_at,deleted_at,usn')
-    .order('created_at', { ascending: false })
-    .limit(50);
-  if (deckId) query = query.eq('deck_id', deckId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
-}
+export async function listIngestionJobs(deckId?: string) { const { data, error } = await createClient().from('ai_ingestion_jobs').select('*').order('created_at', { ascending: false }).limit(50); if (error) throw error; return deckId ? (data ?? []).filter((job) => job.deck_id === deckId) : data ?? []; }
