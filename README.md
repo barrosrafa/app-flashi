@@ -859,3 +859,29 @@ pnpm dev
 ```
 
 O smoke E2E cobre as principais rotas, o fluxo de estudo demo, contratos da tela de ferramentas e carregamento offline após aquecimento do service worker. Os testes autenticados continuam opcionais e exigem `E2E_EMAIL` e `E2E_PASSWORD`.
+
+## 25. Internacionalização e troca de idioma
+
+A aplicação inclui i18n client-side compatível com a arquitetura atual de rotas (as URLs existentes permanecem estáveis, evitando regressão nas integrações já publicadas). Os dicionários estão em `locales/pt-BR.json`, `locales/en.json` e `locales/es.json`, com shape validado por `locales/index.ts`.
+
+O `LanguageProvider` em `contexts/LanguageContext.tsx`:
+
+- usa `pt-BR` como fallback;
+- aplica a alteração imediatamente à UI e a `<html lang>`;
+- persiste a escolha em `localStorage` (`flashi_locale`) e no cookie `NEXT_LOCALE`;
+- quando existe sessão Supabase, atualiza `public.profiles.language` através do cliente browser;
+- ao iniciar ou depois de `SIGNED_IN`, lê `profiles.language` e sincroniza a preferência do utilizador;
+- mantém fallback para `pt-BR` quando uma chave não existe.
+
+O seletor está disponível em `/profile`, em `components/profile/LanguageSelector.tsx`. A policy `profiles_self` do backend restringe a alteração ao próprio perfil. A migração não cria uma nova coluna porque `profiles.language` já faz parte do snapshot implantável `supabase/migrations/01_types_and_identity.sql`.
+
+### Validação local
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+Para testar manualmente, abra `/profile`, altere o seletor entre Português, English e Español, confirme a atualização imediata da navegação e recarregue a página. Com um utilizador autenticado, a preferência também é persistida no Supabase.

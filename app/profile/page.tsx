@@ -5,8 +5,11 @@ import { AppShell, Topbar } from '../../components/AppShell';
 import { createClient } from '../../lib/supabase/client';
 import { getProfileData, updateProfilePreferences, type ProfileData } from '../../lib/services/profile-service';
 import { ThemeSwitcher } from '../../components/ThemeSwitcher';
+import { LanguageSelector } from '../../components/profile/LanguageSelector';
+import { useTranslation } from '../../contexts/LanguageContext';
 
 export default function Profile() {
+  const { t } = useTranslation();
   const [data, setData] = useState<ProfileData | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [newCardsPerDay, setNewCardsPerDay] = useState(20);
@@ -23,8 +26,8 @@ export default function Profile() {
       })
       .catch((reason: unknown) => {
         setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-          ? 'Entre na sua conta para editar o perfil.'
-          : 'Não foi possível carregar o perfil.');
+          ? t('profile.authLoad')
+          : t('profile.loadError'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -32,14 +35,14 @@ export default function Profile() {
   async function savePreferences(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setMessage('Salvando suas preferências…');
+    setMessage(t('common.saving'));
     try {
       await updateProfilePreferences({ displayName: displayName.trim(), newCardsPerDay });
-      setMessage('Preferências sincronizadas com o Supabase.');
+      setMessage(t('profile.saved'));
     } catch (reason: unknown) {
       setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-        ? 'Entre na sua conta para salvar preferências.'
-        : 'Não foi possível salvar as preferências.');
+        ? t('profile.authSave')
+        : t('profile.saveError'));
     } finally {
       setSaving(false);
     }
@@ -48,26 +51,27 @@ export default function Profile() {
   async function signOut() {
     setSaving(true);
     const { error } = await createClient().auth.signOut();
-    setMessage(error ? error.message : 'Sessão encerrada com segurança.');
+    setMessage(error ? error.message : t('profile.signedOut'));
     setSaving(false);
   }
 
   const initials = (displayName || data?.email || 'F').slice(0, 1).toUpperCase();
 
   return <AppShell>
-    <Topbar title="Seu perfil" subtitle="Preferências, conta e sincronização." />
+    <Topbar title={t('profile.title')} subtitle={t('profile.subtitle')} />
     {message && <div className={`notice ${message.includes('Não foi') || message.includes('Entre') ? 'error' : ''}`} role="status" aria-live="polite">{message}</div>}
-    {loading ? <div className="card" role="status">Carregando suas preferências…</div> : <>
+    {loading ? <div className="card" role="status">{t('profile.loading')}</div> : <>
       <section className="card" aria-labelledby="profile-heading">
-      <div className="profile-summary"><div className="avatar profile-avatar" aria-hidden="true">{initials}</div><div><h2 id="profile-heading">Preferências da conta</h2><p className="subtitle">{data?.email ?? 'Conta Supabase · local-first'}</p></div></div>
+      <div className="profile-summary"><div className="avatar profile-avatar" aria-hidden="true">{initials}</div><div><h2 id="profile-heading">{t('profile.accountPreferences')}</h2><p className="subtitle">{data?.email ?? t('profile.supabaseAccount')}</p></div></div>
       <form className="form" onSubmit={savePreferences}>
-        <div className="field"><label htmlFor="display-name">Nome de exibição</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></div>
-        <div className="field"><label htmlFor="new-cards">Meta diária de cartões novos</label><input id="new-cards" type="number" min="0" max="999" value={newCardsPerDay} onChange={(event) => setNewCardsPerDay(Number(event.target.value))} inputMode="numeric" /><span className="status-text">Uma meta menor ajuda a manter a sessão sustentável.</span></div>
-        <div className="section-head-actions"><button className="btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar preferências'}</button><button className="btn ghost" type="button" onClick={() => void signOut()} disabled={saving}>Sair da conta</button></div>
+        <div className="field"><label htmlFor="display-name">{t('profile.displayName')}</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></div>
+        <div className="field"><label htmlFor="new-cards">{t('profile.dailyNewCards')}</label><input id="new-cards" type="number" min="0" max="999" value={newCardsPerDay} onChange={(event) => setNewCardsPerDay(Number(event.target.value))} inputMode="numeric" /><span className="status-text">{t('profile.sustainableGoal')}</span></div>
+        <LanguageSelector />
+        <div className="section-head-actions"><button className="btn" type="submit" disabled={saving}>{saving ? t('common.saving') : t('profile.savePreferences')}</button><button className="btn ghost" type="button" onClick={() => void signOut()} disabled={saving}>{t('profile.signOut')}</button></div>
       </form>
       </section>
       <section className="card appearance-card" aria-labelledby="appearance-heading">
-        <div className="section-head compact-head"><div><h2 id="appearance-heading">Aparência</h2><p className="subtitle">Escolha como o Flashi deve aparecer. A preferência é salva automaticamente.</p></div></div>
+        <div className="section-head compact-head"><div><h2 id="appearance-heading">{t('profile.appearance')}</h2><p className="subtitle">{t('profile.appearanceSubtitle')}</p></div></div>
         <ThemeSwitcher />
       </section>
     </>}
