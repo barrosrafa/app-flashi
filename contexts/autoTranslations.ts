@@ -424,6 +424,7 @@ const ptToSpanish: Record<string, string> = {
   'O backend não possui um estado cancelado para estes enums; por isso a UI não oferece um cancelamento fictício.': 'El backend no tiene un estado cancelado para estos enums, por lo que la UI no ofrece una cancelación ficticia.',
   'Acompanhe fila, execução, falhas e reprocessamento. Atualização automática a cada 10 segundos.': 'Sigue la cola, ejecución, fallos y reintentos. Actualización automática cada 10 segundos.',
   'Local-first mode': 'Modo local-first',
+  'Modo local-first': 'Modo local-first',
   'Seu espaço de estudo': 'Tu espacio de estudio',
   'Seu ritmo hoje': 'Tu ritmo de hoy',
   'Acompanhe o que está pronto para a próxima sessão.': 'Consulta lo que está listo para tu próxima sesión.',
