@@ -1,330 +1,771 @@
 # Flashi
 
-**Flashi** é uma aplicação web de flashcards em Next.js, orientada a estudo com repetição espaçada e preparada para operação local-first. O projeto foi implementado a partir do [SSD consolidado](./FLASHI_SSD_CONSOLIDADO.md), com uma interface mobile-first, um núcleo local em IndexedDB/Dexie, integração com o projeto Supabase `flashi` e caminhos explícitos para sincronização, avaliações FSRS e agendamento de exames.
+Aplicação web de flashcards para estudo com repetição espaçada, construída com **Next.js 16**, **React 19**, **TypeScript** e **Supabase**. A versão documentada neste ficheiro corresponde à branch **`feature/v3`** e integra a aplicação frontend com os contratos efetivamente publicados pelo backend [Flashi `v2`](https://github.com/barrosrafa/Flashi/tree/v2).
 
-> **Estado desta entrega.** Esta versão entrega o shell funcional do produto, as telas principais, o fluxo interativo de estudo, os clientes Supabase, os contratos de sincronização/outbox, o fallback local e a documentação de execução. O backend Supabase existente permanece a fonte de verdade para autenticação, RLS, RPCs, Edge Functions e persistência remota. A materialização completa das aproximadamente 24 entidades locais, importação/exportação Anki, oclusão de imagem e busca semântica avançada estão estruturadas como extensões previstas no SSD, mas não são apresentados como concluídos nesta entrega.
+> **Estado da entrega:** a implementação v3 inclui as funcionalidades de fundação local-first, sincronização incremental, outbox, Anki, importação por URL, busca semântica com fallback lexical, otimização FSRS, ingestão assistida por IA, mídia, oclusão de imagem, gamificação, exames e tratamento global de erros Edge Functions. As funcionalidades opt-in permanecem desativadas por defeito através de feature flags.
 
-## 1. Objetivos e princípios
+## Índice
 
-O caminho crítico do produto é a sessão de estudo. Por isso, a resposta de revelar um cartão e registrar uma avaliação não deve aguardar a rede. O frontend grava a avaliação localmente com um `client_review_id` estável, cria uma entrada na outbox e tenta chamar a Edge Function `fsrs-review`; se a rede ou a sessão não estiverem disponíveis, a operação permanece pronta para reprocessamento.
+1. [Visão geral](#1-visão-geral)
+2. [Arquitetura](#2-arquitetura)
+3. [Stack](#3-stack)
+4. [Estrutura do projeto](#4-estrutura-do-projeto)
+5. [Configuração local](#5-configuração-local)
+6. [Feature flags](#6-feature-flags)
+7. [Funcionalidades](#7-funcionalidades)
+8. [Rotas](#8-rotas)
+9. [Serviços frontend](#9-serviços-frontend)
+10. [Persistência local, sincronização e outbox](#10-persistência-local-sincronização-e-outbox)
+11. [Contratos com o backend](#11-contratos-com-o-backend)
+12. [Segurança e tratamento de erros](#12-segurança-e-tratamento-de-erros)
+13. [Testes e validação](#13-testes-e-validação)
+14. [Desenvolvimento](#14-desenvolvimento)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Limitações e decisões contratuais](#16-limitações-e-decisões-contratuais)
+17. [Checklist de release](#17-checklist-de-release)
+18. [Referências](#18-referências)
 
-A aplicação também preserva transparência no comportamento remoto. Quando não há usuário autenticado ou não existem decks remotos, a biblioteca informa que está em modo local em vez de simular uma sincronização bem-sucedida. A tela de exames segue a correção conceitual do SSD: trata-se de **agendamento por prioridade e data-alvo**, não de geração de perguntas por inteligência artificial.
+---
 
-## 2. Stack
+## 1. Visão geral
 
-| Camada | Escolha | Papel nesta entrega |
+O Flashi foi desenhado em torno de três princípios:
+
+1. **A sessão de estudo é local-first.** Revelar um cartão e registrar uma avaliação não deve depender de uma resposta de rede. A avaliação é persistida localmente, identificada por um `client_review_id` estável e encaminhada para a outbox.
+2. **O backend é a fonte de verdade remota.** Auth, RLS, RPCs, Edge Functions, Storage, sequência USN e agendamento FSRS pertencem ao backend Supabase.
+3. **Divergências contratuais são resolvidas a favor do backend.** O SDD contém alguns nomes exemplificativos que não existem no `Flashi@v2`; o frontend usa os nomes e payloads presentes nas migrations e Edge Functions reais.
+
+O produto disponibiliza:
+
+- autenticação por email e password;
+- criação e gestão de decks, notas e cartões;
+- sessão de estudo com avaliação otimista;
+- sincronização incremental por USN;
+- outbox para mutações offline e reprocessamento ordenado;
+- importação e exportação de pacotes Anki;
+- importação de conteúdos CSV, Markdown, Quizlet e RemNote por URL;
+- busca semântica e fallback lexical;
+- solicitação e consulta de otimização FSRS;
+- ingestão de texto, URL e PDF para revisão humana antes de salvar notas;
+- upload e assinatura temporária de mídia privada;
+- criação de cartões de oclusão de imagem;
+- perfil de XP, nível, sequência e badges;
+- agendamento de exames e fila de estudo ponderada por data-alvo;
+- PWA com service worker e comportamento tolerante a falhas offline.
+
+---
+
+## 2. Arquitetura
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Next.js App Router / React UI                               │
+│ rotas, componentes, guards de flags e feedback de erros     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│ Serviços frontend                                            │
+│ anki · ingestão · busca · FSRS · mídia · exames · XP         │
+│ importação · oclusão · cliente Edge único                    │
+└───────────────┬───────────────────────────────┬──────────────┘
+                │                               │
+┌───────────────▼──────────────┐   ┌────────────▼─────────────┐
+│ Dexie / IndexedDB             │   │ Supabase browser client  │
+│ schema local, repositórios,   │   │ Auth, Data API, RPC,      │
+│ cursor USN e outbox           │   │ Storage e Edge Functions  │
+└───────────────┬──────────────┘   └────────────┬─────────────┘
+                │                               │
+                └───────────────┬───────────────┘
+                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Backend Flashi@v2                                           │
+│ PostgreSQL/RLS · Storage · Edge Functions · workers · RPCs   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo online
+
+1. A UI chama um serviço de domínio.
+2. O serviço lê/escreve localmente quando a operação faz parte do fluxo de estudo ou outbox.
+3. Operações remotas passam por `invokeEdge` ou pelo cliente Supabase tipado.
+4. O backend valida JWT, propriedade via RLS e payload.
+5. A UI apresenta sucesso, estado pendente ou erro tipado.
+
+### Fluxo offline
+
+1. A mutação é escrita no IndexedDB com `_dirty = 1`.
+2. Uma entrada com `client_mutation_id` é criada na outbox.
+3. O worker tenta enviar quando a aplicação está online, recebe foco ou termina uma escrita.
+4. Falhas transitórias ficam pendentes para retry; a ordem das mutações é preservada.
+5. A sincronização incremental aplica tombstones e registros até ao próximo `usn`.
+
+---
+
+## 3. Stack
+
+| Camada | Tecnologia | Responsabilidade |
 |---|---|---|
-| Framework | Next.js 16.1, App Router | Rotas estáticas, rotas dinâmicas e componentes client-side |
-| Linguagem | TypeScript estrito | Contratos de UI, serviços e persistência local |
-| Interface | React 19, CSS responsivo próprio | Dashboard, estudo, formulários e acessibilidade básica |
-| Cloud | `@supabase/supabase-js` + `@supabase/ssr` | Auth, Data API, RPCs, Storage e Edge Functions |
-| Offline | Dexie sobre IndexedDB | Cartões, avaliações, cursor de sync e outbox |
-| Validação | Vitest | Contratos determinísticos de sync e idempotência |
-| PWA | Manifesto Next.js + service worker | App shell versionado, precache tolerante a falhas e fallback de navegação offline |
+| Framework | Next.js 16.1 / App Router | Rotas estáticas, dinâmicas e server rendering |
+| UI | React 19 / TypeScript 5.9 | Componentes, formulários e interação |
+| Estilos | CSS responsivo próprio | Layout mobile-first e estados da UI |
+| Backend | Supabase | Auth, Postgres, RLS, RPC, Storage e Edge Functions |
+| Cliente Supabase | `@supabase/ssr` e `@supabase/supabase-js` | Sessão de browser e chamadas remotas |
+| Persistência offline | Dexie / IndexedDB | Entidades locais, cursor, estado dirty e outbox |
+| Validação | Vitest | Testes de serviços, contratos e invariantes |
+| E2E | Playwright | Smoke tests de UI quando o ambiente está configurado |
+| PWA | Manifest e service worker | Cache do shell e fallback de navegação |
 
-O uso de `@supabase/ssr` e das variáveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` segue a recomendação oficial de separar o cliente de navegador do cliente de servidor.[^2] O Next.js 16 chama a convenção de middleware de **Proxy**; o projeto já usa `proxy.ts`, sem depender da convenção depreciada.[^1]
+O Next.js 16 utiliza `proxy.ts` em vez da convenção antiga `middleware.ts`. O cliente Supabase de browser está em `lib/supabase/client.ts` e usa exclusivamente URL pública e chave publishable.
 
-## 3. Estrutura do repositório
+---
+
+## 4. Estrutura do projeto
 
 ```text
 app/
-├── (auth)/login/page.tsx       # Entrada via Supabase Auth
-├── (auth)/register/page.tsx    # Cadastro via Supabase Auth
-├── analytics/page.tsx          # Métricas e atividade semanal
-├── decks/page.tsx              # Biblioteca conectada ao Data API
-├── decks/new/page.tsx          # Criação de deck
-├── decks/[deckId]/page.tsx     # Detalhe dinâmico, params assíncronos
-├── exams/page.tsx              # Agendamento por prioridade
-├── profile/page.tsx            # Preferências e signOut
-├── study/[deckId]/page.tsx     # Sessão crítica de estudo
-├── decks/[deckId]/cards/page.tsx # Gerenciamento de cards incorporado do ZIP
-├── layout.tsx
-├── manifest.ts
+├── (auth)/login/                 # Login Supabase Auth
+├── (auth)/register/              # Registo Supabase Auth
+├── analytics/                    # Métricas e atividade
+├── decks/                        # Biblioteca e criação de decks
+│   └── [deckId]/
+│       ├── cards/                # Gestão de cartões
+│       └── occlusion/new/        # Editor de oclusão de imagem
+├── exams/                        # Exames e prioridade
+├── export/anki/                  # Exportação para .apkg
+├── import/
+│   ├── ai-ingest/                # Ingestão com revisão humana
+│   ├── anki/                     # Importação .apkg
+│   └── url/                      # Importação CSV/Markdown/etc. por URL
+├── media/[id]/                   # Visualização de mídia
+├── occlusion/                    # Área de oclusão existente
+├── profile/                      # Preferências e badges
+├── search/                       # Busca semântica
+├── settings/fsrs-optimize/       # Otimização FSRS
+├── study/[deckId]/               # Sessão crítica de estudo
+├── tools/                        # Ferramentas e jobs
+├── layout.tsx                    # Shell global, worker e erros Edge
 └── globals.css
+
 components/
-├── AppShell.tsx               # Navegação persistente e topbar
-├── DeckLibrary.tsx             # Leitura remota com fallback local
-└── CardBrowser.tsx             # CRUD de cards em notes + cards
+├── AppShell.tsx                  # Navegação e topbar
+├── EdgeErrorNotice.tsx           # Erros remotos globais
+├── RateLimitBanner.tsx            # Countdown para HTTP 429
+├── OcclusionEditor.tsx            # Desenho de máscaras percentuais
+├── OcclusionCard.tsx              # Revelação individual de máscaras
+├── MediaViewer.tsx                # Imagem, áudio e vídeo
+└── SemanticHitRow.tsx             # Resultado da busca semântica
+
 lib/
-├── db/schema.ts               # Dexie e tabelas locais do MVP
-├── db/outbox-queue.ts          # Mutações ordenadas e retry
-├── db/sync-engine.ts           # Cursor USN e lista plana de mudanças
-├── services/deck-service.ts    # list/create de decks
-├── services/exam-service.ts    # deck_exams e fila com exame
-├── services/study-service.ts   # review otimista + fsrs-review
-└── supabase/client.ts          # createBrowserClient
-scripts/supabase-smoke.mjs     # Smoke test contra o projeto real
-tests/sync-engine.test.ts       # Testes de contrato
-docs/browser-verification.md    # Evidências de verificação visual
-docs/integration-verification.md # Evidências Auth + Supabase
+├── config/feature-flags.ts        # Flags v3
+├── db/
+│   ├── schema.ts                  # Schema Dexie versionado
+│   ├── sync-engine.ts             # Cursor, records e tombstones
+│   ├── sync-worker.ts             # Coordenação online/foco/intervalo
+│   ├── sync-registry.ts           # Registo de handlers
+│   ├── outbox-queue.ts            # Mutação pendente e retry
+│   └── repositories/               # CRUD local por entidade
+├── services/
+│   ├── http/edge-client.ts        # Wrapper único de Edge Functions
+│   ├── anki-service.ts            # Anki import/export
+│   ├── import-deck-service.ts     # Importação via import-deck
+│   ├── ingestion-service.ts       # IA, PDF, URL e rascunho
+│   ├── semantic-search-service.ts # Busca semântica/lexical
+│   ├── optimizer-service.ts       # FSRS optimization
+│   ├── media-service.ts           # Storage card-media
+│   ├── occlusion-service.ts       # RPC image occlusion
+│   ├── gamification-service.ts    # XP, perfis e badges
+│   ├── exam-service.ts             # Exames e fila
+│   └── study-service.ts            # Avaliação e revisão
+└── supabase/client.ts              # Browser client tipado
+
+tests/
+├── edge-client.test.ts             # Auth, retry, 429, 503 e timeout
+├── feature-services.test.ts        # Validação de oclusão
+└── sync-engine.test.ts             # Cursor, tombstone e sincronização
+
+docs/
+├── backend-contract-notes.md       # Notas dos contratos remotos
+├── integration-verification.md    # Verificação de integração
+└── browser-verification.md         # Evidências de UI/browser
 ```
 
-## 4. Configuração local
+---
 
-Requisitos mínimos: Node.js compatível com Next.js 16, pnpm e acesso ao projeto Supabase `flashi`. Instale as dependências e copie o exemplo de ambiente:
+## 5. Configuração local
+
+### Requisitos
+
+- Node.js compatível com Next.js 16;
+- pnpm;
+- acesso a um projeto Supabase compatível com o backend Flashi;
+- credenciais de um utilizador de teste para fluxos autenticados.
+
+### Instalação
 
 ```bash
+git clone https://github.com/barrosrafa/app-flashi.git
+cd app-flashi
+git checkout feature/v3
 pnpm install
 cp .env.example .env.local
 ```
 
-Preencha `.env.local` com o URL e a chave **publishable/anon**, nunca com `service_role` ou `sb_secret`:
+Preencha `.env.local`:
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://ykyobzoxoiljyueasdwc.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-A chave publishable pode ser exposta no navegador porque o controle de acesso depende de Auth e RLS. A chave secreta de serviço e qualquer `OPENAI_API_KEY` devem permanecer apenas em funções/worker server-side. A documentação oficial confirma que o cliente usa o URL do projeto e a chave publishable para acessar a Data API e que as permissões devem ser protegidas por RLS.[^3]
+A chave deve ser **publishable/anon**. Nunca coloque no frontend:
 
-## 5. Comandos
+- `service_role`;
+- `sb_secret`;
+- `OPENAI_API_KEY`;
+- tokens administrativos;
+- passwords de utilizadores.
 
-| Comando | Finalidade | Resultado validado |
-|---|---|---|
-| `pnpm dev` | Servidor local | Usado para verificação de navegador em `http://localhost:3000` |
-| `pnpm typecheck` | TypeScript estrito | Passou sem erros |
-| `pnpm test` | Testes Vitest | 3 testes passaram |
-| `pnpm test:e2e` | Playwright com Chromium | 15 testes passaram; 1 teste autenticado opcional foi ignorado sem variáveis |
-| `pnpm exec next build --webpack` | Build de produção | Compila as rotas sem erros |
-| `node scripts/supabase-smoke.mjs` | Smoke test remoto | REST público, RPC de sync e proteção JWT verificados |
+A autorização é garantida por Auth, RLS e validações nas Edge Functions. A chave publishable pode aparecer no bundle do browser, mas não concede acesso além das policies configuradas.
 
-A documentação da chamada de Edge Functions do Supabase usa `supabase.functions.invoke`, o mesmo padrão adotado em `lib/services/study-service.ts`.[^3]
-
-## 6. Rotas implementadas
-
-| Rota | Conteúdo | Estado de validação |
-|---|---|---|
-| `/` | Dashboard com cartões do dia, sequência, XP e decks | Aberta em navegador |
-| `/decks` | Biblioteca remota com fallback local | Aberta; status `Sem decks remotos · modo local ativo` confirmado |
-| `/decks/new` | Formulário de novo deck | Aberta em navegador |
-| `/decks/[deckId]` | Detalhe dinâmico, métricas, tabela e painel de cards | Aberta em navegador |
-| `/decks/[deckId]/cards` | CRUD de cards mesclado do ZIP, com `notes` + `cards` | Aberta; insert autenticado confirmado |
-| `/study/[deckId]` | Revelar, atalhos e quatro ratings | Aberta e interagida; rating incrementou a sessão |
-| `/exams` | Agendamento de exame e prioridade | Aberta em navegador |
-| `/analytics` | Retenção, volume, tempo, precisão e gráfico | Aberta em navegador |
-| `/profile` | Preferências e `auth.signOut()` | Aberta em navegador |
-| `/login` | `auth.signInWithPassword` | Aberta em navegador |
-| `/register` | `auth.signUp` | Aberta em navegador |
-| `/manifest.webmanifest` | Manifesto PWA | Gerado pelo Next.js |
-
-Os detalhes da evidência visual e textual estão em [`docs/browser-verification.md`](./docs/browser-verification.md). O teste autenticado, incluindo login, criação de deck, criação de card e confirmação por SQL no Supabase, está em [`docs/integration-verification.md`](./docs/integration-verification.md).
-
-## 7. Integração Supabase
-
-O cliente de navegador é criado em `lib/supabase/client.ts`. A URL possui fallback para o projeto auditado, enquanto a chave precisa vir do ambiente local. Os serviços acessam o Data API com consultas filtradas e limitadas:
-
-| Operação | Implementação | Contrato remoto |
-|---|---|---|
-| Listar decks | `from('decks').select(...).order(...).limit(50)` | RLS controla o conjunto visível |
-| Criar deck | `from('decks').insert(...).select(...).single()` | A gravação real exige usuário autenticado |
-| Fila de estudo | `rpc('get_due_cards_with_exam_schedule', ...)` | Fila reordenada por prioridade de exame |
-| Sync incremental | `rpc('get_incremental_sync', ...)` | Lista plana por `entity_type`, `entity_key`, `usn`, `is_deleted`, `payload` |
-| Avaliação | `functions.invoke('fsrs-review', ...)` | JWT do usuário e `client_review_id` idempotente |
-| Exame | `from('deck_exams').insert(...).select(...).single()` | Status inicial `active` |
-| Auth | `auth.signInWithPassword`, `auth.signUp`, `auth.signOut` | Sessão gerenciada pelo Supabase |
-
-### 7.1 Estado remoto auditado
-
-A instância `flashi` está ativa e saudável no projeto `ykyobzoxoiljyueasdwc`. A auditoria confirmou as migrações `0001` a `0024` e também uma migração adicional chamada `user_function_rate_limits`. A confirmação é importante porque o SSD alertava para a necessidade de verificar a migração `0024`; ela está presente no ambiente real.
-
-O schema público auditado contém, entre outras, `decks`, `notes`, `cards`, `card_learning_state`, `review_logs`, `deck_exams`, `user_gamification_profiles`, `badges_definition`, `user_badges`, `socratic_remediation_sessions`, `ai_ingestion_jobs`, `anki_transfer_jobs`, `graves` e `v_deck_tree`. O projeto possui oito Edge Functions ativas: `sync`, `fsrs-review`, `embeddings`, `semantic-search`, `fsrs-optimize`, `fsrs-optimize-worker`, `anki-transfer` e `ai-ingest`, todas configuradas no inventário remoto com verificação JWT.
-
-### 7.2 Smoke test remoto
-
-O script `scripts/supabase-smoke.mjs` foi executado contra a instância real. O resultado foi:
-
-```text
-public badges REST                         200  ok=true
-incremental sync RPC sem usuário          200  ok=true  body=[]
-fsrs-review sem JWT                        401  ok=true  Authentication is required
-```
-
-O primeiro probe retornou lista vazia porque o catálogo de badges ainda não possui registros. O segundo retornou lista vazia no contexto sem usuário, confirmando o formato de resposta vazio sem criar dados. O terceiro confirmou que a função de avaliação não aceita chamadas anônimas.
-
-## 8. Offline-first, sync e outbox
-
-O schema local do MVP usa as tabelas `decks`, `cards`, `learning`, `reviews`, `exams`, `outbox` e `sync_meta`. O cursor `last_usn` só é avançado depois de materializar todo o lote retornado pelo RPC. Mudanças com `is_deleted` removem o registro local; mudanças ativas fazem `put` do payload.
-
-A outbox mantém ordem por `created_at`. Ações suportadas são `insert`, `update`, `delete` e `rpc`. Falhas incrementam `retries` e interrompem o lote para não ultrapassar uma operação anterior. O próximo flush retoma do primeiro item pendente. Reviews usam UUID persistente em `client_review_id`, permitindo que a função remota deduplicate reenvios.
-
-> O app não usa `localStorage` para o cursor de sincronização. Isso é deliberado: IndexedDB/Dexie é a persistência apropriada para dados locais do fluxo de estudo e é acessível por componentes que executam no navegador.
-
-## 9. Segurança e findings do ambiente
-
-A análise de segurança do Supabase encontrou um aviso informativo para `user_function_rate_limits`, que possui RLS habilitado sem policy. Também encontrou avisos sobre funções `SECURITY DEFINER` executáveis por usuários autenticados, incluindo `add_user_xp` e `resolve_socratic_remediation`. Esses pontos pertencem ao backend existente e não foram alterados pelo frontend; devem ser revisados antes de produção.
-
-A análise de performance apontou uma foreign key sem índice cobrindo `user_badges.badge_id` e várias policies que reavaliam `auth.uid()` por linha, incluindo policies de `profiles`, `decks`, `cards`, tags e colaboradores. O remédio recomendado é envolver a chamada de autenticação em `select`, conforme o advisory gerado pelo Supabase.
-
-| Finding | Severidade observada | Próxima ação |
-|---|---|---|
-| RLS sem policy em `user_function_rate_limits` | INFO | Definir policy explícita ou revogar exposição à role de cliente |
-| `SECURITY DEFINER` executável por authenticated | WARN | Revisar `EXECUTE`, ownership e validação de `auth.uid()` |
-| FK `user_badges.badge_id` sem índice | INFO | Criar índice cobrindo a coluna |
-| `auth_rls_initplan` em várias policies | WARN | Usar `(select auth.uid())` conforme advisory |
-| Convenção `middleware.ts` depreciada no Next 16 | Resolvido | O projeto usa `proxy.ts`; manter a convenção nas próximas alterações |
-
-## 10. Limitações conhecidas
-
-A tela principal consulta o Supabase e o estado local para montar indicadores, fila e decks, exibindo estados de carregamento, erro e vazio sem inventar persistência remota. A biblioteca de decks consulta o Supabase e alterna para conteúdo local somente quando a resposta remota vem vazia ou falha, identificando esse modo na interface. O fluxo autenticado de criação de deck e card foi executado com sucesso; a hidratação completa de todas as entidades relacionadas continua como evolução.
-
-O cálculo FSRS-6 não é reimplementado integralmente no cliente nesta versão. A avaliação otimista é persistida e encaminhada a `fsrs-review`; o agendador definitivo deve continuar no contrato do backend. O manifesto PWA e o service worker estão presentes: o shell de rotas principais é pré-cacheado de forma tolerante a falhas, assets same-origin são armazenados sob demanda e navegações usam rede primeiro com fallback para o cache. O offline depende de um primeiro acesso online para que HTML e assets específicos tenham sido aquecidos.
-
-Também não há, nesta entrega, upload de mídia com SHA-256, editor completo de notas e templates, oclusão de imagem, processamento de jobs Anki, ingestão de PDF/YouTube/web, busca semântica, gamificação visível ou chat socrático. Os serviços e os contratos devem ser implementados por fases, sem inventar RPCs ou funções que não existem no backend.
-
-## 11. Próximos passos recomendados
-
-A geração de `src/types/database.ts` a partir do projeto Supabase e a substituição dos tipos aproximados pelos contratos oficiais já foram concluídas. A próxima evolução é hidratar integralmente as entidades relacionadas em Dexie, ampliar os contadores de cartões novos e de revisão e tornar a fila local de estudo a fonte primária durante a sessão.
-
-A próxima evolução deve materializar integralmente a fila local de estudo, mover a criação de note + card para uma RPC transacional ou Edge Function idempotente e completar uploads privados nos buckets `card-media` e `anki-transfers`. O cenário offline e a cobertura Playwright básica já estão implementados; o teste mutacional autenticado pode ser repetido exportando credenciais de uma conta de QA.
-
-## 12. Merge do `flashcards.zip`
-
-O arquivo recebido continha uma segunda aplicação Next.js sob `src/`, uma camada de IndexedDB própria, um cliente HTTP apontando para um backend Express em `localhost:3001` e um backend de rascunho Anki em `scratch/anki-sync-backend`. Esse backend usa convenções diferentes das tabelas públicas do projeto Supabase `flashi`: IDs compostos/BIGINT, `did` e `flds` como strings separadas por caracteres, além de um contexto de usuário definido por variável de sessão PostgreSQL.
-
-A decisão de merge foi seletiva e intencional. Foram incorporados o padrão visual e o fluxo de gerenciamento de cards do ZIP, mas não o backend Express nem as migrations antigas. Copiar essas migrations diretamente teria criado um segundo modelo de persistência e entrado em conflito com o schema já implantado no Supabase. O resultado final usa as entidades atuais `decks`, `notes` e `cards`, com `uuid`, `user_id`, `deck_id` e `fields` JSONB.
-
-| Item do ZIP | Decisão | Motivo |
-|---|---|---|
-| Tela de browse de cards | Incorporada e adaptada | Entrega busca, criação, listagem e arquivamento em uma experiência única |
-| `src/lib/db.ts` do ZIP | Não copiada | Modelo local incompatível com o schema Dexie atual e com o Supabase real |
-| `src/lib/api.ts` do ZIP | Não copiada | Dependia de backend HTTP Express em `localhost:3001` e criava fallback de login inseguro |
-| `scratch/anki-sync-backend` | Mantido fora do app | É um backend paralelo de referência, não o contrato implantado |
-| Migrations SQL do ZIP | Não aplicadas | O projeto Supabase já tinha migrations e tabelas equivalentes em outro desenho |
-| Layout e interações de cards | Reimplementadas | Permite usar o visual do ZIP sem abandonar Auth/RLS e Edge Functions atuais |
-
-## 13. Modelo de dados e invariantes
-
-A criação de um deck exige uma sessão válida. O serviço chama `auth.getUser()`, rejeita a operação com `AUTH_REQUIRED` quando não existe usuário e envia `user_id` explicitamente no insert. O banco permanece responsável por RLS, defaults, timestamps e sequência global `usn`.
-
-A criação de um card é composta por duas gravações relacionadas. Primeiro, o serviço insere uma linha em `notes`, contendo `user_id`, `deck_id`, `fields` e `source_format = native`. Depois, insere uma linha em `cards`, usando o `note.id` retornado, o mesmo usuário e deck, `card_kind = basic` e o mesmo objeto JSONB de campos. Assim, o texto editado na interface fica disponível no note e na representação estudável do card.
-
-| Entidade | Campos essenciais usados pelo frontend | Regra de propriedade |
-|---|---|---|
-| `decks` | `id`, `user_id`, `name`, `description`, `visibility` | O usuário autenticado é o proprietário |
-| `notes` | `id`, `user_id`, `deck_id`, `fields`, `source_format` | O note pertence ao mesmo usuário e deck |
-| `cards` | `id`, `user_id`, `deck_id`, `note_id`, `fields`, `card_kind`, `is_archived` | O card referencia o note e só é listado quando ativo |
-| `card_learning_state` | estado de repetição espaçada | Deve ser atualizado pelo pipeline FSRS, não pelo formulário básico |
-| `review_logs` | histórico de avaliações | Deve receber avaliações idempotentes pela Edge Function |
-
-Nesta versão, o insert de note e o insert de card são duas requisições consecutivas do cliente. Se a segunda falhar depois que a primeira foi aceita, pode existir um note órfão; a evolução recomendada é mover a operação para uma RPC transacional ou Edge Function idempotente. O cliente não tenta apagar silenciosamente o note, porque uma compensação automática também pode esconder uma falha de RLS ou de conectividade.
-
-## 14. Fluxos operacionais detalhados
-
-### 14.1 Desenvolvimento local
+### Execução
 
 ```bash
-git clone https://github.com/barrosrafa/app-flashi.git
-cd app-flashi
-pnpm install
-cp .env.example .env.local
-# preencher as duas variáveis públicas do Supabase
 pnpm dev
 ```
 
-Abra `http://localhost:3000/login`, autentique-se e acesse `Meus decks`. Para testar o fluxo incorporado, clique em `Novo deck`, informe nome e descrição, aguarde o redirecionamento para o gerenciador e preencha frente, verso e tags. A mensagem `Card inserido no Supabase.` só aparece depois que o serviço conclui o insert do card e recarrega a listagem remota.
+Abra `http://localhost:3000/login`, autentique-se e navegue para os decks.
 
-### 14.2 Smoke test sem sessão
+---
 
-O smoke test não cria dados. Ele verifica que uma leitura pública configurada responde, que a RPC de sincronização pode retornar um lote vazio sem usuário e que `fsrs-review` recusa chamada sem JWT:
+## 6. Feature flags
+
+Todas as flags v3 são opt-in. O valor `1` ativa a funcionalidade; qualquer outro valor mantém-na desativada.
+
+| Flag | Variável | Escopo |
+|---|---|---|
+| `sync_v2` | `NEXT_PUBLIC_FF_SYNC_V2` | Worker e sincronização incremental |
+| `anki_io` | `NEXT_PUBLIC_FF_ANKI_IO` | Importação/exportação Anki |
+| `occlusion` | `NEXT_PUBLIC_FF_OCCLUSION` | Editor e cartões de oclusão |
+| `semantic_search` | `NEXT_PUBLIC_FF_SEMANTIC_SEARCH` | Busca semântica e fallback lexical |
+| `fsrs_opt` | `NEXT_PUBLIC_FF_FSRS_OPT` | Pedido/consulta de otimização FSRS |
+| `ai_ingest` | `NEXT_PUBLIC_FF_AI_INGEST` | Ingestão de texto, URL e PDF |
+| `gamification` | `NEXT_PUBLIC_FF_GAMIFICATION` | XP, nível, streak e badges |
+| `exams` | `NEXT_PUBLIC_FF_EXAMS` | Exames e fila ponderada |
+| `import_url` | `NEXT_PUBLIC_FF_IMPORT_URL` | Importação de conteúdos por URL |
+
+O repositório também conserva flags legadas (`MEDIA`, `SEMANTIC`, `ANKI`, `SYNC_WORKER`) para compatibilidade com a fundação v1/v2. Para uma funcionalidade nova, a UI deve usar `isEnabled(...)` de `lib/config/feature-flags.ts`.
+
+Exemplo:
+
+```dotenv
+NEXT_PUBLIC_FF_ANKI_IO=1
+NEXT_PUBLIC_FF_SEMANTIC_SEARCH=1
+NEXT_PUBLIC_FF_IMPORT_URL=1
+```
+
+Uma flag desativada não remove a rota do build; a rota renderiza uma mensagem de recurso desativado e não chama o backend.
+
+---
+
+## 7. Funcionalidades
+
+### 7.1 Sincronização local-first
+
+- Schema Dexie versionado para entidades sincronizáveis.
+- Cursor `last_usn` armazenado em `sync_meta`.
+- `executeIncrementalSync()` chama a Edge Function `sync` com `{ last_usn, limit }`.
+- Registros ativos são aplicados com `put`.
+- Tombstones são materializados localmente com `deleted_at`, sem apagar silenciosamente o histórico.
+- O cursor só avança depois de o lote completo ser aplicado numa transação Dexie.
+- Telemetria local regista `sync.success` e `sync.failure` sem conteúdo de cartões ou tokens.
+
+### 7.2 Outbox e avaliações
+
+- Mutações têm `client_mutation_id` idempotente.
+- A ordem é preservada por `created_at`.
+- Falhas incrementam retries e interrompem o lote no primeiro item pendente.
+- Reviews usam `client_review_id` estável para permitir deduplicação no backend.
+- A avaliação otimista não bloqueia a sessão de estudo enquanto aguarda a rede.
+
+### 7.3 Importação e exportação Anki
+
+A importação aceita `.apkg` até **50 MiB** e envia o arquivo para o bucket privado `anki-transfers`, sob o caminho do utilizador:
+
+```text
+{user_id}/imports/{timestamp}-{filename}.apkg
+```
+
+Depois chama `anki-transfer` com:
+
+```json
+{
+  "action": "import",
+  "storage_path": "<path privado>",
+  "target_deck_name": "<opcional>"
+}
+```
+
+O backend trata deduplicação por pacote, notas, cartões, tags e mídia. A exportação envia `deck_id` e `include_media`, recebe o `storage_path` gerado e cria uma URL assinada temporária para download.
+
+Limites aplicados pelo backend incluem 50 MiB por pacote, 10.000 notas e 2.000 mídias vinculadas.
+
+### 7.4 Importação por URL
+
+A rota `/import/url` permite escolher:
+
+- CSV;
+- Markdown;
+- Quizlet;
+- RemNote.
+
+O browser baixa a URL, converte a resposta numa `File`, envia-a ao bucket `import-media` e chama `import-deck`. O backend real não recebe uma URL diretamente; recebe `deck_id`, `format` e `storage_path` privado. Por isso, a funcionalidade depende de a origem permitir CORS para o browser.
+
+O limite de arquivo é **15 MiB**, conforme `import-deck`.
+
+### 7.5 Busca semântica
+
+`semanticSearchService` chama `semantic-search` com:
+
+```json
+{
+  "query": "...",
+  "limit": 20,
+  "mode": "semantic"
+}
+```
+
+Se a operação semântica receber indisponibilidade `503`, o serviço tenta novamente em modo `lexical`. A resposta inclui `mode`, modelo/dimensões quando aplicável, hash da consulta e resultados com `note_id`, `fields`, `match_type` e `similarity`.
+
+### 7.6 Otimização FSRS
+
+- `optimizerService.request()` chama `fsrs-optimize` em modo `request`.
+- `optimizerService.run(runId)` chama a execução do job.
+- O estado de uma execução é consultado pela tabela `fsrs_optimization_runs`, porque a Edge Function backend não declara uma ação pública `status`.
+- A tela não faz polling agressivo; a consulta ocorre sob demanda.
+- A otimização definitiva continua a ser executada pelo backend/worker.
+
+### 7.7 Ingestão assistida por IA
+
+A UI suporta quatro tipos de origem:
+
+- `raw_text_block`;
+- `youtube_url`;
+- `web_page`;
+- `pdf_document`.
+
+O fluxo é deliberadamente de **revisão humana**:
+
+1. o utilizador informa deck e conteúdo;
+2. a aplicação cria um `ai_ingestion_job`;
+3. o estado `queued`, `processing`, `completed` ou `failed` é exibido;
+4. o conteúdo não é salvo automaticamente como nota;
+5. o utilizador revê e decide o que salvar.
+
+Rascunhos de texto são guardados em `localStorage` com a chave `flashi:ai-ingest-draft:<deckId>`. O PDF é enviado para `import-media` e referenciado por `storage_path`.
+
+### 7.8 Mídia
+
+`mediaService` usa o bucket privado `card-media` e produz caminhos por utilizador/cartão. URLs de leitura são assinadas por 30 minutos. `MediaViewer` seleciona automaticamente `<img>`, `<audio>` ou `<video>` conforme o MIME type.
+
+### 7.9 Oclusão de imagem
+
+O `OcclusionEditor` desenha retângulos relativos à imagem. As coordenadas são percentuais de 0 a 100:
+
+```json
+{
+  "cloze_ordinal": 1,
+  "label_text": "opcional",
+  "x_pos": 10,
+  "y_pos": 20,
+  "width_pct": 25,
+  "height_pct": 15,
+  "metadata": {}
+}
+```
+
+A criação chama a RPC real:
+
+```text
+create_image_occlusion_note(p_note_id, p_boxes)
+```
+
+O backend v2 associa a oclusão à nota existente. O `OcclusionCard` permite revelar cada máscara individualmente.
+
+### 7.10 Gamificação
+
+`gamificationService` consulta:
+
+- `user_gamification_profiles`;
+- `badges_definition`;
+- `user_badges`.
+
+A UI apresenta XP, nível, streak e badges desbloqueadas. Badges não obtidas permanecem visíveis com estado visual atenuado. A atribuição de XP usa a RPC existente `add_user_xp` quando ativada pelo fluxo correspondente.
+
+### 7.11 Exames e modo de estudo
+
+`examService` usa `deck_exams` e a RPC:
+
+```text
+get_due_cards_with_exam_schedule(p_deck_id, p_limit)
+```
+
+O agendamento é baseado em deck, data-alvo e prioridade. A fila devolve cartão, estado, vencimento, exame associado, dias restantes e fator de agendamento. O status inicial de um exame criado pelo frontend é `active`.
+
+---
+
+## 8. Rotas
+
+| Rota | Funcionalidade | Flag |
+|---|---|---|
+| `/` | Dashboard, decks, XP e cartões do dia | — |
+| `/decks` | Biblioteca de decks com fallback local | — |
+| `/decks/new` | Criação de deck | — |
+| `/decks/[deckId]` | Detalhe e métricas do deck | — |
+| `/decks/[deckId]/cards` | CRUD de cards e notes | — |
+| `/decks/[deckId]/occlusion/new` | Upload e editor de oclusão | `occlusion` |
+| `/study/[deckId]` | Sessão de estudo e ratings | — |
+| `/search` | Busca semântica/lexical | `semantic_search` |
+| `/import/anki` | Upload `.apkg` | `anki_io` |
+| `/export/anki` | Exportação de deck `.apkg` | `anki_io` |
+| `/import/url` | Importação CSV/Markdown/etc. via URL | `import_url` |
+| `/import/ai-ingest` | Ingestão de texto, URL e PDF | `ai_ingest` |
+| `/media/[id]` | Visualização de mídia | `media`/fluxo de mídia |
+| `/settings/fsrs-optimize` | Pedido e consulta FSRS | `fsrs_opt` |
+| `/profile/badges` | XP, nível, streak e badges | `gamification` |
+| `/exams` | Exames e agenda de estudo | `exams` |
+| `/analytics` | Retenção, precisão e atividade | — |
+| `/profile` | Perfil e sign out | — |
+| `/login` | Login | — |
+| `/register` | Registo | — |
+
+---
+
+## 9. Serviços frontend
+
+| Serviço | Responsabilidade | Acesso remoto |
+|---|---|---|
+| `http/edge-client.ts` | Auth, timeout, retry e normalização de erros | Todas as Edge Functions |
+| `anki-service.ts` | Upload/import/export Anki | `anki-transfer`, Storage |
+| `import-deck-service.ts` | Upload e processamento de formatos | `import-deck`, Storage |
+| `semantic-search-service.ts` | Busca com fallback | `semantic-search` |
+| `optimizer-service.ts` | FSRS request/run/status | `fsrs-optimize`, Data API |
+| `ingestion-service.ts` | Jobs IA, fontes e rascunhos | `ai-ingest`, Data API |
+| `media-service.ts` | Upload e URLs assinadas | Storage `card-media` |
+| `occlusion-service.ts` | Caixas e cartões de oclusão | RPC `create_image_occlusion_note` |
+| `gamification-service.ts` | Perfil, badges e XP | Tabelas e `add_user_xp` |
+| `exam-service.ts` | CRUD e fila de exames | `deck_exams`, RPC de agenda |
+| `study-service.ts` | Review otimista | `fsrs-review`, outbox |
+| `edge-service.ts` | Compatibilidade com serviços legados | Delegação para wrapper |
+
+Como regra, novas chamadas de Edge Function devem usar exclusivamente `invokeEdge`. Chamadas diretas a `functions.invoke` não devem ser adicionadas fora do wrapper.
+
+---
+
+## 10. Persistência local, sincronização e outbox
+
+### Entidades locais
+
+O schema Dexie mantém tabelas para decks, notes, cards, templates, tags, reviews, estado de aprendizagem, mídia, jobs de IA, runs FSRS, gamificação, badges, exames, sessões socráticas, referências e metadados de sincronização.
+
+Cada entidade sincronizável pode carregar:
+
+- `id`;
+- `user_id`;
+- `usn`;
+- `updated_at`;
+- `deleted_at`;
+- `_dirty`;
+- `_synced_at`.
+
+### Sync incremental
+
+A chamada ao backend é:
+
+```json
+{
+  "last_usn": 0,
+  "limit": 500
+}
+```
+
+A resposta pode conter `data`, `next_usn` e `has_more`. O frontend normaliza a resposta, separa `is_deleted`, ordena pelo USN, materializa tombstones antes dos registros ativos e só então atualiza `sync_meta.last_usn`.
+
+### Repositórios
+
+`BaseRepository` fornece:
+
+- `create` com UUID e `_dirty`;
+- `update`;
+- `softDelete`;
+- `get`;
+- `listByUser`;
+- `dirtyFor`;
+- `markSynced`;
+- `bulkUpsertFromServer`.
+
+Os repositórios concretos ficam em `lib/db/repositories/` e são registados por `sync-registry.ts`.
+
+### Worker
+
+O worker é iniciado pelo shell global e pode reagir a:
+
+- intervalo configurado;
+- evento `online`;
+- retorno de foco da janela;
+- pós-escrita local.
+
+O worker deve continuar opt-in em ambientes de desenvolvimento até as regras de rollout remoto estarem definidas.
+
+---
+
+## 11. Contratos com o backend
+
+O frontend foi validado contra [barrosrafa/Flashi, branch `v2`](https://github.com/barrosrafa/Flashi/tree/v2). As Edge Functions consumidas são:
+
+| Função | Uso |
+|---|---|
+| `sync` | Pull incremental por `last_usn` |
+| `fsrs-review` | Submissão idempotente de review |
+| `embeddings` | Atualização de embedding de nota |
+| `semantic-search` | Busca semântica/lexical |
+| `fsrs-optimize` | Enfileirar/executar otimização |
+| `anki-transfer` | Importar/exportar `.apkg` |
+| `ai-ingest` | Criar job de ingestão |
+| `import-deck` | Materializar CSV/Markdown/Quizlet/RemNote |
+
+RPCs e tabelas relevantes:
+
+- `create_image_occlusion_note`;
+- `get_due_cards_with_exam_schedule`;
+- `add_user_xp`;
+- `get_fsrs_optimization_status`;
+- `enqueue_fsrs_optimization`;
+- `claim_fsrs_optimization_job`;
+- `complete_fsrs_optimization_job`;
+- `fail_fsrs_optimization_job`;
+- `decks`;
+- `notes`;
+- `cards`;
+- `card_media`;
+- `deck_exams`;
+- `ai_ingestion_jobs`;
+- `anki_transfer_jobs`;
+- `user_gamification_profiles`;
+- `badges_definition`;
+- `user_badges`.
+
+### Divergências importantes do SDD
+
+| Tema | Exemplo do SDD | Contrato efetivo usado |
+|---|---|---|
+| Oclusão | `p_deck_id`, `p_media_asset_id` e resposta `{ note_id, card_ids }` | `p_note_id`, `p_boxes`, resposta com `card_id`/`cloze_ordinal` |
+| Importação URL | Edge Function recebe URL | Browser baixa e envia `storage_path` para `import-deck` |
+| FSRS status | Ação Edge `status` | Consulta a tabela `fsrs_optimization_runs` |
+| IA status | Ação Edge `status` | Consulta `ai_ingestion_jobs` |
+| Gamificação | `gamification_profiles` | `user_gamification_profiles` |
+| Badges | `badge_definitions` | `badges_definition` |
+| Exames | `socratic_enabled` em todos os writes | Campos/tipos disponíveis em `deck_exams` e RPC real |
+
+A regra adotada é não inventar RPCs, argumentos ou tabelas inexistentes no backend.
+
+---
+
+## 12. Segurança e tratamento de erros
+
+### Auth
+
+`invokeEdge` verifica `auth.getSession()` antes da chamada. Sem sessão, lança `AuthRequiredError` com status lógico `401` e não executa a Edge Function.
+
+### Timeout e retry
+
+- timeout default: 30 segundos;
+- operações longas podem definir 60 ou 120 segundos;
+- falhas transitórias são repetidas com backoff exponencial;
+- `429` não é repetido automaticamente;
+- `401`/`403` não são repetidos;
+- `503` pode ser convertido em `UnavailableError` quando o serviço precisa acionar fallback lexical.
+
+### Rate limit
+
+`RateLimitError` expõe `retryAfterSec`. `RateLimitBanner` mostra countdown e `EdgeErrorNotice` apresenta feedback global. O event bus está em `lib/services/http/event-bus.ts`.
+
+### RLS e Storage
+
+- Todas as queries autenticadas devem filtrar por propriedade quando aplicável.
+- Buckets de mídia e Anki são privados.
+- Downloads usam URLs assinadas com TTL curto.
+- Caminhos de upload são derivados do `user.id` autenticado.
+- O frontend não usa credenciais administrativas.
+
+### Observabilidade
+
+A telemetria local não deve conter conteúdo de cartões, tokens ou passwords. Para investigar um problema, correlacione:
+
+1. mensagem exibida na UI;
+2. erro tipado do serviço;
+3. logs da Edge Function;
+4. `client_mutation_id`, `client_review_id` ou UUID da entidade.
+
+---
+
+## 13. Testes e validação
+
+### Comandos frontend
 
 ```bash
-set -a && source .env.local && set +a
-node scripts/supabase-smoke.mjs
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-O status esperado é `200` para o catálogo público, `200` com lista vazia para o cursor sem usuário no ambiente atual e `401` para a Edge Function protegida. O script falha com código de saída diferente de zero apenas quando o comportamento diverge desses contratos.
+Resultados da validação da `feature/v3`:
 
-### 14.3 Verificação administrativa read-only
+- TypeScript: **passou sem erros**;
+- Vitest: **11 testes passaram**;
+- build Next.js: **passou**;
+- `git diff --check`: **passou**.
 
-Para verificar uma execução real, copie o UUID exibido na URL após a criação e execute consultas limitadas no SQL Editor do Supabase. Não selecione senha, token, `service_role` ou dados de outros usuários:
+A suíte unitária cobre:
 
-```sql
-select id, name, description, visibility, created_at
-from public.decks
-where id = '<DECK_UUID>'
-limit 1;
+- sessão ausente e erro `401`;
+- resposta bem-sucedida de Edge Function;
+- rate limit `429` e `retryAfterSec`;
+- retry de falhas `5xx`;
+- fallback para indisponibilidade `503`;
+- timeout tipado;
+- validação das coordenadas de oclusão;
+- cursor, records e tombstones de sincronização.
 
-select c.id, c.note_id, c.deck_id, c.card_kind, c.fields,
-       n.fields as note_fields
-from public.cards c
-join public.notes n on n.id = c.note_id
-where c.deck_id = '<DECK_UUID>'
-  and c.is_archived = false
-order by c.created_at desc
-limit 5;
+### Validação backend
+
+No clone do backend `Flashi@v2` foram executados:
+
+```bash
+python3 validate_sql.py
+python3 validate_snapshot.py
+python3 validate_readme.py
+python3 -m pytest -q
 ```
 
-A verificação realizada nesta entrega encontrou o deck `Deck QA Supabase 20260827`, um card ativo e um note relacionado. A lista autenticada também exibiu o deck com o status `Supabase sincronizado` após uma nova navegação.
+Resultado validado:
 
-## 15. Tratamento de erros e troubleshooting
+- todas as migrations foram parseadas;
+- snapshot e README passaram;
+- **9 testes e 174 subtestes passaram**.
 
-| Sintoma | Causa provável | Diagnóstico e ação |
+Também foi executada uma auditoria automática de chamadas Edge: as 7 funções consumidas pelo frontend existem no inventário do backend; nenhuma função ficou sem implementação correspondente.
+
+### E2E
+
+```bash
+pnpm test:e2e
+```
+
+Os testes E2E dependem de Chromium e, nos cenários autenticados, de variáveis de uma conta de QA. Não devem ser interpretados como teste de contrato remoto quando executados sem sessão/configuração.
+
+---
+
+## 14. Desenvolvimento
+
+### Criar uma nova feature
+
+1. Confirmar a tabela, RPC ou Edge Function no backend.
+2. Adicionar/ajustar a flag em `lib/config/feature-flags.ts`.
+3. Criar ou ajustar o serviço em `lib/services/`.
+4. Reutilizar `invokeEdge` para Edge Functions.
+5. Adicionar ou atualizar o repositório local quando a entidade for offline-first.
+6. Guardar a UI com `isEnabled(...)`.
+7. Adicionar testes unitários.
+8. Executar typecheck, testes e build.
+9. Atualizar esta documentação com qualquer divergência contratual.
+
+### Estilo de commits
+
+Prefira commits pequenos e descritivos, por exemplo:
+
+```text
+feat: add semantic search fallback
+fix: preserve sync tombstones
+ test: cover edge rate limit
+```
+
+### Branch atual
+
+```text
+feature/v3
+```
+
+Commit de implementação documentado:
+
+```text
+9f889d7 feat: implement SDD v3 frontend features
+```
+
+---
+
+## 15. Troubleshooting
+
+| Sintoma | Causa provável | Ação |
 |---|---|---|
-| `Entre na sua conta para criar decks.` | Não existe sessão no cliente | Fazer login novamente; confirmar cookies/local storage do Supabase |
-| `Entre na sua conta para inserir cards.` | `auth.getUser()` não encontrou usuário | Reautenticar e verificar se a rota está sendo aberta no mesmo domínio |
-| `new row violates row-level security policy` | Policy não permite a combinação usuário/deck | Revisar policies e confirmar `user_id = auth.uid()` |
-| Deck criado, mas card não aparece | Insert do note/card falhou ou card está arquivado | Consultar `cards` por `deck_id`; verificar logs do navegador e RLS |
-| `email rate limit exceeded` | Limite do provedor Auth atingido | Aguardar a janela do Auth ou usar um usuário de teste já confirmado; não repetir tentativas em loop |
-| Build acusa `middleware` deprecated | Next.js 16 prefere `proxy.ts` | Migrar o arquivo em alteração separada; não é falha de compilação |
-| Biblioteca mostra modo local | A consulta remota veio vazia ou falhou | Verificar ambiente, sessão, RLS e console; o fallback é deliberadamente explícito |
+| `AUTH_REQUIRED` | Não existe sessão válida | Fazer login novamente e verificar cookies do Supabase |
+| `401` ou `403` numa Edge Function | JWT expirado ou RLS/policy | Reautenticar e consultar logs/backend |
+| `RATE_LIMITED` | Limite da função atingido | Aguardar o countdown exibido pelo `RateLimitBanner` |
+| Busca semântica falha com `503` | Provider de embeddings indisponível | O serviço tenta modo lexical; verificar logs se ambos falharem |
+| Importação URL falha por CORS | Origem não permite download pelo browser | Fazer upload manual do arquivo ou usar uma origem com CORS |
+| `APKG_TOO_LARGE` | Pacote acima de 50 MiB | Reduzir o pacote ou separar a importação |
+| `IMPORT_TOO_LARGE` | Arquivo acima de 15 MiB | Reduzir o arquivo antes do upload |
+| Oclusão rejeitada | Caixa fora de 0–100 ou sem área | Ajustar retângulos dentro dos limites da imagem |
+| Job IA fica `queued` | Worker backend ainda não processou | Consultar `ai_ingestion_jobs`; não salvar automaticamente |
+| Tela mostra recurso desativado | Flag correspondente está em `0` | Ativar a variável em `.env.local` e reiniciar o dev server |
+| Deck/cartão não aparece | RLS, sessão ou fallback local | Verificar sessão, console, policies e status remoto |
+| Build funciona mas integração falha | Ambiente sem URL/chave válida | Confirmar `.env.local`; nunca copiar `service_role` para o frontend |
 
-O fallback local não deve ser interpretado como sucesso remoto. Essa distinção é importante para não afirmar que uma escrita foi persistida quando a rede ou o Auth estavam indisponíveis.
+---
 
-## 16. Observabilidade e segurança
+## 16. Limitações e decisões contratuais
 
-O frontend não imprime tokens nem senhas. A documentação de testes também não armazena a senha usada na validação. O `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` pode estar no bundle do navegador, mas o controle de autorização deve permanecer nas policies RLS e nas funções protegidas. Chaves de serviço, tokens administrativos e credenciais de provedores não pertencem a este repositório.
+1. **A origem de importação por URL precisa de CORS.** O frontend não introduz um proxy server-side que não existe no contrato atual.
+2. **A oclusão usa uma nota existente.** O backend v2 não recebe `deck_id` e `media_asset_id` na RPC de oclusão; a associação da mídia pode exigir evolução posterior do backend.
+3. **O status de jobs é consultado por Data API.** Nem `fsrs-optimize` nem `ai-ingest` expõem uma ação pública de status no contrato auditado.
+4. **A criação de note + card legado continua sendo composta.** Quando aplicável, duas escritas consecutivas podem exigir uma RPC transacional futura.
+5. **A ativação das flags deve ser gradual.** Ativar todas as funcionalidades simultaneamente em produção não substitui testes com utilizadores, Storage e workers configurados.
+6. **A cobertura E2E autenticada depende de uma conta de QA.** Nenhuma credencial deve ser commitada ou colocada nesta documentação.
+7. **Findings do banco pertencem ao backend.** Policies, índices e funções `SECURITY DEFINER` devem ser revisados no repositório `Flashi`, não corrigidos com workarounds no frontend.
 
-Para investigar uma falha de produção, o procedimento recomendado é correlacionar três pontos: mensagem renderizada pelo componente, erro retornado pelo `supabase-js` e registro correspondente nos logs do Supabase. Em mudanças de persistência, registrar o UUID do deck e o `client_review_id` é suficiente para rastrear a operação sem registrar conteúdo sensível ou tokens.
-
-Os findings de segurança e performance existentes no projeto Supabase continuam documentados na seção 9. Eles não foram mascarados pelo merge do ZIP: policies RLS sem regra, funções `SECURITY DEFINER` excessivamente expostas, índices ausentes e reavaliação por linha de `auth.uid()` devem ser tratados no banco com revisão independente.
+---
 
 ## 17. Checklist de release
 
-| Verificação | Critério de aceite | Estado desta entrega |
-|---|---|---|
-| Instalação limpa | `pnpm install` conclui sem arquivos gerados versionados | Aprovado |
-| TypeScript | `pnpm typecheck` sem erros | Aprovado |
-| Testes unitários | `pnpm test` com todos os testes verdes | Aprovado: 3 testes |
-| Testes E2E | `pnpm test:e2e` cobre rotas, cards, offline e auth opcional | Aprovado: 15 passaram; 1 ignorado por ausência de credenciais |
-| Build | `pnpm exec next build --webpack` compila todas as rotas | A validar no release final |
-| Auth | Login retorna sessão válida e a UI confirma entrada | Aprovado com usuário fornecido |
-| Deck | Insert aparece em `public.decks` e lista autenticada | Aprovado |
-| Card | Insert relacionado em `public.notes` e `public.cards` | Aprovado |
-| Proteção anônima | Card sem sessão não executa insert | Aprovado |
-| Segredos | `.env.local` ignorado e nenhuma senha commitada | Aprovado |
-| PWA offline | Service worker aquece shell e abre `/decks` sem rede | Aprovado por Playwright |
-| Git | Working tree limpo e branch publicada | A validar após commit/push |
+- [ ] `pnpm install` concluído sem alterações inesperadas.
+- [ ] `.env.local` não está versionado.
+- [ ] `pnpm typecheck` passa.
+- [ ] `pnpm test` passa.
+- [ ] `pnpm build` passa.
+- [ ] Flags foram ativadas apenas para funcionalidades validadas.
+- [ ] Contratos do frontend foram comparados com a branch backend alvo.
+- [ ] Storage buckets e policies foram confirmados no Supabase.
+- [ ] Cenários `401`, `429`, `503` e timeout foram testados.
+- [ ] Importação Anki foi testada com pacote dentro do limite.
+- [ ] Importação URL foi testada com origem CORS compatível.
+- [ ] Oclusão foi testada com coordenadas percentuais válidas.
+- [ ] Jobs IA não salvam notas sem revisão humana.
+- [ ] Teste E2E autenticado foi executado com conta de QA, quando disponível.
+- [ ] Diff foi verificado com `git diff --check`.
+- [ ] Branch e commit foram publicados no remoto.
+
+---
 
 ## 18. Referências
 
-[^1]: [Next.js — Proxy, documentação oficial](https://nextjs.org/docs/app/getting-started/proxy), que registra a mudança de Middleware para Proxy no Next.js 16 e descreve o uso da convenção de arquivo.
-[^2]: [Supabase — Creating a Supabase client for SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client), que documenta `@supabase/ssr`, variáveis públicas e a separação entre clientes de navegador e servidor.
-[^3]: [Supabase — JavaScript `functions.invoke`](https://supabase.com/docs/reference/javascript/functions-invoke), referência oficial de chamadas de Edge Functions e uso do cliente JavaScript.
-[^4]: [Repositório de destino — barrosrafa/app-flashi](https://github.com/barrosrafa/app-flashi), onde esta implementação será publicada.
+- [Repositório frontend — `barrosrafa/app-flashi`](https://github.com/barrosrafa/app-flashi)
+- [Branch frontend — `feature/v3`](https://github.com/barrosrafa/app-flashi/tree/feature/v3)
+- [Repositório backend — `barrosrafa/Flashi`](https://github.com/barrosrafa/Flashi)
+- [Backend branch — `v2`](https://github.com/barrosrafa/Flashi/tree/v2)
+- [Next.js Proxy](https://nextjs.org/docs/app/getting-started/proxy)
+- [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Supabase JavaScript `functions.invoke`](https://supabase.com/docs/reference/javascript/functions-invoke)
+- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
 
-## 16. Evolução SDD — Fases 0 e 1
+---
 
-A branch `feature/v1` implementa a primeira fatia vertical do SDD sem alterar contratos do Supabase:
-
-- feature flags opt-in por ambiente (`NEXT_PUBLIC_FF_*`), incluindo `NEXT_PUBLIC_FF_SYNC_WORKER`;
-- telemetria local limitada aos últimos 100 eventos, sem conteúdo de cartões, tokens ou credenciais;
-- schema Dexie v2 com as entidades sincronizáveis do contrato Flashi v2 e índices por `id`, `usn`, `updated_at`, `deck_id` e `user_id`;
-- sync incremental atómico: tombstones são aplicados antes dos records e `last_usn` só avança depois do commit;
-- outbox com `client_mutation_id` estável, retry ordenado e suporte explícito a transporte Edge Function ou RPC;
-- worker opt-in acionado por intervalo, `focus` e `online`.
-
-Para ativar o worker em desenvolvimento, defina `NEXT_PUBLIC_FF_SYNC_WORKER=1`. As fases de mídia, Anki, IA, colaboração, gamificação, oclusão e busca semântica permanecem atrás das respetivas flags até serem implementadas em fatias posteriores.
-
-
-## 17. Evolução SDD — feature/v2
-
-A branch `feature/v2` adapta o SDD recebido à aplicação Next.js web existente (o documento original assume Expo Router/React Native) e implementa os módulos possíveis com os contratos verificados do backend Flashi v2:
-
-- wrapper único `invokeEdge` com timeout, retry de falhas transitórias e `RateLimitError` sem retry;
-- aviso global de rate limit/erro para a UI;
-- flags opt-in para semântica, FSRS, IA, Anki, exames, gamificação, mídia e oclusão;
-- serviços de busca semântica, otimização FSRS, gamificação, mídia privada com SHA-256 e oclusão por RPC via outbox;
-- telas web guardadas por flag para busca, FSRS, badges, ingestão IA, importação Anki, mídia e oclusão;
-- testes unitários de sucesso, timeout, retry, 429 e validação de caixas de oclusão.
-
-Não foram criados os contratos `gamification`, `exam-schedule`, `socratic`, `sync-push`, `sync-pull` ou `occlusion-create` citados no SDD, porque não existem no inventário backend verificado. A gamificação usa as tabelas existentes, os exames usam as RPCs/tabelas existentes e a oclusão usa `create_image_occlusion_note` via outbox.
+**Última atualização:** implementação e validação da `feature/v3`.
