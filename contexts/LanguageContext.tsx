@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { createClient } from '../lib/supabase/client';
 import { defaultLocale, isSupportedLocale, locales, type Dictionary, type SupportedLocale } from '../locales';
+import { translateUiText } from './autoTranslations';
 
 type PathInto<T, Prefix extends string = ''> = {
   [K in keyof T & string]: T[K] extends object ? PathInto<T[K], `${Prefix}${K}.`> : `${Prefix}${K}`;
@@ -42,6 +43,41 @@ function interpolate(value: string, variables?: Record<string, string | number>)
   return value.replace(/\{(\w+)\}/g, (_, name: string) => String(variables[name] ?? `{${name}}`));
 }
 
+type TranslatedValue = { source: string; output: string };
+const translatedTexts = new WeakMap<Text, TranslatedValue>();
+const translatedAttributes = new WeakMap<Element, Map<string, TranslatedValue>>();
+
+function translateDocument(locale: SupportedLocale) {
+  if (typeof document === 'undefined' || !document.body) return;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const text = node as Text;
+    const parent = text.parentElement;
+    if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
+    const current = text.nodeValue ?? '';
+    if (!current.trim()) continue;
+    const previous = translatedTexts.get(text);
+    const source = previous && current === previous.output ? previous.source : current;
+    const output = translateUiText(source, locale);
+    translatedTexts.set(text, { source, output });
+    if (current !== output) text.nodeValue = output;
+  }
+  document.querySelectorAll<HTMLElement>('[aria-label], [placeholder], [title]').forEach((element) => {
+    const attributes = translatedAttributes.get(element) ?? new Map<string, TranslatedValue>();
+    for (const name of ['aria-label', 'placeholder', 'title']) {
+      const current = element.getAttribute(name);
+      if (!current) continue;
+      const previous = attributes.get(name);
+      const source = previous && current === previous.output ? previous.source : current;
+      const output = translateUiText(source, locale);
+      attributes.set(name, { source, output });
+      if (current !== output) element.setAttribute(name, output);
+    }
+    translatedAttributes.set(element, attributes);
+  });
+}
+
 async function persistLocale(locale: SupportedLocale) {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, locale);
@@ -63,6 +99,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(nextLocale);
     if (typeof document !== 'undefined') document.documentElement.lang = nextLocale;
   }, []);
+
+  useEffect(() => {
+    let observer: MutationObserver | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      translateDocument(locale);
+      observer = new MutationObserver(() => translateDocument(locale));
+      if (document.body) observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'placeholder', 'title'] });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [locale]);
 
   useEffect(() => {
     const initial = readStoredLocale();
