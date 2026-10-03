@@ -18,8 +18,8 @@ Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são 
 
 ### Estado verificado da branch
 
-- Branch: `feature/v5`.
-- Implementação v5 em preparação para publicação, baseada em `feature/v4`.
+- Branch: `main`.
+- Implementação SDD v5 e correção abrangente de i18n publicadas no repositório frontend.
 - Backend de referência: `barrosrafa/Flashi`, branch `v2`.
 - O frontend não altera o repositório do backend.
 
@@ -862,29 +862,80 @@ O smoke E2E cobre as principais rotas, o fluxo de estudo demo, contratos da tela
 
 ## 25. Internacionalização e troca de idioma
 
-A aplicação inclui i18n client-side compatível com a arquitetura atual de rotas (as URLs existentes permanecem estáveis, evitando regressão nas integrações já publicadas). Os dicionários estão em `locales/pt-BR.json`, `locales/en.json` e `locales/es.json`, com shape validado por `locales/index.ts`.
+O frontend oferece **Português brasileiro (`pt-BR`)**, **English (`en`)** e **Español (`es`)** sem alterar URLs ou contratos das rotas já existentes. A implementação combina dicionários tipados para chamadas explícitas a `t()` com um tradutor client-side de compatibilidade para o texto português que ainda está escrito diretamente nas páginas legadas. O segundo caminho é importante para que rótulos, mensagens de estado e atributos acessíveis nessas telas mudem junto com o idioma, inclusive quando o React monta conteúdo depois da carga inicial.
 
-O `LanguageProvider` em `contexts/LanguageContext.tsx`:
+### Arquivos e responsabilidades
 
-- usa `pt-BR` como fallback;
-- aplica a alteração imediatamente à UI e a `<html lang>`;
-- persiste a escolha em `localStorage` (`flashi_locale`) e no cookie `NEXT_LOCALE`;
-- quando existe sessão Supabase, atualiza `public.profiles.language` através do cliente browser;
-- ao iniciar ou depois de `SIGNED_IN`, lê `profiles.language` e sincroniza a preferência do utilizador;
-- mantém fallback para `pt-BR` quando uma chave não existe.
+| Arquivo | Responsabilidade |
+|---|---|
+| `locales/pt-BR.json`, `locales/en.json`, `locales/es.json` | Dicionários aninhados consumidos por `t()`; os três mantêm o mesmo shape. |
+| `locales/index.ts` | Registra os locales suportados, declara `pt-BR` como padrão e verifica estaticamente a compatibilidade estrutural dos JSONs. |
+| `contexts/LanguageContext.tsx` | `LanguageProvider`, hook `useTranslation()`, `locale`, `setLocale()`, `t()` e persistência da preferência. |
+| `contexts/autoTranslations.ts` | Junta os mapas existentes `ptToEnglish`/`ptToSpanish` aos mapas específicos de funcionalidades e implementa `translateUiText()`. |
+| `contexts/featureTranslations.ts` | Entradas de inglês e espanhol para strings descobertas nas rotas/áreas avançadas e traduções de valores/status do backend. |
+| `components/profile/LanguageSelector.tsx` | Seletor de idioma apresentado em `/profile`. |
+| `tests/i18n.test.ts` | Contrato dos locales, igualdade de shape, traduções representativas e regressões para mensagens dinâmicas. |
 
-O seletor está disponível em `/profile`, em `components/profile/LanguageSelector.tsx`. A policy `profiles_self` do backend restringe a alteração ao próprio perfil. A migração não cria uma nova coluna porque `profiles.language` já faz parte do snapshot implantável `supabase/migrations/01_types_and_identity.sql`.
+### Inicialização, persistência e sincronização
 
-### Validação local
+1. O fallback e a primeira renderização usam `defaultLocale = 'pt-BR'`.
+2. No browser, o provider procura primeiro `localStorage['flashi_locale']` e depois o cookie `NEXT_LOCALE`; valores desconhecidos são rejeitados por `isSupportedLocale()` e voltam a `pt-BR`.
+3. `setLocale()` atualiza o estado e `document.documentElement.lang` imediatamente, grava localStorage e cookie (`Path=/`, duração de um ano, `SameSite=Lax`) e, se Supabase estiver configurado e houver sessão, atualiza `profiles.language` para o usuário autenticado.
+4. Na inicialização e após o evento Supabase `SIGNED_IN`, o provider pode reler `profiles.language` e sincronizar o locale local. Sem configuração Supabase ou sem usuário autenticado, a preferência continua funcionando localmente.
+5. O acesso a `profiles.language` é limitado pela policy de perfil próprio; a coluna já existe no schema/migration vigente, portanto a mudança de i18n não adiciona migration backend.
+
+O `t()` tipa as chaves como caminhos do `Dictionary`, resolve primeiro o dicionário do locale atual, cai para o valor padrão quando a chave localizada não existe e interpola `{variavel}`. Para i18n de componentes novos, essa é a interface preferida: adicionar a mesma chave e estrutura aos três JSONs, manter o typecheck e cobrir o texto em `tests/i18n.test.ts`.
+
+### Tradução client-side das telas existentes
+
+Parte das páginas existentes ainda contém strings portuguesas diretamente no JSX em vez de chamar `t()`. Para cobrir esse legado sem reescrever todas as telas nem mudar URLs, `LanguageProvider` chama `translateDocument(locale)` após a montagem e instala um `MutationObserver` no `document.body`. O tradutor:
+
+- percorre nós de texto e traduz apenas quando a string integral ou padrão dinâmico está no mapa; em `pt-BR`, conserva o texto fonte;
+- também traduz os atributos `aria-label`, `placeholder` e `title`;
+- observa `childList`, `subtree`, `characterData` e as mudanças nesses três atributos, cobrindo navegação client-side, resultados carregados, mensagens de estado e controles montados posteriormente;
+- não percorre `SCRIPT`, `STYLE` nem `NOSCRIPT`;
+- registra a origem e o resultado por `WeakMap` para poder reaplicar a tradução quando o locale muda sem usar a tradução anterior como novo texto-fonte.
+
+As traduções exatas e palavras fixas ficam em `featureEnglish` e `featureSpanish`. `translateUiText()` também trata padrões com dados variáveis que não podem ser enumerados, como contagens de resultados/importação, IDs de jobs, quantidade de exames ativos, erros de limite com tempo de retry e rótulos de resultado de busca `semantic`/`lexical`. Novos padrões variáveis devem ter testes em inglês e espanhol; não se deve substituir a mensagem inteira por uma tradução genérica que descarte ID, contagem, duração ou outro dado operacional.
+
+### Cobertura da correção de i18n
+
+A auditoria e os mapas atuais cobrem as rotas reportadas e os seus componentes reutilizáveis:
+
+- `/exams`;
+- `/tools` e os fluxos de pesquisa, ingestão, otimização FSRS e transferência Anki apresentados nessa rota;
+- `/search`, `SemanticHitRow` e `RateLimitBanner`;
+- `/import/deck`, `/import/anki` e `/import/ai-ingest`, incluindo o histórico de importações;
+- `/occlusion`;
+- `/leaderboard`;
+- `/templates` e os rótulos usados pelo editor;
+- `/socratic` e `SocraticSessionView`;
+- `WorkerJobMonitor`, `ImportJobMonitor` e `EdgeErrorNotice`, que exibem status e respostas assíncronas fora do texto estático da página.
+
+Nos componentes com valores formatados em runtime, o locale é passado a `Intl`: datas e números do ranking e datas de importação/jobs usam o idioma selecionado. Tipos de fonte, status e modo de correspondência são convertidos antes da apresentação. Conteúdo fornecido pelo usuário (perguntas/respostas de cards, nomes de decks/templates, histórico socrático e mensagens de erro remotas desconhecidas) **não é traduzido artificialmente**; a camada traduz apenas texto de interface conhecido, para não corromper dados do usuário nem esconder detalhes diagnósticos.
+
+### Como manter e estender
+
+1. Para uma tela nova, prefira `const { t, locale } = useTranslation()` e chaves tipadas nos três JSONs.
+2. Para uma string legada escrita em português, adicione uma tradução exata em **ambos** os mapas de `contexts/featureTranslations.ts`; não dependa de tradução por semelhança nem de substring acidental.
+3. Para mensagens interpoladas, use um padrão deliberado em `translateUiText()` ou renderize segmentos com `t()`; preserve placeholders e acrescente casos de teste para `en` e `es`.
+4. Para datas/horários/números, use `Intl.DateTimeFormat`/`Intl.NumberFormat` com `locale`, em vez de fixar `pt-BR` no componente.
+5. Para labels acessíveis, mantenha `aria-label`, `placeholder` e `title` atualizados. A tradução global observa esses atributos, mas não altera o valor digitado pelo usuário nem campos `value`.
+6. O dicionário usa `Record<string, string>` para o mapa automático; sua completude de conteúdo não é garantida pelo sistema de tipos. A revisão do mapa e os testes de regressão fazem parte da manutenção.
+
+### Validação desta correção
+
+Na revisão publicada, a varredura AST inspecionou **58 arquivos TS/TSX** de `app/` e `components/` e não encontrou strings portuguesas com acentuação sem entrada de tradução. Esse check é uma auditoria estática de candidatos JSX/atributos/template — não traduz texto arbitrário de usuário nem substitui teste visual/manual. Também foram executados:
 
 ```bash
-pnpm typecheck
-pnpm test
+pnpm exec tsc --noEmit
+pnpm test -- --run
 pnpm build
-pnpm test:e2e
 ```
 
-Para testar manualmente, abra `/profile`, altere o seletor entre Português, English e Español, confirme a atualização imediata da navegação e recarregue a página. Com um utilizador autenticado, a preferência também é persistida no Supabase.
+Resultado: typecheck e build de produção concluídos; **24 testes unitários passaram**, incluindo casos para os textos das rotas reportadas e mensagens dinâmicas em inglês/espanhol. O smoke HTTP sem navegador retornou `200` para `/exams`, `/tools`, `/search`, `/import/deck`, `/import/anki`, `/import/ai-ingest`, `/occlusion`, `/leaderboard`, `/templates` e `/socratic`.
+
+Para verificar a preferência persistida, abra `/profile`, altere o idioma para English ou Español e recarregue; sem login, o locale é mantido em localStorage/cookie, e com sessão ele também sincroniza com `profiles.language`.
 
 ## SDD — entrega completa
 
