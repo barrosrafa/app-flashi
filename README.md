@@ -1036,3 +1036,20 @@ pnpm smoke:ui
 ```
 
 `tests/onboarding-service.test.ts` cobre decoding seguro, novos usuários vs. usuários históricos, retomada e limites; `tests/i18n.test.ts` mantém as três localidades suportadas (`pt-BR`, `en`, `es`). E2E requer Chromium disponível. Sem `.env.local` real, fluxos autenticados mostram seus estados de configuração/entrada; a rota de demonstração permanece verificável sem conta. Nenhum deploy de banco ou alteração remota de dados faz parte destes comandos.
+
+
+## 32. QA desta execução — 04/10/2026
+
+A branch `feat/sdd-activation` foi executada localmente com Next.js e verificada no navegador pela origem pública temporária do sandbox.
+
+- **38/38 rotas** do roteiro exploratório responderam HTTP 200, sem falhas de navegação, erros de runtime ou overflow horizontal em viewport desktop.
+- A sessão pública `/study/demo` foi exercitada manualmente: revelar resposta, exibir ratings e avançar para o card seguinte. O fluxo confirmou que nenhum rating da demonstração é enviado ao backend.
+- Login e cadastro foram exercitados com preenchimento de campos, mostrar/ocultar senha e submissão. Sem credenciais Supabase válidas, a interface exibiu a mensagem de configuração ausente em vez de simular sucesso.
+- Novo deck foi exercitado com nome, descrição, opções avançadas e submissão. Sem sessão, a interface exibiu `Entre na sua conta para criar decks.`
+- Leituras protegidas de exames, templates, jobs de ingestão, otimizações FSRS, importações e sessões socráticas agora verificam `hasBrowserSession()` antes de consultar o Supabase. Isso elimina requests anônimos `401` e deixa o estado de autenticação sob controle da UI.
+- Validação concluída: `pnpm lint`, `pnpm typecheck` e `pnpm test` — **36 testes passando**. O lint permanece sem erros; os avisos existentes estão documentados pelo próprio ESLint e não bloqueiam o build.
+
+O relatório bruto da navegação fica em `docs/qa-results-2026-10-04.json`. A execução autenticada real continua dependendo de um projeto Supabase de teste e de uma conta QA; nenhum dado externo foi criado ou alterado nesta rodada.
+
+
+A auditoria MCP também foi incluída nessa fronteira: `listMcpAudit()` agora retorna `AUTH_REQUIRED` antes de consultar `mcp_tool_audit` sem sessão. Para validar o build local, use uma origem HTTPS pública, por exemplo `NEXT_PUBLIC_SITE_URL=https://<origem> pnpm build`; o projeto rejeita intencionalmente `localhost` em builds de produção.

@@ -1,5 +1,6 @@
 import { createClient } from '../supabase/client';
 import { invokeEdge } from './http/edge-client';
+import { hasBrowserSession } from '../supabase/guards';
 export type SourceType = 'pdf_document' | 'youtube_url' | 'raw_text_block' | 'web_page';
 export type IngestJob = { job_id?: string; status: 'queued' | 'running' | 'processing' | 'completed' | 'failed'; created_at?: string; error?: string; result?: { notes?: Array<{ front: string; back: string }> } };
 const DRAFT = 'flashi:ai-ingest-draft:';
@@ -8,4 +9,4 @@ export type IngestionSource = SourceType;
 export type IngestionJob = IngestJob;
 export async function createIngestionJob(input: { deckId: string; sourceType: SourceType; content?: string; storagePath?: string }) { if (input.storagePath) return invokeEdge<IngestJob>('ai-ingest', { body: { deck_id: input.deckId, source_type: input.sourceType, storage_path: input.storagePath } }); return ingestionService.create(input.deckId, input.sourceType, input.content ?? ''); }
 
-export async function listIngestionJobs(deckId?: string) { const { data, error } = await createClient().from('ai_ingestion_jobs').select('*').order('created_at', { ascending: false }).limit(50); if (error) throw error; return deckId ? (data ?? []).filter((job) => job.deck_id === deckId) : data ?? []; }
+export async function listIngestionJobs(deckId?: string) { if (!(await hasBrowserSession())) throw new Error('AUTH_REQUIRED'); const { data, error } = await createClient().from('ai_ingestion_jobs').select('*').order('created_at', { ascending: false }).limit(50); if (error) throw error; return deckId ? (data ?? []).filter((job) => job.deck_id === deckId) : data ?? []; }

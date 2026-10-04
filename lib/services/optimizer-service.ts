@@ -1,5 +1,6 @@
 import { createClient, type Tables } from '../supabase/client';
 import { invokeEdge } from './http/edge-client';
+import { hasBrowserSession } from '../supabase/guards';
 export type OptimizationRun = Tables<'fsrs_optimization_runs'>;
 export type RunState = 'queued' | 'running' | 'completed' | 'failed';
 export type OptimizationStatus = { run_id?: string; state?: RunState; status?: string; weights?: number[]; error?: string; updated_at?: string; review_count?: number; optimizer_threshold?: number; is_ready?: boolean; has_queued_run?: boolean; last_optimized_at?: string | null };
@@ -7,4 +8,4 @@ export const optimizerService = { request(deckId?: string) { return invokeEdge<{
 export async function requestFsrsOptimization() { return optimizerService.request(); }
 export async function runFsrsOptimization(runId: string) { return optimizerService.run(runId); }
 export async function getFsrsOptimizationStatus() { const { data, error } = await createClient().rpc('get_fsrs_optimization_status'); if (error) throw error; return data?.[0] ?? null; }
-export async function listFsrsOptimizationRuns() { const { data, error } = await createClient().from('fsrs_optimization_runs').select('*').order('requested_at', { ascending: false }).limit(20); if (error) throw error; return data; }
+export async function listFsrsOptimizationRuns() { if (!(await hasBrowserSession())) throw new Error('AUTH_REQUIRED'); const { data, error } = await createClient().from('fsrs_optimization_runs').select('*').order('requested_at', { ascending: false }).limit(20); if (error) throw error; return data; }

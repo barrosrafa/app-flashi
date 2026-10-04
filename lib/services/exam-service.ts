@@ -1,5 +1,6 @@
 import { createClient, type Tables } from '../supabase/client';
 import type { Database, Json } from '../../src/types/database';
+import { hasBrowserSession } from '../supabase/guards';
 
 export type ExamPriority = Database['public']['Enums']['exam_priority_level'];
 export type DeckExam = Tables<'deck_exams'>;
@@ -11,6 +12,7 @@ export type StudyQueueItem = {
 
 export const examService = {
   async list(userId?: string, activeOnly = true) {
+    if (!(await hasBrowserSession())) throw new Error('AUTH_REQUIRED');
     let query = createClient().from('deck_exams').select('*').order('target_date', { ascending: true });
     if (userId) query = query.eq('user_id', userId);
     if (activeOnly) query = query.eq('status', 'active');

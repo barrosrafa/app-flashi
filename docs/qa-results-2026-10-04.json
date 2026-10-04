@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-04T17:46:01.513Z",
-  "baseURL": "http://127.0.0.1:3000",
+  "generatedAt": "2026-10-04T18:08:53.816Z",
+  "baseURL": "https://3000-ii523wmt9b7pw8jcd69vs-670818e2.us4.manus.computer",
   "browser": "Playwright Chromium",
   "viewport": {
     "width": 1280,
@@ -26,7 +26,7 @@
       "route": "/",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1101,
+      "elapsedMs": 1160,
       "title": "Flashi — Estude um pouco hoje. Lembre por mais tempo.",
       "h1": [
         "Estude um pouco hoje.Lembre por mais tempo."
@@ -40,7 +40,7 @@
       "route": "/dashboard",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 968,
+      "elapsedMs": 1415,
       "title": "Hoje | Flashi",
       "h1": [
         "Pronto para estudar?"
@@ -54,7 +54,7 @@
       "route": "/login",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 939,
+      "elapsedMs": 1438,
       "title": "Entrar | Flashi",
       "h1": [
         "Seu próximo cartão começa aqui."
@@ -68,7 +68,7 @@
       "route": "/register",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 953,
+      "elapsedMs": 1221,
       "title": "Criar conta | Flashi",
       "h1": [
         "Aprenda algo hoje."
@@ -82,7 +82,7 @@
       "route": "/onboarding",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 912,
+      "elapsedMs": 1003,
       "title": "Seu plano de estudo | Flashi",
       "h1": [
         "O que você quer aprender?"
@@ -96,7 +96,7 @@
       "route": "/forgot-password",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 919,
+      "elapsedMs": 1037,
       "title": "Recuperar senha | Flashi",
       "h1": [
         "Vamos recuperar sua conta."
@@ -110,7 +110,7 @@
       "route": "/reset-password",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 864,
+      "elapsedMs": 1016,
       "title": "Redefinir senha | Flashi",
       "h1": [
         "Escolha uma senha nova."
@@ -124,7 +124,7 @@
       "route": "/study",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 922,
+      "elapsedMs": 1112,
       "title": "Estudar | Flashi",
       "h1": [
         "Estudar"
@@ -138,7 +138,7 @@
       "route": "/study/demo",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1698,
+      "elapsedMs": 1018,
       "title": "Sessão de estudo | Flashi",
       "h1": [
         "Sessão de estudo"
@@ -152,7 +152,7 @@
       "route": "/study/idiomas",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1016,
+      "elapsedMs": 996,
       "title": "Sessão de estudo | Flashi",
       "h1": [
         "Sessão de estudo"
@@ -166,7 +166,7 @@
       "route": "/study/search",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 865,
+      "elapsedMs": 1014,
       "title": "Busca semântica | Flashi",
       "h1": [
         "Busca semântica"
@@ -180,7 +180,7 @@
       "route": "/decks",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 867,
+      "elapsedMs": 1020,
       "title": "Meus decks | Flashi",
       "h1": [
         "Meus decks"
@@ -194,7 +194,7 @@
       "route": "/decks/new",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 977,
+      "elapsedMs": 884,
       "title": "Novo deck | Flashi",
       "h1": [
         "Novo deck"
@@ -208,7 +208,7 @@
       "route": "/decks/idiomas",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1437,
+      "elapsedMs": 938,
       "title": "Deck | Flashi",
       "h1": [
         "Deck"
@@ -222,7 +222,7 @@
       "route": "/decks/idiomas/cards",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1413,
+      "elapsedMs": 938,
       "title": "Cards do deck | Flashi",
       "h1": [
         "Gerenciar cards"
@@ -236,7 +236,7 @@
       "route": "/decks/idiomas/notes",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1440,
+      "elapsedMs": 953,
       "title": "Notes do deck | Flashi",
       "h1": [
         "Notes do deck"
@@ -250,7 +250,7 @@
       "route": "/decks/idiomas/occlusion/new",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1034,
+      "elapsedMs": 882,
       "title": "Nova oclusão de imagem | Flashi",
       "h1": [
         "Nova oclusão de imagem"
@@ -264,7 +264,7 @@
       "route": "/analytics",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 928,
+      "elapsedMs": 831,
       "title": "Desempenho | Flashi",
       "h1": [
         "Desempenho"
@@ -278,7 +278,7 @@
       "route": "/exams",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1363,
+      "elapsedMs": 830,
       "title": "Metas de estudo | Flashi",
       "h1": [
         "Metas de estudo"
@@ -292,7 +292,7 @@
       "route": "/profile",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 889,
+      "elapsedMs": 832,
       "title": "Perfil | Flashi",
       "h1": [
         "Seu perfil"
@@ -306,7 +306,7 @@
       "route": "/profile/learning-plan",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 875,
+      "elapsedMs": 854,
       "title": "Meta de estudo | Flashi",
       "h1": [
         "Sua meta de estudo"
@@ -320,7 +320,7 @@
       "route": "/profile/badges",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 887,
+      "elapsedMs": 829,
       "title": "Conquistas | Flashi",
       "h1": [
         "Conquistas"
@@ -334,7 +334,7 @@
       "route": "/tools",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1090,
+      "elapsedMs": 830,
       "title": "Ferramentas avançadas | Flashi",
       "h1": [
         "Ferramentas avançadas"
@@ -348,7 +348,7 @@
       "route": "/tools/mcp",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1041,
+      "elapsedMs": 1211,
       "title": "Ferramentas MCP | Flashi",
       "h1": [
         "Ferramentas MCP"
@@ -362,7 +362,7 @@
       "route": "/search",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 891,
+      "elapsedMs": 854,
       "title": "Busca | Flashi",
       "h1": [
         "Busca semântica"
@@ -376,7 +376,7 @@
       "route": "/templates",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1027,
+      "elapsedMs": 821,
       "title": "Templates | Flashi",
       "h1": [
         "Templates de cards"
@@ -390,7 +390,7 @@
       "route": "/templates/demo",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1406,
+      "elapsedMs": 903,
       "title": "Template | Flashi",
       "h1": [
         "Editar template"
@@ -404,7 +404,7 @@
       "route": "/import/ai-ingest",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1082,
+      "elapsedMs": 852,
       "title": "Ingestão por IA | Flashi",
       "h1": [
         "Ingestão por IA"
@@ -418,7 +418,7 @@
       "route": "/import/anki",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 913,
+      "elapsedMs": 852,
       "title": "Importar do Anki | Flashi",
       "h1": [
         "Importar do Anki"
@@ -432,7 +432,7 @@
       "route": "/import/deck",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1086,
+      "elapsedMs": 851,
       "title": "Importar deck | Flashi",
       "h1": [
         "Importar deck"
@@ -446,7 +446,7 @@
       "route": "/import/url",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 915,
+      "elapsedMs": 838,
       "title": "Importar por URL | Flashi",
       "h1": [
         "Importar por URL"
@@ -460,7 +460,7 @@
       "route": "/export/anki",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1020,
+      "elapsedMs": 835,
       "title": "Exportar para Anki | Flashi",
       "h1": [
         "Exportar para Anki"
@@ -474,7 +474,7 @@
       "route": "/occlusion",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 881,
+      "elapsedMs": 838,
       "title": "Oclusão de imagem | Flashi",
       "h1": [
         "Oclusão de imagem"
@@ -488,7 +488,7 @@
       "route": "/media/demo",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1026,
+      "elapsedMs": 902,
       "title": "Mídia privada | Flashi",
       "h1": [
         "Mídia privada"
@@ -502,7 +502,7 @@
       "route": "/socratic",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1063,
+      "elapsedMs": 861,
       "title": "Sessões socráticas | Flashi",
       "h1": [
         "Sessões socráticas"
@@ -516,7 +516,7 @@
       "route": "/socratic/demo",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1471,
+      "elapsedMs": 899,
       "title": "Sessão socrática | Flashi",
       "h1": [
         "Sessão socrática"
@@ -530,7 +530,7 @@
       "route": "/settings/fsrs-optimize",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1024,
+      "elapsedMs": 829,
       "title": "Otimização FSRS | Flashi",
       "h1": [
         "Otimização FSRS"
@@ -544,7 +544,7 @@
       "route": "/leaderboard",
       "status": 200,
       "navigationError": null,
-      "elapsedMs": 1308,
+      "elapsedMs": 822,
       "title": "Classificação | Flashi",
       "h1": [
         "Ranking"
