@@ -1,0 +1,587 @@
+{
+  "generatedAt": "2026-10-04T16:36:40.795Z",
+  "baseURL": "http://127.0.0.1:3000",
+  "browser": "Playwright Chromium",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "thresholds": {
+    "slowRequestMs": 2000
+  },
+  "totals": {
+    "routes": 38,
+    "navigationFailures": 0,
+    "routeResponsesOutside2xx": 0,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "failedRequests": 0,
+    "cancelledRequests": 4,
+    "httpErrors": 0,
+    "slowRequests": 0,
+    "horizontalOverflows": 0
+  },
+  "routes": [
+    {
+      "route": "/",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 949,
+      "title": "Flashi — Estude um pouco hoje. Lembre por mais tempo.",
+      "h1": [
+        "Estude um pouco hoje.Lembre por mais tempo."
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/dashboard",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 870,
+      "title": "Hoje | Flashi",
+      "h1": [
+        "Pronto para estudar?"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/login",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 674,
+      "title": "Entrar | Flashi",
+      "h1": [
+        "Seu próximo cartão começa aqui."
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/register",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 658,
+      "title": "Criar conta | Flashi",
+      "h1": [
+        "Aprenda algo hoje."
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/onboarding",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 652,
+      "title": "Seu plano de estudo | Flashi",
+      "h1": [
+        "O que você quer aprender?"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/forgot-password",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 650,
+      "title": "Recuperar senha | Flashi",
+      "h1": [
+        "Vamos recuperar sua conta."
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/reset-password",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 653,
+      "title": "Redefinir senha | Flashi",
+      "h1": [
+        "Escolha uma senha nova."
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/study",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 784,
+      "title": "Estudar | Flashi",
+      "h1": [
+        "Estudar"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/study/demo",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 779,
+      "title": "Sessão de estudo | Flashi",
+      "h1": [
+        "Sessão de estudo"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/study/idiomas",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 770,
+      "title": "Sessão de estudo | Flashi",
+      "h1": [
+        "Sessão de estudo"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/study/search",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 747,
+      "title": "Busca semântica | Flashi",
+      "h1": [
+        "Busca semântica"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 740,
+      "title": "Meus decks | Flashi",
+      "h1": [
+        "Meus decks"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks/new",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 744,
+      "title": "Novo deck | Flashi",
+      "h1": [
+        "Novo deck"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks/idiomas",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 754,
+      "title": "Deck | Flashi",
+      "h1": [
+        "Deck"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks/idiomas/cards",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 792,
+      "title": "Cards do deck | Flashi",
+      "h1": [
+        "Gerenciar cards"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks/idiomas/notes",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 1147,
+      "title": "Notes do deck | Flashi",
+      "h1": [
+        "Notes do deck"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/decks/idiomas/occlusion/new",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 747,
+      "title": "Nova oclusão de imagem | Flashi",
+      "h1": [
+        "Nova oclusão de imagem"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/analytics",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 746,
+      "title": "Desempenho | Flashi",
+      "h1": [
+        "Desempenho"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/exams",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 748,
+      "title": "Metas de estudo | Flashi",
+      "h1": [
+        "Metas de estudo"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/profile",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 757,
+      "title": "Perfil | Flashi",
+      "h1": [
+        "Seu perfil"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/profile/learning-plan",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 775,
+      "title": "Meta de estudo | Flashi",
+      "h1": [
+        "Sua meta de estudo"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/profile/badges",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 754,
+      "title": "Conquistas | Flashi",
+      "h1": [
+        "Conquistas"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/tools",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 754,
+      "title": "Ferramentas avançadas | Flashi",
+      "h1": [
+        "Ferramentas avançadas"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/tools/mcp",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 763,
+      "title": "Ferramentas MCP | Flashi",
+      "h1": [
+        "Ferramentas MCP"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/search",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 760,
+      "title": "Busca | Flashi",
+      "h1": [
+        "Busca semântica"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/templates",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 797,
+      "title": "Templates | Flashi",
+      "h1": [
+        "Templates de cards"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/templates/demo",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 747,
+      "title": "Template | Flashi",
+      "h1": [
+        "Editar template"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/import/ai-ingest",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 758,
+      "title": "Ingestão por IA | Flashi",
+      "h1": [
+        "Ingestão por IA"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/import/anki",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 777,
+      "title": "Importar do Anki | Flashi",
+      "h1": [
+        "Importar do Anki"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/import/deck",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 738,
+      "title": "Importar deck | Flashi",
+      "h1": [
+        "Importar deck"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/import/url",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 734,
+      "title": "Importar por URL | Flashi",
+      "h1": [
+        "Importar por URL"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/export/anki",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 761,
+      "title": "Exportar para Anki | Flashi",
+      "h1": [
+        "Exportar para Anki"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/occlusion",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 726,
+      "title": "Oclusão de imagem | Flashi",
+      "h1": [
+        "Oclusão de imagem"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/media/demo",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 753,
+      "title": "Mídia privada | Flashi",
+      "h1": [
+        "Mídia privada"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/socratic",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 751,
+      "title": "Sessões socráticas | Flashi",
+      "h1": [
+        "Sessões socráticas"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/socratic/demo",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 743,
+      "title": "Sessão socrática | Flashi",
+      "h1": [
+        "Sessão socrática"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/settings/fsrs-optimize",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 728,
+      "title": "Otimização FSRS | Flashi",
+      "h1": [
+        "Otimização FSRS"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "route": "/leaderboard",
+      "status": 200,
+      "navigationError": null,
+      "elapsedMs": 734,
+      "title": "Classificação | Flashi",
+      "h1": [
+        "Ranking"
+      ],
+      "viewportWidth": 1280,
+      "documentWidth": 1280,
+      "theme": "light",
+      "horizontalOverflow": false
+    }
+  ],
+  "telemetry": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "cancelledRequests": [
+      {
+        "url": "http://127.0.0.1:3000/decks/idiomas?_rsc=eue9l",
+        "method": "GET",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "http://127.0.0.1:3000/decks/idiomas?_rsc=bgvg4",
+        "method": "GET",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "http://127.0.0.1:3000/templates/new?_rsc=1q3b9",
+        "method": "GET",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "http://127.0.0.1:3000/templates/new?_rsc=1mws0",
+        "method": "GET",
+        "error": "net::ERR_ABORTED"
+      }
+    ],
+    "httpErrors": [],
+    "slowRequests": []
+  }
+}

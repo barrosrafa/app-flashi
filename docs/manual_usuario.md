@@ -1,15 +1,17 @@
 # Manual do usuário — Flashi
 
-**Versão documentada:** `main` (revisão de UX/UI)
-**Ambiente usado:** build local do projeto, verificado no preview temporário
+**Versão documentada:** branch `feat/sdd-activation` (frontend `4a03419`; backend `Flashi/feat/sdd-activation`)
+**Ambiente usado:** frontend executado localmente em `http://127.0.0.1:3000`, sem sessão autenticada
 **Base das capturas:** `http://localhost:3000` (os prints não dependem de credenciais reais)
-**Data da captura:** 03/10/2026 — capturas atualizadas após a auditoria
+**Data da captura:** 03/10/2026 — rodada geral de QA executada em 04/10/2026
 
 ## 1. Sobre este manual
 
 Este manual descreve a navegação, os textos apresentados, os botões, os campos de formulário, os estados vazios e a usabilidade observada na aplicação Flashi. As capturas foram feitas na aplicação em execução e estão armazenadas nesta mesma pasta `docs`.
 
 > **Importante:** algumas páginas dependem de autenticação, de um deck válido ou de dados reais. As capturas públicas foram feitas sem sessão de usuário. Quando a página exige login, deck ou ID real, o manual identifica a limitação; isso não significa que o recurso esteja desativado.
+
+> **Limite desta validação:** a rodada de 04/10/2026 confirmou a interface local e seus estados sem sessão. Não foram fornecidos credenciais de homologação nem URL de staging; portanto, login real, persistência, envio de e-mail, uploads, jobs e respostas do Supabase não foram confirmados nesta rodada. Operações que alteram dados foram deliberadamente evitadas.
 
 ## 2. Conceitos básicos
 
@@ -22,6 +24,13 @@ Este manual descreve a navegação, os textos apresentados, os botões, os campo
 - **Estado vazio:** tela que explica o que falta fazer, sem apresentar dados fictícios.
 
 ## 3. Navegação global
+
+### Pré-requisitos de acesso
+
+- Para conhecer o produto, basta abrir `/`; não é necessário criar conta para ver a landing ou iniciar a demonstração em `/study/demo`.
+- Para manter decks, cards, perfil, fila de estudo e progresso sincronizados, crie uma conta em `/register`, confirme o e-mail se o provedor solicitar e entre em `/login`.
+- O projeto precisa estar conectado ao Supabase para autenticação e gravação remota. Se a conexão não estiver configurada, siga o aviso apresentado; não interprete esse estado como uma biblioteca vazia.
+- Em telas estreitas, use a barra inferior para **Hoje**, **Estudar**, **Meus decks** e **Busca**; abra **Mais** para as demais áreas. `Escape` fecha o menu.
 
 A barra lateral aparece nas páginas autenticadas e apresenta:
 
@@ -503,3 +512,15 @@ Todos os arquivos de imagem são relativos a este manual para manter o documento
 ## 23. Escopo do teste de interação
 
 A revisão visitou todas as rotas documentadas em desktop, tablet e mobile, checou erros JavaScript, títulos, foco/nomes de controles e overflow; testou navegação pública, menu móvel, revelar/avaliar, campos opcionais, alternância de visibilidade da senha e validação de senhas divergentes. Por segurança, não enviou recuperação de e-mail, cadastro, login, arquivos, jobs, exportação nem comandos que gravariam/apagariam dados em Supabase. O fluxo autenticado depende de conta de homologação autorizada.
+
+## 24. Registro da rodada geral — 04/10/2026
+
+- **Playwright E2E:** 51 testes passaram; 1 teste de mutação autenticada foi ignorado porque `E2E_EMAIL` e `E2E_PASSWORD` não foram configurados.
+- **Varredura exploratória:** as 38 rotas públicas/privadas e de demonstração responderam HTTP 200 no ambiente local anônimo; sem falhas de navegação, erros de console ou runtime, falhas reais de rede, respostas HTTP ≥ 400, chamadas acima de 2 s ou overflow horizontal no viewport desktop de 1280 px. A última rodada de produção registrou 4 prefetches RSC cancelados pelo Next durante a troca de rota (`ERR_ABORTED`), acompanhados separadamente como cancelamentos esperados.
+- **Smoke visual/responsivo:** as 38 rotas passaram em quatro larguras e dois temas: 4.358 verificações de controles, 114 dropdowns e 304 títulos; sem overflow, erros JS, controles sem nome, opções sem texto ou alvos menores que 44 px.
+- **Testes automatizados de unidade:** 34 passaram em 10 arquivos; `typecheck` passou; ESLint concluiu sem erros e reportou 17 avisos preexistentes.
+- **Backend:** 26 migrações SQL passaram pelo parser local; a suíte de contrato passou com 10 testes e 198 subcasos.
+- **Build:** `NEXT_PUBLIC_SITE_URL=https://flashi.example.invalid pnpm build` compilou 36 páginas estáticas e as rotas dinâmicas.
+- **Reprodução:** `pnpm test:e2e`; `BASE_URL=http://127.0.0.1:3000 QA_OUTPUT=docs/qa-results-2026-10-04.json pnpm qa:exploratory`; `BASE_URL=http://127.0.0.1:3000 pnpm smoke:ui`; `pnpm test`; `pnpm typecheck`; `pnpm lint`; backend `python3 validate_sql.py` e `python3 -m pytest -q tests/test_contracts.py`.
+
+O teste exploratório Playwright reutilizável está em `scripts/exploratory-qa.mjs`; os resultados completos por rota e a telemetria coletada estão em `docs/qa-results-2026-10-04.json`. Esses resultados descrevem somente o ambiente local anônimo, não a disponibilidade operacional do staging ou do Supabase.
