@@ -9,19 +9,11 @@ import { flushOutboxQueue, enqueueMutation } from '../../../lib/db/outbox-queue'
 import type { Json } from '../../../src/types/database';
 import type { Rating } from '../../../lib/db/schema';
 import { createClient } from '../../../lib/supabase/client';
+import { hasBrowserSession, isUuid } from '../../../lib/supabase/guards';
 import { gamificationService, type SessionXpResult } from '../../../lib/services/gamification-service';
 import { mediaService } from '../../../lib/services/media-service';
 import { occlusionService, type OcclusionMask } from '../../../lib/services/occlusion-service';
 import { normalizeTemplate, renderCard, renderDefaultCard, type RenderedCard } from '../../../lib/services/template-renderer';
-
-function cardFields(value: Json) {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    const fields = value as Record<string, Json | undefined>;
-    const find = (name: string) => Object.entries(fields).find(([key]) => key.toLowerCase() === name)?.[1];
-    return { front: typeof find('front') === 'string' ? find('front') as string : 'Cartão sem frente', back: typeof find('back') === 'string' ? find('back') as string : 'Cartão sem verso' };
-  }
-  return { front: 'Cartão sem frente', back: 'Cartão sem verso' };
-}
 
 const ratings: Array<{ key: Rating; label: string; tone: string }> = [
   { key: 'again', label: 'De novo', tone: 'again' },
@@ -55,9 +47,32 @@ export default function Study({ params }: { params: Promise<{ deckId: string }> 
 
   useEffect(() => { setSessionId((current) => current || (deckId === 'demo' ? 'demo-session' : crypto.randomUUID())); }, [deckId]);
   useEffect(() => {
-    if (deckId === 'demo') { setCards(demoCards); setLoading(false); return; }
-    setLoading(true); setError(''); setDone(0); setSettled(false); setXpResult(null);
-    getDueCards(deckId, 40, examQueue).then(setCards).catch((reason: unknown) => setError(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? 'Entre na sua conta para carregar sua fila de estudo.' : 'Não foi possível carregar a fila de estudo. Tente novamente.')).finally(() => setLoading(false));
+    let cancelled = false;
+    async function loadQueue() {
+      setLoading(true); setError(''); setDone(0); setSettled(false); setXpResult(null);
+      if (deckId === 'demo') {
+        if (!cancelled) { setCards(demoCards); setLoading(false); }
+        return;
+      }
+      if (!isUuid(deckId)) {
+        if (!cancelled) { setCards([]); setError('Este deck não possui um identificador válido. Volte para Meus decks e abra um deck existente.'); setLoading(false); }
+        return;
+      }
+      if (!(await hasBrowserSession())) {
+        if (!cancelled) { setCards([]); setError('Entre na sua conta para carregar sua fila de estudo.'); setLoading(false); }
+        return;
+      }
+      try {
+        const nextCards = await getDueCards(deckId, 40, examQueue);
+        if (!cancelled) setCards(nextCards);
+      } catch (reason: unknown) {
+        if (!cancelled) setError(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? 'Entre na sua conta para carregar sua fila de estudo.' : 'Não foi possível carregar a fila de estudo. Tente novamente.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void loadQueue();
+    return () => { cancelled = true; };
   }, [deckId, examQueue]);
 
   const current = cards[done];

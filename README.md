@@ -20,9 +20,9 @@ Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são 
 ### Estado verificado da branch
 
 - Branch de trabalho desta implementação: `feat/sdd-activation`.
-- Esta entrega acrescenta ativação inicial, demonstração local ampliada, resumo de meta no painel e documentação sincronizada nos dois repositórios.
+- Esta entrega acrescenta ativação inicial, guards de sessão/UUID para estados sem autenticação, demonstração local ampliada, resumo de meta no painel e documentação sincronizada nos dois repositórios.
 - Backend de referência: `barrosrafa/Flashi`, branch `feat/sdd-activation`.
-- Nenhuma migration, Edge Function, RPC ou tabela do backend foi alterada ou aplicada nesta entrega; veja a decisão de armazenamento no capítulo de ativação.
+- O backend recebeu a migration `20261004120000_sdd_activation_expansion.sql`, o helper HMAC e a Edge Function TTS; a migration não foi aplicada remotamente nesta sessão e deve seguir o rollout documentado no README do backend.
 
 ---
 
@@ -180,6 +180,8 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 - `SyncStatusPanel`, que informa offline, alterações pendentes, falhas e ações de sincronização local.
 
 `app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`. As páginas do App Router mantêm a fronteira server/client para metadata: a landing é indexável e as telas de conta/estudo usam `privatePageMetadata()` (`noindex, nofollow`). `robots.ts` aponta ao sitemap público, que contém somente a landing. O `manifest`, ícones e metadata pública também vivem no App Router.
+
+`public/manus-routes.json` declara o conjunto de rotas de página, incluindo os padrões dinâmicos `:deckId` e `:id`, para que Preview e publicação não dependam de descobrir rotas por fallback.
 
 ### Componentes de domínio
 
@@ -519,21 +521,22 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 
 | Script | Uso |
 |---|---|
-| `scripts/ui-smoke.mjs` | Visita 36 rotas em 4 larguras × 2 temas; verifica erros, overflow, texto visível cortado, rótulos/nome e tamanho dos controles e conteúdo/cores de dropdowns. Clica somente em controles locais reversíveis; ignora o botão de DevTools injetado pelo Next em modo dev. Rode com `pnpm smoke:ui`. |
+| `scripts/ui-smoke.mjs` | Visita 38 rotas em 4 larguras × 2 temas; verifica erros, overflow, texto visível cortado, rótulos/nome e tamanho dos controles e conteúdo/cores de dropdowns. Clica somente em controles locais reversíveis; ignora o botão de DevTools injetado pelo Next em modo dev. Rode com `pnpm smoke:ui`. |
 | `scripts/capture-screens.mjs` | Captura 36 estados/telas em desktop e mobile e grava imagens WebP em `docs/*.webp` e `docs/screenshots/mobile/`, com manifesto em `docs/screenshots/capture-manifest.json`. Rode com `pnpm screenshots` com o app em `localhost:3000`. |
 | `scripts/make-contact-sheet.py` | Agrupa capturas em folhas de contacto; requer Pillow no ambiente. |
 | `scripts/supabase-smoke.mjs` | Faz checks REST/Edge com URL e publishable key fornecidas no ambiente; não autentica um usuário. |
 
 ### Validação desta revisão
 
-Verificação executada nesta revisão (03/10/2026):
+Verificação executada nesta revisão (04/10/2026):
 
 - `pnpm typecheck`: passou.
-- `pnpm test`: 29 testes em 9 arquivos, todos passaram.
-- `pnpm lint`: passou sem erros; restaram 17 avisos não bloqueantes sobre dependências de hooks, imports/variáveis e imagens dinâmicas (`<img>`).
-- `pnpm build`: passou; Next.js gerou 34/34 páginas estáticas e as rotas dinâmicas esperadas.
-- `pnpm test:e2e`: 49 passaram; 1 fluxo autenticado foi intencionalmente ignorado por não haver credenciais de homologação.
-- `pnpm smoke:ui`: 36 rotas × 4 larguras × 2 temas; 4.180 verificações de controles, 112 dropdowns e 288 títulos, sem overflow, erro JavaScript, texto cortado, falta de rótulo/opções ou alvo menor que 44 px.
+- `pnpm test`: 36 testes em 11 arquivos, todos passaram.
+- `pnpm lint`: passou sem erros; restaram 16 avisos não bloqueantes já conhecidos sobre dependências de hooks, imports/variáveis e imagens dinâmicas (`<img>`).
+- `pnpm build` com `NEXT_PUBLIC_SITE_URL` HTTPS: passou; Next.js gerou o build de produção e as rotas dinâmicas esperadas.
+- `pnpm test:e2e`: 51 passaram; 1 fluxo autenticado foi intencionalmente ignorado por não haver credenciais de homologação.
+- `pnpm smoke:ui`: 38 rotas × 4 larguras × 2 temas; 4.311 verificações de controles, 112 dropdowns e 304 títulos, sem overflow, erro JavaScript, texto cortado, falta de rótulo/opções ou alvo menor que 44 px.
+- `pnpm qa:exploratory`: 38 rotas, 0 falhas de navegação, 0 erros HTTP/JavaScript, 0 requests falhos e 0 overflow horizontal.
 - `git diff --check`: passou.
 
 ### Correções aplicadas na auditoria UX/UI
@@ -544,6 +547,7 @@ Verificação executada nesta revisão (03/10/2026):
 - O editor de oclusão substitui pressupostos de classes Tailwind não compiladas por estilos próprios e oferece seleção/edição de regiões com alternativas por teclado e coordenadas.
 - A tradução dinâmica observa somente alterações incrementais da subárvore, evitando uma varredura completa do documento em cada mutação.
 - As dependências diretas que estavam como `latest` foram fixadas nas versões já resolvidas pelo lockfile original, evitando upgrades colaterais ao adicionar o lint. O lockfile inclui o grafo do ESLint 9/Next 16; `pnpm-workspace.yaml` permite os scripts de build já aprovados de `sharp` e `unrs-resolver`.
+- Rotas dinâmicas agora validam a sessão local e o formato UUID antes de consultar Supabase; estados sem autenticação e slugs de demonstração inválidos exibem orientação em vez de gerar 401/400 no console.
 
 As suítes não submetem cadastro, recuperação de senha, upload ou gravação remota. O teste autenticado de persistência requer `E2E_EMAIL` e `E2E_PASSWORD` de homologação.
 
