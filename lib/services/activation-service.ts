@@ -17,6 +17,7 @@ export async function processActivation(payload: ActivationPayload, idempotencyK
     body: payload,
     idempotencyKey,
     maxRetries: 2,
+    isIdempotent: true,
     timeoutMs: 30_000,
   });
 }
