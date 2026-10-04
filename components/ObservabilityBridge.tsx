@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { createClient } from '../lib/supabase/client';
+import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { identifyUser, resetAnalytics, setUser } from '../lib/observability';
 
 export function ObservabilityBridge() {
   useEffect(() => {
+    if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     let mounted = true;
     const identify = (userId: string) => { identifyUser(userId, { app: 'flashi', locale: navigator.language }); setUser(userId); };
