@@ -44,6 +44,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     streakResponse,
     statisticsResponse,
     gamificationResponse,
+    learningPlanResponse,
   ] = await Promise.all([
     listDecks(),
     supabase.rpc('get_due_cards', { p_limit: 500 }),
@@ -60,12 +61,18 @@ export async function getDashboardData(): Promise<DashboardData> {
       .select('xp_total,highest_streak_count,streak_days_count')
       .eq('user_id', user.id)
       .maybeSingle(),
+    supabase
+      .from('learning_plans')
+      .select('goal,target_date,weekly_minutes,updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle(),
   ]);
 
   if (dueCardsResponse.error) throw dueCardsResponse.error;
   if (streakResponse.error) throw streakResponse.error;
   if (statisticsResponse.error) throw statisticsResponse.error;
   if (gamificationResponse.error) throw gamificationResponse.error;
+  if (learningPlanResponse.error) throw learningPlanResponse.error;
 
   const dueCards = dueCardsResponse.data ?? [];
   const dueNewCount = dueCards.filter((card) => card.state === 'new').length;
@@ -86,7 +93,14 @@ export async function getDashboardData(): Promise<DashboardData> {
   const estimatedMinutes = weeklyCards > 0 && weeklyTimeMs > 0 && dueCards.length > 0
     ? Math.max(1, Math.round((weeklyTimeMs / weeklyCards) * dueCards.length / 60000))
     : null;
-  const learningPlan = decodeLearningPreferences(user.user_metadata?.flashi_product_preferences);
+  const learningPlan = learningPlanResponse.data
+    ? decodeLearningPreferences({
+      goal: learningPlanResponse.data.goal,
+      targetDate: learningPlanResponse.data.target_date,
+      weeklyMinutes: learningPlanResponse.data.weekly_minutes,
+      completedAt: learningPlanResponse.data.updated_at,
+    })
+    : decodeLearningPreferences(null);
 
   return {
     decks,

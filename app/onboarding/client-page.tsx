@@ -11,6 +11,7 @@ import {
   skipOnboarding,
   type LearningGoal,
 } from '../../lib/services/onboarding-service';
+import { capture, normalizeErrorCode, weeklyMinutesBucket } from '../../lib/observability';
 
 const goalKeys: Record<LearningGoal, TranslationKey> = {
   exam: 'onboarding.goals.exam',
@@ -49,6 +50,7 @@ export default function OnboardingClientPage() {
 
   useEffect(() => {
     let active = true;
+    capture('activation_viewed', { surface: 'onboarding' });
     getOnboardingState()
       .then(({ preferences, draft }) => {
         if (!active) return;
@@ -97,15 +99,19 @@ export default function OnboardingClientPage() {
     }
     setSaving(true);
     setError('');
+    const submittedAt = Date.now();
+    capture('activation_submitted', { surface: 'onboarding', has_goal: Boolean(goal), has_target_date: Boolean(targetDate), weekly_minutes_bucket: weeklyMinutesBucket(weeklyMinutes) });
     try {
       await saveLearningPreferences({
         goal,
         targetDate: targetDate || null,
         weeklyMinutes: weeklyMinutes ? Number(weeklyMinutes) : null,
       });
+      capture('activation_completed', { surface: 'onboarding', status: 'ACTIVE', duration_ms: Date.now() - submittedAt, request_id: null });
       router.replace('/dashboard');
       router.refresh();
     } catch (reason: unknown) {
+      capture('activation_failed', { surface: 'onboarding', error_code: normalizeErrorCode(reason), status: 0, request_id: null, retryable: true });
       setError(messageForError(reason, t));
     } finally {
       setSaving(false);

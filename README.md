@@ -1069,3 +1069,21 @@ O equivalente de ativação foi implementado na stack efetiva do projeto: Postgr
 A branch `feat/sdd-activation` usa Sentry para sinais técnicos e PostHog para eventos de produto. Ambos são opcionais: sem DSN/token, o app continua funcionando. Configure as variáveis de `.env.example`; nunca coloque tokens privados em `NEXT_PUBLIC_`. A rota `/activation` é protegida e correlaciona eventos com `request_id`; dados privados, metas brutas e chaves de idempotência não são enviados.
 
 Validação local: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` e `pnpm build`.
+
+## SDD activation — provisionamento P0
+
+Esta branch unifica o caminho **cadastro → onboarding → activation → `learning_plans`**. O onboarding mantém apenas o rascunho transitório no Auth; ao concluir, chama a Edge Function `activation`, que grava o plano oficial e mantém a operação idempotente. O dashboard lê `learning_plans`, sem usar metadata do Auth como fonte de verdade.
+
+O funil registra `signup_started`, `signup_completed`, `activation_viewed`, `activation_submitted`, `activation_completed` e `activation_failed` sem enviar conteúdo educacional, e o formulário usa buckets para minutos semanais.
+
+### Validação local
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+Para testar a jornada completa, configure `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, aplique as migrações do backend e execute `pnpm dev`.

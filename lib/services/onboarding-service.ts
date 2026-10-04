@@ -1,4 +1,5 @@
 import { createClient, isSupabaseConfigured } from '../supabase/client';
+import { processActivation } from './activation-service';
 
 export const learningGoals = ['exam', 'competition', 'language', 'university', 'other'] as const;
 export type LearningGoal = typeof learningGoals[number];
@@ -138,6 +139,11 @@ export async function saveLearningPreferences(input: {
     ...input,
     completedAt: new Date().toISOString(),
   };
+  await processActivation({
+    goal: input.goal,
+    target_date: input.targetDate,
+    weekly_minutes: input.weeklyMinutes,
+  });
   await updateUserMetadata({
     flashi_onboarding_required: false,
     flashi_onboarding_draft: null,
