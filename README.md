@@ -1053,3 +1053,12 @@ O relatório bruto da navegação fica em `docs/qa-results-2026-10-04.json`. A e
 
 
 A auditoria MCP também foi incluída nessa fronteira: `listMcpAudit()` agora retorna `AUTH_REQUIRED` antes de consultar `mcp_tool_audit` sem sessão. Para validar o build local, use uma origem HTTPS pública, por exemplo `NEXT_PUBLIC_SITE_URL=https://<origem> pnpm build`; o projeto rejeita intencionalmente `localhost` em builds de produção.
+
+
+## 33. Implementação SDD de ativação e hardening — 04/10/2026
+
+A rota `/activation` agora usa XState 5 em `lib/activation-machine.ts` para representar explicitamente `PENDING`, `VALIDATING`, `ACTIVE` e `FAILED`, impedindo submissões duplicadas e oferecendo retry previsível. O serviço `lib/services/activation-service.ts` chama a Edge Function `activation` com `Idempotency-Key` estável durante retries e `X-Request-Id`.
+
+O cliente Edge comum injeta `X-Request-Id` em todas as chamadas e aceita `idempotencyKey` para mutações. O backend valida propriedades permitidas, calcula fingerprint SHA-256 e responde com o mesmo resultado para uma chave repetida com o mesmo payload. O fluxo offline existente continua usando Dexie/outbox; ele não foi substituído por TanStack Query porque o produto já possui uma fila persistente de mutações, cursor USN e sincronização próprios.
+
+O equivalente de ativação foi implementado na stack efetiva do projeto: PostgreSQL/RLS/RPC/Edge Function. O SDD original cita NestJS, Prisma, Redis, `nestjs-cls` e OpenTelemetry, mas esses componentes não existem nesta arquitetura Supabase; não foram adicionados como código morto. O banco oferece a transação, RLS, fingerprint, tabela de idempotência, entitlements, quotas e rate limit por usuário. Observabilidade distribuída fica representada por `request_id` propagado nas Edge Functions e respostas; exportação OpenTelemetry e armazenamento Redis permanecem adaptadores futuros de infraestrutura.

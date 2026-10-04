@@ -5,6 +5,7 @@
     { "path": "/login", "title": "Login" },
     { "path": "/register", "title": "Cadastro" },
     { "path": "/onboarding", "title": "Onboarding" },
+    { "path": "/activation", "title": "Ativação" },
     { "path": "/forgot-password", "title": "Recuperar senha" },
     { "path": "/reset-password", "title": "Redefinir senha" },
     { "path": "/study", "title": "Estudo" },
