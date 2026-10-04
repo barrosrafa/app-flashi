@@ -17,7 +17,7 @@ export default function Register() {
       const { error } = await createClient().auth.signUp({
         email: String(form.get('email') ?? ''),
         password: String(form.get('password') ?? ''),
-        options: { data: { full_name: String(form.get('name') ?? '') } },
+        options: { data: { full_name: String(form.get('name') ?? ''), flashi_onboarding_required: true } },
       });
       setMessage(error ? getAuthErrorMessage(error, 'register') : 'Conta criada. Verifique seu e-mail para confirmar o acesso.');
       setSuccess(!error);

@@ -32,7 +32,7 @@ const groups: Array<{ title: TranslationKey; items: NavItem[] }> = [
     { href: '/leaderboard', label: 'nav.leaderboard', icon: 'trophy' },
     { href: '/tools/mcp', label: 'nav.mcp', icon: 'tool' },
   ] },
-  { title: 'nav.groupAccount', items: [{ href: '/profile', label: 'nav.profile', icon: 'user' }] },
+  { title: 'nav.groupAccount', items: [{ href: '/profile', label: 'nav.profile', icon: 'user' }, { href: '/profile/learning-plan', label: 'nav.learningGoal', icon: 'calendar' }] },
 ];
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -52,6 +52,7 @@ function Icon({ name }: { name: IconName }) {
   return <svg aria-hidden="true" className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 function isActive(pathname: string, href: string) {
+  if (href === '/profile') return pathname === href;
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 }
 function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: string; onNavigate?: () => void }) {

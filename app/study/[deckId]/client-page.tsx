@@ -29,7 +29,11 @@ const ratings: Array<{ key: Rating; label: string; tone: string }> = [
   { key: 'good', label: 'Bom', tone: 'good' },
   { key: 'easy', label: 'Fácil', tone: 'easy' },
 ];
-const demoCard: DueCard = { card_id: 'demo-card-001', deck_id: 'demo', fields: { front: 'O que é repetição espaçada?', back: 'Um método que agenda revisões no momento em que você está prestes a esquecer o conteúdo.' } as Json, state: 'new', due_at: new Date().toISOString(), interval_days: 0 };
+const demoCards: DueCard[] = [
+  { card_id: 'demo-card-001', deck_id: 'demo', fields: { front: 'O que é repetição espaçada?', back: 'Um método que organiza as revisões ao longo do tempo para ajudar você a recuperar o conteúdo da memória.' } as Json, state: 'new', due_at: new Date().toISOString(), interval_days: 0 },
+  { card_id: 'demo-card-002', deck_id: 'demo', fields: { front: 'Por que tentar lembrar antes de ver a resposta?', back: 'A recuperação ativa exige que você busque a informação, tornando o estudo mais participativo do que apenas reler.' } as Json, state: 'new', due_at: new Date().toISOString(), interval_days: 0 },
+  { card_id: 'demo-card-003', deck_id: 'demo', fields: { front: 'O que acontece quando você avalia uma resposta?', back: 'Na sessão real, sua avaliação ajuda o agendador do deck a escolher quando este cartão deve voltar.' } as Json, state: 'new', due_at: new Date().toISOString(), interval_days: 0 },
+];
 
 export default function Study({ params }: { params: Promise<{ deckId: string }> }) {
   const { deckId } = use(params);
@@ -51,7 +55,7 @@ export default function Study({ params }: { params: Promise<{ deckId: string }> 
 
   useEffect(() => { setSessionId((current) => current || (deckId === 'demo' ? 'demo-session' : crypto.randomUUID())); }, [deckId]);
   useEffect(() => {
-    if (deckId === 'demo') { setCards([demoCard]); setLoading(false); return; }
+    if (deckId === 'demo') { setCards(demoCards); setLoading(false); return; }
     setLoading(true); setError(''); setDone(0); setSettled(false); setXpResult(null);
     getDueCards(deckId, 40, examQueue).then(setCards).catch((reason: unknown) => setError(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? 'Entre na sua conta para carregar sua fila de estudo.' : 'Não foi possível carregar a fila de estudo. Tente novamente.')).finally(() => setLoading(false));
   }, [deckId, examQueue]);

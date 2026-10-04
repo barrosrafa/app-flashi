@@ -1,6 +1,7 @@
 import { createClient, isSupabaseConfigured } from '../supabase/client';
 import type { Database } from '../../src/types/database';
 import { listDecks, type Deck } from './deck-service';
+import { decodeLearningPreferences, type LearningPreferences } from './onboarding-service';
 
 export type DueCard =
   Database['public']['Functions']['get_due_cards']['Returns'][number];
@@ -17,6 +18,8 @@ export type DashboardData = {
   weeklyAccuracy: number;
   xpTotal: number;
   nextDeck: Deck | null;
+  estimatedMinutes: number | null;
+  learningPlan: LearningPreferences;
 };
 
 export async function getDashboardData(): Promise<DashboardData> {
@@ -80,6 +83,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   const nextDeck = [...decks]
     .filter((deck) => (dueByDeck.get(deck.id) ?? 0) > 0)
     .sort((left, right) => (dueByDeck.get(right.id) ?? 0) - (dueByDeck.get(left.id) ?? 0))[0] ?? null;
+  const estimatedMinutes = weeklyCards > 0 && weeklyTimeMs > 0 && dueCards.length > 0
+    ? Math.max(1, Math.round((weeklyTimeMs / weeklyCards) * dueCards.length / 60000))
+    : null;
+  const learningPlan = decodeLearningPreferences(user.user_metadata?.flashi_product_preferences);
 
   return {
     decks,
@@ -93,5 +100,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     weeklyAccuracy,
     xpTotal: gamificationResponse.data?.xp_total ?? 0,
     nextDeck,
+    estimatedMinutes,
+    learningPlan,
   };
 }

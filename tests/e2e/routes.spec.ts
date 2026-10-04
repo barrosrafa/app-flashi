@@ -19,9 +19,11 @@ const routes: RouteExpectation[] = [
   { path: '/exams', heading: 'Metas de estudo', exact: true },
   { path: '/analytics', heading: 'Desempenho' },
   { path: '/profile', heading: 'Seu perfil', exact: true },
+  { path: '/profile/learning-plan', heading: 'Sua meta de estudo' },
   { path: '/tools', heading: 'Ferramentas avançadas' },
   { path: '/login', heading: 'Seu próximo cartão começa aqui.' },
   { path: '/register', heading: 'Aprenda algo hoje.' },
+  { path: '/onboarding', heading: 'O que você quer aprender?' },
   { path: '/forgot-password', heading: 'Vamos recuperar sua conta.' },
   { path: '/reset-password', heading: 'Escolha uma senha nova.' },
 ];
@@ -37,6 +39,7 @@ test('landing pública entrega metadados, destino de cadastro e SEO técnico', a
   const structuredData = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? '{}');
   expect(structuredData).toMatchObject({ '@type': 'SoftwareApplication', name: 'Flashi', inLanguage: 'pt-BR' });
   await expect(page.getByRole('navigation', { name: 'Navegação pública' }).getByRole('link', { name: 'Criar conta' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Testar uma sessão demonstrativa' })).toBeVisible();
   const robots = await page.request.get('/robots.txt');
   expect(robots.ok()).toBeTruthy();
   expect(await robots.text()).toContain('Allow: /');
@@ -129,13 +132,19 @@ test('gerenciador de cards exibe o contrato real do Supabase', async ({ page }) 
 });
 
 test('prévia de estudo completa o fluxo frente, verso e avaliação', async ({ page }) => {
+  const backendWrites: string[] = [];
+  page.on('request', (request) => {
+    if (/\/rest\/v1\/|\/functions\/v1\//.test(request.url()) && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method())) backendWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
+  });
   await page.goto('/study/demo');
   await expect(page.getByRole('heading', { name: 'Sessão de estudo' })).toBeVisible();
-  await page.getByRole('button', { name: /Revelar resposta/ }).click();
-  await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Bom', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Bom', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Sessão concluída');
+  for (let card = 0; card < 3; card += 1) {
+    await page.getByRole('button', { name: /Revelar resposta/ }).click();
+    await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Bom', exact: true }).click();
+  }
+  await expect(page.locator('.study-complete')).toContainText('Você revisou 3 cartões.');
+  expect(backendWrites).toEqual([]);
 });
 
 test('tela de ferramentas expõe contratos avançados', async ({ page }) => {
