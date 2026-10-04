@@ -10,7 +10,7 @@ const supabaseUrl =
   'https://fchpvgfjjxjpxfmtsrnc.supabase.co';
 const supabasePublishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  'sb_publishable_rMFjWImWBXMppQJ7NBg3bw_hF4xjMuv';
+  'sb_publishable_9vAONKEWtP837G7n7G-GTg_AvL7X5i6';
 
 export function isSupabaseConfigured() {
   return Boolean(supabaseUrl.trim() && supabasePublishableKey.trim());
