@@ -282,19 +282,30 @@ test('formulário simplificado revela campos opcionais somente quando solicitado
   await expect(description).toBeVisible();
 });
 
-test('estados sem credenciais Supabase não sugerem dados zerados nem falsa sessão', async ({ page }) => {
+test('estados sem sessão não sugerem dados zerados nem falsa sessão', async ({ page }) => {
   await page.goto('/dashboard');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
-  await expect(page.getByRole('heading', { name: 'Conecte seu projeto Supabase' })).toBeVisible();
+  const dashboardNotice = page.locator('.notice[role="alert"]');
+  const supabaseConfigured = !(await dashboardNotice.innerText()).includes('Configure a conexão do Supabase');
+  if (supabaseConfigured) {
+    await expect(dashboardNotice).toContainText('Entre na sua conta para carregar seus indicadores.');
+    await expect(page.getByRole('heading', { name: 'Entre para ver sua fila' })).toBeVisible();
+    await expect(page.locator('#learning-plan-heading')).toContainText('Entre para acessar sua fila.');
+  } else {
+    await expect(page.getByRole('heading', { name: 'Conecte seu projeto Supabase' })).toBeVisible();
+  }
   await expect(page.getByText('Carregando fila…')).toBeHidden();
 
   await page.goto('/decks');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
+  await expect(page.locator('.notice[role="alert"]')).toContainText(supabaseConfigured
+    ? 'Entre na sua conta para carregar seus decks.'
+    : 'Configure a conexão do Supabase para carregar seus decks.');
   await expect(page.getByRole('heading', { name: 'Sua biblioteca' })).toContainText('—');
   await expect(page.getByText('Sua biblioteca (0)')).toHaveCount(0);
 
   await page.goto('/profile');
-  await expect(page.getByRole('status').getByText('Configure a conexão do Supabase para carregar o perfil.')).toBeVisible();
+  await expect(page.getByRole('status').getByText(supabaseConfigured
+    ? 'Entre na sua conta para editar o perfil.'
+    : 'Configure a conexão do Supabase para carregar o perfil.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Guardar preferências|Salvar preferências/ })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Nome de exibição' })).toHaveCount(0);
 });
