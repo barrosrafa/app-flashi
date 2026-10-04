@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { getAuthErrorMessage } from '../../../lib/auth-messages';
-import { createClient } from '../../../lib/supabase/client';
+import { createClient, isSupabaseConfigured } from '../../../lib/supabase/client';
 export default function Register() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,6 +14,7 @@ export default function Register() {
     setMessage('Criando sua conta…');
     setSuccess(false);
     try {
+      if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
       const { error } = await createClient().auth.signUp({
         email: String(form.get('email') ?? ''),
         password: String(form.get('password') ?? ''),

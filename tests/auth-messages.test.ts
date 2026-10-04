@@ -6,6 +6,12 @@ describe('getAuthErrorMessage', () => {
     expect(getAuthErrorMessage(new Error('Invalid login credentials'), 'login'))
       .toContain('E-mail ou senha incorretos');
   });
+  it('explains when the Supabase connection is not configured', () => {
+    const message = getAuthErrorMessage(new Error('SUPABASE_NOT_CONFIGURED'), 'login');
+    expect(message).toContain('A autenticação não está configurada');
+    expect(message).toContain('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    expect(message).not.toContain('E-mail ou senha incorretos');
+  });
   it('provides a cooldown for rate limiting', () => {
     expect(getAuthErrorMessage(new Error('Email rate limit exceeded'), 'register'))
       .toContain('Aguarde alguns minutos');
