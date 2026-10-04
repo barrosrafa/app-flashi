@@ -12,17 +12,17 @@ Este documento descreve o que existe no código desta branch. Não é uma especi
 - configuração em `package.json`, `pnpm-workspace.yaml`, `eslint.config.mjs`, `tsconfig.json`, `playwright.config.ts`, `proxy.ts`, `.env.example` e `public/sw.js`;
 - metadados compartilhados em `lib/site-url.ts` e `lib/private-page-metadata.ts`;
 - tipos Supabase em `src/types/database.ts`;
-- backend de referência `barrosrafa/Flashi`, branch `v2`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
+- backend de referência `barrosrafa/Flashi`, branch de trabalho `feat/sdd-activation`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
 - testes e validadores executados nesta revisão.
 
 Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são evidência de trabalhos anteriores, mas não substituem o código atual quando houver divergência.
 
 ### Estado verificado da branch
 
-- Branch: `main`.
-- Implementação SDD v5 e correção abrangente de i18n publicadas no repositório frontend.
-- Backend de referência: `barrosrafa/Flashi`, branch `v2`.
-- O frontend não altera o repositório do backend.
+- Branch de trabalho desta implementação: `feat/sdd-activation`.
+- Esta entrega acrescenta ativação inicial, guards de sessão/UUID para estados sem autenticação, demonstração local ampliada, resumo de meta no painel e documentação sincronizada nos dois repositórios.
+- Backend de referência: `barrosrafa/Flashi`, branch `feat/sdd-activation`.
+- O backend recebeu a migration `20261004120000_sdd_activation_expansion.sql`, o helper HMAC e a Edge Function TTS; a migration não foi aplicada remotamente nesta sessão e deve seguir o rollout documentado no README do backend.
 
 ---
 
@@ -94,7 +94,7 @@ O browser usa somente a chave pública do Supabase. Não há `service_role` no f
 | `pnpm typecheck` | Executa `tsc --noEmit`. |
 | `pnpm test` | Executa `vitest run tests --exclude tests/e2e/**`. |
 | `pnpm test:e2e` | Executa Playwright e pode iniciar `pnpm dev` automaticamente. |
-| `pnpm smoke:ui` | Verifica 36 rotas em quatro larguras e nos temas claro/escuro: overflow, texto visível cortado, rótulos, nomes/tamanho de controles e opções/cores de dropdowns. Só aciona interações locais reversíveis. |
+| `pnpm smoke:ui` | Verifica 38 rotas em quatro larguras e nos temas claro/escuro: overflow, texto visível cortado, rótulos, nomes/tamanho de controles e opções/cores de dropdowns. Só aciona interações locais reversíveis. |
 | `pnpm screenshots` | Atualiza a documentação visual desktop/mobile e o manifesto de capturas. |
 
 ### Variáveis mínimas
@@ -118,7 +118,7 @@ O `.env.example` contém uma URL pública de projeto e uma chave de exemplo subs
 
 ### Configuração de autenticação server-side
 
-`proxy.ts` cria um `createServerClient` com `@supabase/ssr`, lê cookies do request, atualiza cookies quando necessário e chama `supabase.auth.getUser()`. O matcher cobre rotas não estáticas e exclui assets estáticos comuns. O proxy não implementa uma política de autorização de rota: a autorização de dados continua a ser feita por Auth, RLS, serviços e RPCs.
+`proxy.ts` cria um `createServerClient` com `@supabase/ssr`, lê cookies do request, atualiza cookies quando necessário e chama `supabase.auth.getUser()`. Para UX, somente contas novas explicitamente marcadas pelo formulário de cadastro são encaminhadas de rotas de produto para `/onboarding` enquanto o perfil opcional não for concluído; `/study/demo` permanece público. Esse redirecionamento não é uma fronteira de autorização: dados continuam protegidos por Auth, RLS, serviços e RPCs, e as preferências nunca conferem permissões ou acesso pago.
 
 ---
 
@@ -134,6 +134,7 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | `/forgot-password` | `app/(auth)/forgot-password/page.tsx` | Solicita e-mail de recuperação e retorna mensagem sem enumerar contas. |
 | `/reset-password` | `app/(auth)/reset-password/page.tsx` | Valida confirmação e chama `auth.updateUser`; requer redirect autorizado no Supabase. |
 | `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
+| `/onboarding` | `app/onboarding/page.tsx` | Fluxo privado, retomável e dispensável em duas etapas para objetivo/data e capacidade semanal; só é obrigatório para contas novas marcadas no signup, grava pelo Supabase Auth e não altera fila ou agenda. |
 | `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks autenticados; diferencia configuração ausente de falta de sessão e não exibe contagem zero falsa. |
 | `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
 | `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` + `DeckDetailClient` | Carrega detalhe do deck; integra cards, notes, mídia e colaboração quando os contratos/flags estão disponíveis. |
@@ -142,12 +143,13 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | `/decks/[deckId]/occlusion/new` | `app/decks/[deckId]/occlusion/new/page.tsx` | **Flag `occlusion`**; upload de imagem, editor de caixas percentuais e RPC de oclusão. |
 | `/study` | `app/study/page.tsx` | Lista decks para iniciar; diferencia fila vazia de falta de sessão. |
 | `/study/[deckId]` | `app/study/[deckId]/page.tsx` | Fila real, frente/verso, ratings, review FSRS e fallback local. Também carrega template do card quando disponível. |
-| `/study/demo` | mesma página com `deckId=demo` | Fixture local para demonstrar o fluxo sem tocar no backend. |
+| `/study/demo` | mesma página com `deckId=demo` | Três cards locais de exemplo para demonstrar revelar/avaliar/concluir; bypass explícito do redirect de onboarding, sem chamadas de estudo ao backend ou persistência. |
 | `/study/search` | `app/study/search/page.tsx` | Página de busca relacionada ao estudo. |
 | `/search` | `app/search/page.tsx` | **Flag `semantic_search`**; debounce de 350 ms, busca semântica com fallback lexical para indisponibilidade 503. |
 | `/analytics` | `app/analytics/page.tsx` | Lê estatísticas e reviews; apresenta períodos de 7/30/90 dias, tabela acessível e comparações semanais quando há histórico. |
 | `/exams` | `app/exams/page.tsx` | **Flag `exams`**; cria/lista exames e usa RPC de fila com prioridade. |
 | `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings` com sessão; oculta formulários enquanto não há credenciais/sessão. Aparência local continua acessível. |
+| `/profile/learning-plan` | `app/profile/learning-plan/page.tsx` | Edita o objetivo opcional, a data-alvo e a capacidade semanal, sem exigir que o usuário mantenha um objetivo ativo. |
 | `/profile/badges` | `app/profile/badges/page.tsx` | **Flag `gamification`**; lê perfil XP, badges do usuário e catálogo. |
 | `/tools` | `app/tools/page.tsx` | **Várias flags**; pesquisa, ingestão IA, FSRS, import/export Anki. |
 | `/tools/mcp` | `app/tools/mcp/page.tsx` | **Flag `mcp`**; lista e executa as duas ferramentas do adaptador MCP. |
@@ -178,6 +180,8 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 - `SyncStatusPanel`, que informa offline, alterações pendentes, falhas e ações de sincronização local.
 
 `app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`. As páginas do App Router mantêm a fronteira server/client para metadata: a landing é indexável e as telas de conta/estudo usam `privatePageMetadata()` (`noindex, nofollow`). `robots.ts` aponta ao sitemap público, que contém somente a landing. O `manifest`, ícones e metadata pública também vivem no App Router.
+
+`public/manus-routes.json` declara o conjunto de rotas de página, incluindo os padrões dinâmicos `:deckId` e `:id`, para que Preview e publicação não dependam de descobrir rotas por fallback.
 
 ### Componentes de domínio
 
@@ -517,21 +521,22 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 
 | Script | Uso |
 |---|---|
-| `scripts/ui-smoke.mjs` | Visita 36 rotas em 4 larguras × 2 temas; verifica erros, overflow, texto visível cortado, rótulos/nome e tamanho dos controles e conteúdo/cores de dropdowns. Clica somente em controles locais reversíveis; ignora o botão de DevTools injetado pelo Next em modo dev. Rode com `pnpm smoke:ui`. |
+| `scripts/ui-smoke.mjs` | Visita 38 rotas em 4 larguras × 2 temas; verifica erros, overflow, texto visível cortado, rótulos/nome e tamanho dos controles e conteúdo/cores de dropdowns. Clica somente em controles locais reversíveis; ignora o botão de DevTools injetado pelo Next em modo dev. Rode com `pnpm smoke:ui`. |
 | `scripts/capture-screens.mjs` | Captura 36 estados/telas em desktop e mobile e grava imagens WebP em `docs/*.webp` e `docs/screenshots/mobile/`, com manifesto em `docs/screenshots/capture-manifest.json`. Rode com `pnpm screenshots` com o app em `localhost:3000`. |
 | `scripts/make-contact-sheet.py` | Agrupa capturas em folhas de contacto; requer Pillow no ambiente. |
 | `scripts/supabase-smoke.mjs` | Faz checks REST/Edge com URL e publishable key fornecidas no ambiente; não autentica um usuário. |
 
 ### Validação desta revisão
 
-Verificação executada nesta revisão (03/10/2026):
+Verificação executada nesta revisão (04/10/2026):
 
 - `pnpm typecheck`: passou.
-- `pnpm test`: 29 testes em 9 arquivos, todos passaram.
-- `pnpm lint`: passou sem erros; restaram 17 avisos não bloqueantes sobre dependências de hooks, imports/variáveis e imagens dinâmicas (`<img>`).
-- `pnpm build`: passou; Next.js gerou 34/34 páginas estáticas e as rotas dinâmicas esperadas.
-- `pnpm test:e2e`: 49 passaram; 1 fluxo autenticado foi intencionalmente ignorado por não haver credenciais de homologação.
-- `pnpm smoke:ui`: 36 rotas × 4 larguras × 2 temas; 4.180 verificações de controles, 112 dropdowns e 288 títulos, sem overflow, erro JavaScript, texto cortado, falta de rótulo/opções ou alvo menor que 44 px.
+- `pnpm test`: 36 testes em 11 arquivos, todos passaram.
+- `pnpm lint`: passou sem erros; restaram 16 avisos não bloqueantes já conhecidos sobre dependências de hooks, imports/variáveis e imagens dinâmicas (`<img>`).
+- `pnpm build` com `NEXT_PUBLIC_SITE_URL` HTTPS: passou; Next.js gerou o build de produção e as rotas dinâmicas esperadas.
+- `pnpm test:e2e`: 51 passaram; 1 fluxo autenticado foi intencionalmente ignorado por não haver credenciais de homologação.
+- `pnpm smoke:ui`: 38 rotas × 4 larguras × 2 temas; 4.311 verificações de controles, 112 dropdowns e 304 títulos, sem overflow, erro JavaScript, texto cortado, falta de rótulo/opções ou alvo menor que 44 px.
+- `pnpm qa:exploratory`: 38 rotas, 0 falhas de navegação, 0 erros HTTP/JavaScript, 0 requests falhos e 0 overflow horizontal.
 - `git diff --check`: passou.
 
 ### Correções aplicadas na auditoria UX/UI
@@ -542,6 +547,7 @@ Verificação executada nesta revisão (03/10/2026):
 - O editor de oclusão substitui pressupostos de classes Tailwind não compiladas por estilos próprios e oferece seleção/edição de regiões com alternativas por teclado e coordenadas.
 - A tradução dinâmica observa somente alterações incrementais da subárvore, evitando uma varredura completa do documento em cada mutação.
 - As dependências diretas que estavam como `latest` foram fixadas nas versões já resolvidas pelo lockfile original, evitando upgrades colaterais ao adicionar o lint. O lockfile inclui o grafo do ESLint 9/Next 16; `pnpm-workspace.yaml` permite os scripts de build já aprovados de `sharp` e `unrs-resolver`.
+- Rotas dinâmicas agora validam a sessão local e o formato UUID antes de consultar Supabase; estados sem autenticação e slugs de demonstração inválidos exibem orientação em vez de gerar 401/400 no console.
 
 As suítes não submetem cadastro, recuperação de senha, upload ou gravação remota. O teste autenticado de persistência requer `E2E_EMAIL` e `E2E_PASSWORD` de homologação.
 
@@ -990,3 +996,113 @@ O frontend usa `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KE
 ## 17. Mudanças de navegação desta revisão
 
 `/` é agora a página pública; o painel exige contexto de app e fica em `/dashboard`. Atualize favoritos e links antigos do painel. `/study` seleciona um deck; `/study/demo` permanece uma prévia local. O manifest PWA abre `/dashboard`. O fluxo de recuperação adiciona `/forgot-password` e `/reset-password`; a segunda rota precisa constar explicitamente no redirect allowlist do projeto Supabase. Consulte o manual para as telas e os screenshots correspondentes.
+
+
+## 31. Ativação inicial e plano de estudo (implementação desta branch)
+
+Esta seção registra o recorte efetivamente implementado a partir do SDD; não representa ainda toda a estratégia de ativação, billing ou ingestão por IA descrita naquele documento.
+
+### Cadastro e elegibilidade do onboarding
+
+- `app/(auth)/register/client-page.tsx` marca novos cadastros com `flashi_onboarding_required: true` nos metadados editáveis do usuário Supabase Auth. O nome já coletado permanece em `full_name`; o formulário não adiciona perguntas obrigatórias.
+- `proxy.ts` encaminha para `/onboarding` somente quando há uma sessão autenticada, a conta traz a marca acima e a preferência ainda não contém `completedAt`. Usuários preexistentes sem a marca não passam a ser bloqueados pela mudança.
+- `/study/demo` é uma exceção pública explícita. Nenhum guard de interface é usado para autorizar dados reais: toda leitura/escrita sensível permanece sujeita a Auth, RLS e RPCs existentes.
+- O onboarding tem duas etapas: objetivo (prova, concurso, idioma, faculdade ou outro) com data opcional; e capacidade semanal aproximada opcional. Pode ser pulado. Um rascunho de etapa 2 é salvo depois da primeira etapa e restaurado se a navegação for retomada.
+- Os valores são validados em `lib/services/onboarding-service.ts`: data civil ISO real; capacidade ausente ou inteira entre 15 e 10.080 minutos semanais; data sem objetivo é rejeitada. O navegador não envia analytics do objetivo.
+- `components/profile/LearningPlanPreferences.tsx`, servido por `/profile/learning-plan`, permite editar ou limpar as mesmas preferências depois do primeiro uso. A rota está listada em “Conta” no AppShell.
+
+### Persistência, privacidade e limite de confiança
+
+Nesta implementação, rascunho e preferências são gravados no `user_metadata` do próprio usuário via `supabase.auth.updateUser()`. Essa escolha mantém os dados sincronizados entre sessões/dispositivos e usa a API autenticada do Supabase sem introduzir uma migração, uma segunda tabela de estado ou um tipo local fora de sincronia com o schema versionado. Os metadados continuam sob controle do titular da conta; **não** são fonte confiável para autorização, entitlement, pagamento, limites de crédito, geração de conteúdo ou decisões financeiras. Não há `service_role` nem secret novo no browser.
+
+O SDD propõe, para uma evolução posterior, uma tabela `user_product_preferences` com RLS por usuário. Essa migração deliberadamente não foi criada nem aplicada nesta branch: os repositórios não oferecem nesta tarefa um alvo Supabase de staging explicitamente confirmado para implantação e geração canônica dos tipos, e o fluxo de onboarding não precisa criar uma nova autorização de dados. Ao migrar para tabela própria, preserve os mesmos campos/validações, adicione policy de leitura/escrita por `auth.uid()`, gere os tipos a partir do schema de staging e teste com dois usuários antes de promover. Nunca migre conteúdo de Auth metadata sem política de retenção e consentimento compatíveis.
+
+Objetivo, data e capacidade são opcionais, editáveis e não modificam automaticamente limites diários, fila de revisão, scheduler FSRS, data de exame nem deck. A interface comunica que previsões são estimativas. O painel só apresenta minutos estimados quando há cartões pendentes **e** histórico recente real de cartões e duração; calcula a média observada por cartão vezes a fila atual, com mínimo visual de um minuto. Sem amostra suficiente, não inventa uma duração.
+
+### Demonstração da primeira sessão
+
+A landing apresenta o CTA “Testar uma sessão demonstrativa”, que abre a rota existente `/study/demo`. O fixture agora tem três perguntas de exemplo, suporta revelar resposta e classificar a lembrança e apresenta a conclusão existente. O ramo `deckId === 'demo'` continua a desviar o carregamento, a submissão de ratings e o fechamento de XP; por isso a demonstração não chama o backend nem persiste progresso real. As três perguntas são conteúdo ilustrativo, não recomendação pedagógica ou prova de agendamento.
+
+### Testes e verificação local
+
+```bash
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+pnpm smoke:ui
+```
+
+`tests/onboarding-service.test.ts` cobre decoding seguro, novos usuários vs. usuários históricos, retomada e limites; `tests/i18n.test.ts` mantém as três localidades suportadas (`pt-BR`, `en`, `es`). E2E requer Chromium disponível. Sem `.env.local` real, fluxos autenticados mostram seus estados de configuração/entrada; a rota de demonstração permanece verificável sem conta. Nenhum deploy de banco ou alteração remota de dados faz parte destes comandos.
+
+
+## 32. QA desta execução — 04/10/2026
+
+A branch `feat/sdd-activation` foi executada localmente com Next.js e verificada no navegador pela origem pública temporária do sandbox.
+
+- **38/38 rotas** do roteiro exploratório responderam HTTP 200, sem falhas de navegação, erros de runtime ou overflow horizontal em viewport desktop.
+- A sessão pública `/study/demo` foi exercitada manualmente: revelar resposta, exibir ratings e avançar para o card seguinte. O fluxo confirmou que nenhum rating da demonstração é enviado ao backend.
+- Login e cadastro foram exercitados com preenchimento de campos, mostrar/ocultar senha e submissão. Sem credenciais Supabase válidas, a interface exibiu a mensagem de configuração ausente em vez de simular sucesso.
+- Novo deck foi exercitado com nome, descrição, opções avançadas e submissão. Sem sessão, a interface exibiu `Entre na sua conta para criar decks.`
+- Leituras protegidas de exames, templates, jobs de ingestão, otimizações FSRS, importações e sessões socráticas agora verificam `hasBrowserSession()` antes de consultar o Supabase. Isso elimina requests anônimos `401` e deixa o estado de autenticação sob controle da UI.
+- Validação concluída: `pnpm lint`, `pnpm typecheck` e `pnpm test` — **36 testes passando**. O lint permanece sem erros; os avisos existentes estão documentados pelo próprio ESLint e não bloqueiam o build.
+
+O relatório bruto da navegação fica em `docs/qa-results-2026-10-04.json`. A execução autenticada real continua dependendo de um projeto Supabase de teste e de uma conta QA; nenhum dado externo foi criado ou alterado nesta rodada.
+
+
+A auditoria MCP também foi incluída nessa fronteira: `listMcpAudit()` agora retorna `AUTH_REQUIRED` antes de consultar `mcp_tool_audit` sem sessão. Para validar o build local, use uma origem HTTPS pública, por exemplo `NEXT_PUBLIC_SITE_URL=https://<origem> pnpm build`; o projeto rejeita intencionalmente `localhost` em builds de produção.
+
+
+## 33. Implementação SDD de ativação e hardening — 04/10/2026
+
+A rota `/activation` agora usa XState 5 em `lib/activation-machine.ts` para representar explicitamente `PENDING`, `VALIDATING`, `ACTIVE` e `FAILED`, impedindo submissões duplicadas e oferecendo retry previsível. O serviço `lib/services/activation-service.ts` chama a Edge Function `activation` com `Idempotency-Key` estável durante retries e `X-Request-Id`.
+
+O cliente Edge comum injeta `X-Request-Id` em todas as chamadas e aceita `idempotencyKey` para mutações. O backend valida propriedades permitidas, calcula fingerprint SHA-256 e responde com o mesmo resultado para uma chave repetida com o mesmo payload. O fluxo offline existente continua usando Dexie/outbox; ele não foi substituído por TanStack Query porque o produto já possui uma fila persistente de mutações, cursor USN e sincronização próprios.
+
+O equivalente de ativação foi implementado na stack efetiva do projeto: PostgreSQL/RLS/RPC/Edge Function. O SDD original cita NestJS, Prisma, Redis, `nestjs-cls` e OpenTelemetry, mas esses componentes não existem nesta arquitetura Supabase; não foram adicionados como código morto. O banco oferece a transação, RLS, fingerprint, tabela de idempotência, entitlements, quotas e rate limit por usuário. Observabilidade distribuída fica representada por `request_id` propagado nas Edge Functions e respostas; exportação OpenTelemetry e armazenamento Redis permanecem adaptadores futuros de infraestrutura.
+
+
+## Observabilidade completa — frontend
+
+A branch `feat/sdd-activation` usa **Sentry** para exceções, boundaries, contexto técnico, traces e replay seguro, e **PostHog** para comportamento, funis e coortes. Ambos são opcionais e best-effort: sem DSN/token, o produto continua funcionando e uma falha de telemetria nunca bloqueia Auth, estudo, sync ou mutações.
+
+### Cobertura instrumentada
+
+- **38 rotas/páginas:** `page_viewed` por mudança de pathname.
+- **Botões, links e formulários:** `ui_interaction` por delegação global para `button`, `a`, `role=button`, submits e controles equivalentes.
+- **Erros de cliente:** `window.error`, `unhandledrejection`, `error.tsx` e `global-error.tsx`, com código normalizado e rota.
+- **Edge Functions:** `api_request_started` e `api_request_completed`, incluindo request ID, tentativa, retry, timeout, duração, status e erro.
+- **Supabase direto:** `supabase_request_completed` para Auth, REST/Data, RPC, Storage e Realtime HTTP, sem duplicar a camada de Edge Function.
+- **Offline-first:** eventos de estudo, sync, outbox, retries, falhas e backlog local.
+
+### Funis de produto
+
+`signup_started` → `signup_completed`; `activation_viewed` → `activation_submitted` → `activation_backend_completed` → `activation_completed`/`activation_failed`; `study_session_started` → `card_rated` → `study_session_completed`; criação de deck/card; importação/IA; e sync offline.
+
+### Privacidade e configuração
+
+Não são enviados tokens, cookies, headers de autorização, e-mails, prompts, conteúdo de cards/notas, metas, datas-alvo, minutos brutos ou chaves de idempotência. Configure no `.env.local` as variáveis `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`, `NEXT_PUBLIC_POSTHOG_HOST` e `NEXT_PUBLIC_POSTHOG_ENABLED`. Nunca coloque tokens privados em `NEXT_PUBLIC_`.
+
+O inventário de rotas, serviços, eventos, erros, funis, dashboards, alertas e lacunas operacionais está em [`docs/observability-audit.md`](docs/observability-audit.md); o contrato resumido está em [`docs/observability-map.md`](docs/observability-map.md).
+
+Validação local: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` e `pnpm build`.
+
+## SDD activation — provisionamento P0
+
+Esta branch unifica o caminho **cadastro → onboarding → activation → `learning_plans`**. O onboarding mantém apenas o rascunho transitório no Auth; ao concluir, chama a Edge Function `activation`, que grava o plano oficial e mantém a operação idempotente. O dashboard lê `learning_plans`, sem usar metadata do Auth como fonte de verdade.
+
+O funil registra `signup_started`, `signup_completed`, `activation_viewed`, `activation_submitted`, `activation_completed` e `activation_failed` sem enviar conteúdo educacional, e o formulário usa buckets para minutos semanais.
+
+### Validação local
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+Para testar a jornada completa, configure `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, aplique as migrações do backend e execute `pnpm dev`.

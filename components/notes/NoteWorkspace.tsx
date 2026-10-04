@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { noteService, type Note, type NoteClozeDeletion, type NoteFields } from '../../lib/services/note-service';
 import { ReferenceEditor } from './ReferenceEditor';
 import { templateService } from '../../lib/services/template-service';
+import { hasBrowserSession, isUuid } from '../../lib/supabase/guards';
 import type { CardTemplate } from '../../lib/types/card-template';
 
 type Props = { deckId: string };
@@ -30,7 +31,18 @@ export function NoteWorkspace({ deckId }: Props) {
   }
   async function loadCloze(id: string) { setCloze(await noteService.listCloze(id)); }
   function select(note: Note) { setSelectedId(note.id); setTemplateId(note.template_id ?? ''); setFields(asFields(note.fields)); void loadCloze(note.id); }
-  useEffect(() => { void load(); void templateService.list().then(setTemplates).catch(() => undefined); }, [deckId]);
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrate() {
+      if (!isUuid(deckId)) { setMessage('Este deck não possui um identificador válido. Volte para Meus decks e abra um deck existente.'); return; }
+      if (!(await hasBrowserSession())) { setMessage('Entre na sua conta para carregar as notes.'); return; }
+      if (cancelled) return;
+      void load();
+      void templateService.list().then((items) => { if (!cancelled) setTemplates(items); }).catch(() => undefined);
+    }
+    void hydrate();
+    return () => { cancelled = true; };
+  }, [deckId]);
   const visible = useMemo(() => notes.filter((note) => JSON.stringify(note.fields).toLowerCase().includes(query.toLowerCase())), [notes, query]);
   function setField(name: string, value: string) { setFields((current) => ({ ...current, [name]: value })); }
   function addField() { const name = newField.trim(); if (!name || name in fields) return; setFields((current) => ({ ...current, [name]: '' })); setNewField(''); }

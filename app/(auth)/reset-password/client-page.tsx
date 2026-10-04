@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { getAuthErrorMessage } from '../../../lib/auth-messages';
-import { createClient } from '../../../lib/supabase/client';
+import { createClient, isSupabaseConfigured } from '../../../lib/supabase/client';
 export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -14,6 +14,7 @@ export default function ResetPassword() {
     if (password !== confirmation) { setMessage('As senhas não são iguais. Confira e tente novamente.'); return; }
     setBusy(true);
     try {
+      if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
       const { error } = await createClient().auth.updateUser({ password });
       if (error) throw error;
       setMessage('Senha atualizada. Agora você já pode entrar com sua nova senha.'); setSuccess(true);

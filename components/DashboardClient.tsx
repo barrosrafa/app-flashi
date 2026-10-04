@@ -4,6 +4,16 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AppShell, Topbar } from './AppShell';
 import { getDashboardData, type DashboardData } from '../lib/services/dashboard-service';
+import { useTranslation, type TranslationKey } from '../contexts/LanguageContext';
+import type { LearningGoal } from '../lib/services/onboarding-service';
+
+const goalLabels: Record<LearningGoal, TranslationKey> = {
+  exam: 'onboarding.goals.exam',
+  competition: 'onboarding.goals.competition',
+  language: 'onboarding.goals.language',
+  university: 'onboarding.goals.university',
+  other: 'onboarding.goals.other',
+};
 
 function formatMinutes(milliseconds: number) {
   const minutes = Math.round(milliseconds / 60000);
@@ -11,6 +21,7 @@ function formatMinutes(milliseconds: number) {
 }
 
 export default function DashboardClient() {
+  const { t, locale } = useTranslation();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [authRequired, setAuthRequired] = useState(false);
@@ -61,6 +72,13 @@ export default function DashboardClient() {
         <Link className="btn" href={studyHref}>{sessionLabel}<span aria-hidden="true">→</span></Link>
       </div>
     </section>
+    <section className="card learning-plan-summary" aria-labelledby="learning-plan-heading">
+      <div className="learning-plan-summary-copy"><div className="eyebrow">{t('dashboard.learningPlanTitle')}</div>
+        {data?.learningPlan.goal ? <><h2 id="learning-plan-heading">{t(goalLabels[data.learningPlan.goal])}</h2><div className="learning-plan-details">{data.learningPlan.targetDate && <span>{t('dashboard.learningPlanDate')}: {new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(`${data.learningPlan.targetDate}T12:00:00`))}</span>}{data.learningPlan.weeklyMinutes !== null && <span>{t('dashboard.learningPlanWeekly')}: {data.learningPlan.weeklyMinutes} min</span>}</div></> : <p id="learning-plan-heading" className="subtitle">{data ? t('dashboard.learningPlanEmpty') : queueStatus}</p>}
+      </div>
+      {data && <Link className="btn secondary" href={data.learningPlan.goal ? '/profile/learning-plan' : '/onboarding'}>{t(data.learningPlan.goal ? 'dashboard.learningPlanEdit' : 'dashboard.learningPlanSet')}</Link>}
+    </section>
+    {data && dueCount > 0 && <p className="dashboard-time-estimate">{data.estimatedMinutes !== null ? `${t('dashboard.estimatedTime')}: ${data.estimatedMinutes} min` : t('dashboard.estimateUnavailable')}</p>}
     <section aria-labelledby="today-title">
       <div className="section-head"><div><h2 id="today-title">Seu ritmo hoje</h2><p className="subtitle">Um resumo do progresso recente.</p></div></div>
       <div className="grid stats">

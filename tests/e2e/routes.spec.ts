@@ -19,9 +19,11 @@ const routes: RouteExpectation[] = [
   { path: '/exams', heading: 'Metas de estudo', exact: true },
   { path: '/analytics', heading: 'Desempenho' },
   { path: '/profile', heading: 'Seu perfil', exact: true },
+  { path: '/profile/learning-plan', heading: 'Sua meta de estudo' },
   { path: '/tools', heading: 'Ferramentas avançadas' },
   { path: '/login', heading: 'Seu próximo cartão começa aqui.' },
   { path: '/register', heading: 'Aprenda algo hoje.' },
+  { path: '/onboarding', heading: 'O que você quer aprender?' },
   { path: '/forgot-password', heading: 'Vamos recuperar sua conta.' },
   { path: '/reset-password', heading: 'Escolha uma senha nova.' },
 ];
@@ -37,6 +39,7 @@ test('landing pública entrega metadados, destino de cadastro e SEO técnico', a
   const structuredData = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? '{}');
   expect(structuredData).toMatchObject({ '@type': 'SoftwareApplication', name: 'Flashi', inLanguage: 'pt-BR' });
   await expect(page.getByRole('navigation', { name: 'Navegação pública' }).getByRole('link', { name: 'Criar conta' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Testar uma sessão demonstrativa' })).toBeVisible();
   const robots = await page.request.get('/robots.txt');
   expect(robots.ok()).toBeTruthy();
   expect(await robots.text()).toContain('Allow: /');
@@ -129,13 +132,19 @@ test('gerenciador de cards exibe o contrato real do Supabase', async ({ page }) 
 });
 
 test('prévia de estudo completa o fluxo frente, verso e avaliação', async ({ page }) => {
+  const backendWrites: string[] = [];
+  page.on('request', (request) => {
+    if (/\/rest\/v1\/|\/functions\/v1\//.test(request.url()) && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method())) backendWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
+  });
   await page.goto('/study/demo');
   await expect(page.getByRole('heading', { name: 'Sessão de estudo' })).toBeVisible();
-  await page.getByRole('button', { name: /Revelar resposta/ }).click();
-  await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Bom', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Bom', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Sessão concluída');
+  for (let card = 0; card < 3; card += 1) {
+    await page.getByRole('button', { name: /Revelar resposta/ }).click();
+    await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Bom', exact: true }).click();
+  }
+  await expect(page.locator('.study-complete')).toContainText('Você revisou 3 cartões.');
+  expect(backendWrites).toEqual([]);
 });
 
 test('tela de ferramentas expõe contratos avançados', async ({ page }) => {
@@ -273,19 +282,30 @@ test('formulário simplificado revela campos opcionais somente quando solicitado
   await expect(description).toBeVisible();
 });
 
-test('estados sem credenciais Supabase não sugerem dados zerados nem falsa sessão', async ({ page }) => {
+test('estados sem sessão não sugerem dados zerados nem falsa sessão', async ({ page }) => {
   await page.goto('/dashboard');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
-  await expect(page.getByRole('heading', { name: 'Conecte seu projeto Supabase' })).toBeVisible();
+  const dashboardNotice = page.locator('.notice[role="alert"]');
+  const supabaseConfigured = !(await dashboardNotice.innerText()).includes('Configure a conexão do Supabase');
+  if (supabaseConfigured) {
+    await expect(dashboardNotice).toContainText('Entre na sua conta para carregar seus indicadores.');
+    await expect(page.getByRole('heading', { name: 'Entre para ver sua fila' })).toBeVisible();
+    await expect(page.locator('#learning-plan-heading')).toContainText('Entre para acessar sua fila.');
+  } else {
+    await expect(page.getByRole('heading', { name: 'Conecte seu projeto Supabase' })).toBeVisible();
+  }
   await expect(page.getByText('Carregando fila…')).toBeHidden();
 
   await page.goto('/decks');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
+  await expect(page.locator('.notice[role="alert"]')).toContainText(supabaseConfigured
+    ? 'Entre na sua conta para carregar seus decks.'
+    : 'Configure a conexão do Supabase para carregar seus decks.');
   await expect(page.getByRole('heading', { name: 'Sua biblioteca' })).toContainText('—');
   await expect(page.getByText('Sua biblioteca (0)')).toHaveCount(0);
 
   await page.goto('/profile');
-  await expect(page.getByRole('status').getByText('Configure a conexão do Supabase para carregar o perfil.')).toBeVisible();
+  await expect(page.getByRole('status').getByText(supabaseConfigured
+    ? 'Entre na sua conta para editar o perfil.'
+    : 'Configure a conexão do Supabase para carregar o perfil.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Guardar preferências|Salvar preferências/ })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Nome de exibição' })).toHaveCount(0);
 });

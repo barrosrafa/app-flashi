@@ -1,5 +1,6 @@
 import { createClient, type Tables } from '../supabase/client';
 import { invokeEdge } from './http/edge-client';
+import { hasBrowserSession } from '../supabase/guards';
 
 export type ImportFormat = 'csv' | 'markdown' | 'quizlet' | 'remnote';
 export type ImportDeckResult = { job_id: string; status: string; notes_count: number; cards_count: number };
@@ -62,6 +63,7 @@ export const importDeckService = {
 };
 
 export async function listImportJobs(deckId?: string): Promise<ImportJob[]> {
+  if (!(await hasBrowserSession())) throw new Error('AUTH_REQUIRED');
   const supabase = createClient();
   let query = supabase.from('deck_import_jobs').select('*').order('created_at', { ascending: false }).limit(50);
   if (deckId) query = query.eq('deck_id', deckId);

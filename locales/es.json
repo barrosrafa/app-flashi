@@ -34,7 +34,8 @@
     "more": "Más",
     "closeMenu": "Cerrar menú",
     "moreOptions": "Más opciones",
-    "newDeck": "Crear mazo"
+    "newDeck": "Crear mazo",
+    "learningGoal": "Meta de estudio"
   },
   "topbar": {
     "eyebrow": "Tu espacio de aprendizaje",
@@ -97,11 +98,71 @@
     "authSave": "Inicia sesión para guardar preferencias.",
     "saveError": "No se pudieron guardar las preferencias.",
     "signedOut": "Has cerrado sesión de forma segura.",
-    "languageHelp": "El cambio se aplica inmediatamente y se sincroniza con tu perfil."
+    "languageHelp": "El cambio se aplica inmediatamente y se sincroniza con tu perfil.",
+    "learningPlanTitle": "Meta de estudio",
+    "learningPlanHelp": "Preferencias opcionales para organizar tu rutina. No cambian automáticamente tu agenda de repasos.",
+    "learningGoal": "Objetivo principal",
+    "learningGoalNone": "Sin objetivo definido",
+    "learningCapacity": "Minutos por semana (opcional)",
+    "learningPlanSave": "Guardar meta de estudio",
+    "learningPlanSaved": "Meta de estudio actualizada.",
+    "learningPlanLoadError": "No se pudo cargar tu meta de estudio.",
+    "learningPlanSaveError": "No se pudo guardar tu meta de estudio. Revisa los campos e inténtalo de nuevo."
   },
   "languages": {
     "pt-BR": "Português (Brasil)",
     "en": "English",
     "es": "Español"
+  },
+  "onboarding": {
+    "brandAria": "Flashi, ir a Hoy",
+    "skip": "Omitir por ahora",
+    "eyebrow": "Un plan que cabe en tu rutina",
+    "titleGoal": "¿Qué quieres aprender?",
+    "introGoal": "Elige un objetivo para organizar tu próximo paso. La fecha es opcional.",
+    "titleCapacity": "¿Cuánto tiempo puedes dedicar?",
+    "introCapacity": "Una estimación sencilla ayuda a planificar tu rutina, sin prometer resultados.",
+    "progressLabel": "Progreso de la configuración",
+    "step": "Paso {current} de {total}",
+    "loading": "Cargando tus preferencias…",
+    "goalLabel": "Tu enfoque principal",
+    "targetDate": "Fecha del examen u objetivo (opcional)",
+    "targetDateHelp": "Puedes dejarlo en blanco y añadirlo más tarde.",
+    "weeklyCapacity": "Minutos de estudio por semana (opcional)",
+    "capacityPlaceholder": "Por ejemplo: 180",
+    "weeklyCapacityHelp": "Es una aproximación. No cambiará automáticamente tu cola de repasos.",
+    "estimateNote": "La carga prevista es una estimación basada en tus datos; no promete resultados ni retención.",
+    "continue": "Continuar",
+    "saving": "Guardando…",
+    "finish": "Terminar e ir a Hoy",
+    "back": "Volver",
+    "editLater": "Puedes omitirlo ahora y cambiar tus preferencias en el perfil cuando quieras.",
+    "signIn": "Iniciar sesión",
+    "goals": {
+      "exam": "Examen",
+      "competition": "Oposición",
+      "language": "Idioma",
+      "university": "Universidad",
+      "other": "Otro objetivo"
+    },
+    "errors": {
+      "save": "No se pudo guardar. Inténtalo de nuevo.",
+      "auth": "Inicia sesión para continuar.",
+      "setup": "Supabase no está configurado en este entorno.",
+      "capacity": "Indica entre 15 y 10.080 minutos por semana o deja el campo vacío.",
+      "date": "La fecha no es válida.",
+      "dateNeedsGoal": "Elige un objetivo antes de indicar una fecha.",
+      "goal": "Elige un enfoque para continuar."
+    }
+  },
+  "dashboard": {
+    "learningPlanTitle": "Tu plan de estudio",
+    "learningPlanEmpty": "Puedes definir un objetivo y disponibilidad semanal. Es opcional.",
+    "learningPlanDate": "Fecha objetivo",
+    "learningPlanWeekly": "Disponibilidad semanal",
+    "learningPlanEdit": "Editar meta",
+    "learningPlanSet": "Definir una meta",
+    "estimatedTime": "Estimación basada en tu ritmo reciente",
+    "estimateUnavailable": "Aún no hay datos recientes suficientes para estimar el tiempo."
   }
 }

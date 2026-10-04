@@ -6,6 +6,7 @@ import { isEnabled } from '../lib/config/feature-flags';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { archiveCard, createCard, listCards, type Flashcard } from '../lib/services/card-service';
+import { hasBrowserSession, isUuid } from '../lib/supabase/guards';
 import type { Json } from '../src/types/database';
 
 function fieldText(fields: Json, key: string) {
@@ -29,6 +30,19 @@ export default function CardBrowser({ deckId }: { deckId: string }) {
   const [messageKind, setMessageKind] = useState<'success' | 'error'>('success');
 
   async function load() {
+    setLoading(true);
+    if (!isUuid(deckId)) {
+      setMessageKind('error');
+      setMessage('Este deck não possui um identificador válido. Volte para Meus decks e abra um deck existente.');
+      setLoading(false);
+      return;
+    }
+    if (!(await hasBrowserSession())) {
+      setMessageKind('error');
+      setMessage('Entre na sua conta para carregar cards do Supabase.');
+      setLoading(false);
+      return;
+    }
     try {
       setCards(await listCards(deckId));
     } catch {

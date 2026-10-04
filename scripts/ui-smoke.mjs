@@ -2,10 +2,10 @@ import { chromium } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
 const routes = [
-  '/', '/dashboard', '/login', '/register', '/forgot-password', '/reset-password',
+  '/', '/dashboard', '/login', '/register', '/onboarding', '/forgot-password', '/reset-password',
   '/study', '/study/demo', '/study/idiomas', '/study/search', '/decks', '/decks/new',
   '/decks/idiomas', '/decks/idiomas/cards', '/decks/idiomas/notes', '/decks/idiomas/occlusion/new',
-  '/analytics', '/exams', '/profile', '/profile/badges', '/tools', '/tools/mcp', '/search',
+  '/analytics', '/exams', '/profile', '/profile/learning-plan', '/profile/badges', '/tools', '/tools/mcp', '/search',
   '/templates', '/templates/demo', '/import/ai-ingest', '/import/anki', '/import/deck', '/import/url',
   '/export/anki', '/occlusion', '/media/demo', '/socratic', '/socratic/demo',
   '/settings/fsrs-optimize', '/leaderboard',

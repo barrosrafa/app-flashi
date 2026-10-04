@@ -3,6 +3,9 @@ export type AuthAction = 'login' | 'register' | 'recovery' | 'reset';
 export function getAuthErrorMessage(error: unknown, action: AuthAction): string {
   const raw = error instanceof Error ? error.message : '';
   const normalized = raw.toLowerCase();
+  if (/supabase_not_configured|supabasekey is required|invalid api key/.test(normalized)) {
+    return 'A autenticação não está configurada neste ambiente. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY para habilitar login e cadastro; a demonstração segue disponível sem conta.';
+  }
   if (/invalid login credentials|invalid credentials|email or password/.test(normalized)) {
     return 'E-mail ou senha incorretos. Confira seus dados e tente novamente.';
   }
