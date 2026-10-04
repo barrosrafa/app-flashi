@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { AppShell, Topbar } from '../../components/AppShell';
 import { activationMachine } from '../../lib/activation-machine';
 import { processActivation } from '../../lib/services/activation-service';
+import { capture, captureException, normalizeErrorCode, weeklyMinutesBucket } from '../../lib/observability';
+import { EdgeError } from '../../lib/services/http/errors';
 
 export default function ActivationClientPage() {
   const [snapshot, send] = useMachine(activationMachine);
@@ -15,20 +17,28 @@ export default function ActivationClientPage() {
 
   async function submit() {
     if (busy) return;
+    capture('activation_submitted', { surface: 'activation', has_goal: Boolean(goal), has_target_date: Boolean(targetDate), weekly_minutes_bucket: weeklyMinutesBucket(weeklyMinutes) });
     send({ type: 'SUBMIT' });
+    const submittedAt = Date.now();
     try {
       const result = await processActivation({
         goal: goal || null,
         target_date: targetDate || null,
         weekly_minutes: weeklyMinutes ? Number(weeklyMinutes) : null,
       });
-      send({ type: 'SUCCESS' });
+      send({ type: 'SUCCESS', requestId: result.request_id });
+      capture('activation_completed', { surface: 'activation', status: result.status, duration_ms: Date.now() - submittedAt, request_id: result.request_id ?? null });
       if (result.request_id) document.body.dataset.lastRequestId = result.request_id;
     } catch (error) {
       const message = error instanceof Error && error.message.includes('AUTH_REQUIRED')
         ? 'Inicie sessão para ativar seu ambiente.'
         : error instanceof Error ? error.message : 'Não foi possível concluir a ativação.';
-      send({ type: 'FAILURE', error: message });
+      const status = error instanceof EdgeError ? error.status : 0;
+      const requestId = typeof (error as { payload?: { request_id?: string } })?.payload?.request_id === 'string' ? (error as { payload: { request_id: string } }).payload.request_id : null;
+      const errorCode = normalizeErrorCode(error);
+      capture('activation_failed', { surface: 'activation', error_code: errorCode, status, request_id: requestId, retryable: status === 408 || status === 429 || status >= 500 || status === 0 });
+      if (status >= 500 || status === 408 || status === 0) captureException(error, { tags: { area: 'activation', request_id: requestId ?? 'unknown' }, extra: { duration_ms: Date.now() - submittedAt } });
+      send({ type: 'FAILURE', error: message, requestId, code: errorCode });
     }
   }
 

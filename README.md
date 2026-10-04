@@ -1062,3 +1062,10 @@ A rota `/activation` agora usa XState 5 em `lib/activation-machine.ts` para repr
 O cliente Edge comum injeta `X-Request-Id` em todas as chamadas e aceita `idempotencyKey` para mutações. O backend valida propriedades permitidas, calcula fingerprint SHA-256 e responde com o mesmo resultado para uma chave repetida com o mesmo payload. O fluxo offline existente continua usando Dexie/outbox; ele não foi substituído por TanStack Query porque o produto já possui uma fila persistente de mutações, cursor USN e sincronização próprios.
 
 O equivalente de ativação foi implementado na stack efetiva do projeto: PostgreSQL/RLS/RPC/Edge Function. O SDD original cita NestJS, Prisma, Redis, `nestjs-cls` e OpenTelemetry, mas esses componentes não existem nesta arquitetura Supabase; não foram adicionados como código morto. O banco oferece a transação, RLS, fingerprint, tabela de idempotência, entitlements, quotas e rate limit por usuário. Observabilidade distribuída fica representada por `request_id` propagado nas Edge Functions e respostas; exportação OpenTelemetry e armazenamento Redis permanecem adaptadores futuros de infraestrutura.
+
+
+## Observabilidade e activation
+
+A branch `feat/sdd-activation` usa Sentry para sinais técnicos e PostHog para eventos de produto. Ambos são opcionais: sem DSN/token, o app continua funcionando. Configure as variáveis de `.env.example`; nunca coloque tokens privados em `NEXT_PUBLIC_`. A rota `/activation` é protegida e correlaciona eventos com `request_id`; dados privados, metas brutas e chaves de idempotência não são enviados.
+
+Validação local: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` e `pnpm build`.

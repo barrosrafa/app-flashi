@@ -23,7 +23,7 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-  const protectedPrefixes = ['/dashboard', '/study', '/decks', '/analytics', '/exams', '/profile', '/search', '/import', '/export', '/media', '/settings', '/tools', '/templates', '/occlusion', '/socratic', '/leaderboard'];
+  const protectedPrefixes = ['/activation', '/dashboard', '/study', '/decks', '/analytics', '/exams', '/profile', '/search', '/import', '/export', '/media', '/settings', '/tools', '/templates', '/occlusion', '/socratic', '/leaderboard'];
   const protectedRoute = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const publicDemo = pathname === '/study/demo';
   const metadata = data.user?.user_metadata;

@@ -1,9 +1,12 @@
 import { createClient } from '../../lib/supabase/client';
+import { resetAnalytics, setUser } from '../../lib/observability';
 
 /** Performs an explicit local privacy cleanup after signing out. */
 export async function executeStrictLogout(): Promise<void> {
   const { error } = await createClient().auth.signOut();
   if (error) throw error;
+  resetAnalytics();
+  setUser(null);
   if (typeof window !== 'undefined' && 'caches' in window) {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key.includes('private-app-data') || key.includes('next-data')).map((key) => caches.delete(key)));
