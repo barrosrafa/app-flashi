@@ -35,6 +35,10 @@ describe('i18n contract', () => {
     expect(translateUiText('3 resultado(s) em modo semantic.', 'en')).toBe('3 result(s) in semantic mode.');
     expect(translateUiText('3 resultado(s) em modo semantic.', 'es')).toBe('3 resultado(s) en modo semántico.');
     expect(translateUiText('3 notas e 8 cards importados.', 'es')).toBe('3 notas y 8 tarjetas importadas.');
+    expect(translateUiText('Ver cartões importados no deck', 'en')).toBe('View imported cards in deck');
+    expect(translateUiText('Ver cartões do deck importado', 'es')).toBe('Ver tarjetas del mazo importado');
+    expect(translateUiText('Job 42 enviado à fila. Quando o worker concluir, as notas e os cartões serão gravados no deck escolhido.', 'en')).toBe('Job 42 queued. Once the worker completes, notes and cards will be written to the selected deck.');
+    expect(translateUiText('Importação concluída: 2 notas, 4 cartões, 1 mídias e 0 notas já existentes ignoradas.', 'es')).toBe('Importación completada: 2 notas, 4 tarjetas, 1 archivos multimedia y 0 notas existentes omitidas.');
     expect(translateUiText('Job 123 enviado para processamento. Nada é salvo sem revisão.', 'en')).toBe('Job 123 submitted for processing. Nothing is saved without review.');
     expect(translateUiText('Importação abc concluída: 4 cartões.', 'es')).toBe('Importación abc completada: 4 tarjetas.');
     expect(translateUiText('Limite atingido em search. Tente novamente em 20s.', 'es')).toBe('Se alcanzó el límite en search. Inténtalo de nuevo en 20s.');

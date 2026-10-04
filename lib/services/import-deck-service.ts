@@ -44,16 +44,17 @@ export const importDeckService = {
     }
   },
   async fromUrl(opts: { url: string; deckId: string; format: ImportFormat }) {
+    if (!opts.deckId) throw new Error('DECK_REQUIRED');
+    if (opts.url.length > 2048) throw new Error('URL_IMPORT_INVALID');
     let parsed: URL;
     try { parsed = new URL(opts.url); } catch { throw new Error('URL_IMPORT_INVALID'); }
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('URL_IMPORT_PROTOCOL');
+    if (parsed.protocol !== 'https:') throw new Error('URL_IMPORT_PROTOCOL');
+    if (parsed.username || parsed.password) throw new Error('URL_IMPORT_CREDENTIALS');
     try {
-      const response = await fetch(parsed.toString());
-      if (!response.ok) throw new Error(`IMPORT_HTTP_${response.status}`);
-      const blob = await response.blob();
-      const extension = opts.format === 'csv' || opts.format === 'quizlet' ? 'csv' : 'md';
-      const file = new File([blob], `import.${extension}`, { type: blob.type || 'text/plain' });
-      return this.fromFile({ ...opts, file });
+      return await invokeEdge<ImportDeckResult>('import-deck', {
+        body: { deck_id: opts.deckId, format: opts.format, url: parsed.toString() },
+        timeoutMs: 60_000,
+      });
     } catch (error) {
       throw new Error(error instanceof Error ? `URL_IMPORT_FAILED: ${error.message}` : 'URL_IMPORT_FAILED');
     }

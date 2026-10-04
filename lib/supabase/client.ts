@@ -3,7 +3,7 @@ import type { Database, Json } from '../../src/types/database';
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
-  'https://ykyobzoxoiljyueasdwc.supabase.co';
+  'https://fchpvgfjjxjpxfmtsrnc.supabase.co';
 const supabasePublishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 

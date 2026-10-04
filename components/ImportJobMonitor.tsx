@@ -35,6 +35,7 @@ export function ImportJobMonitor({ deckId }: { deckId?: string }) {
               <div>
                 <strong>{tr(({ queued: 'Na fila', processing: 'Processando', completed: 'Concluído', failed: 'Falhou' } as Record<string, string>)[job.status] ?? job.status)} · {job.format}</strong>
                 <span>{new Date(job.created_at).toLocaleString(locale)} · {job.imported_notes} {locale === 'en' ? 'notes' : 'notas'} · {job.imported_cards} {locale === 'es' ? 'tarjetas' : 'cards'}</span>
+                {job.status === 'completed' && <a className="link-button" href={`/decks/${job.deck_id}/cards`}>{tr('Ver cards no deck')}</a>}
                 {job.error_message && <small className="notice error">{job.error_message}</small>}
               </div>
             </div>
