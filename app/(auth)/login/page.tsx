@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { createClient } from '../../../lib/supabase/client';
+import { requestedReturnTo, safeReturnTo } from '../../../lib/auth/navigation';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -10,16 +11,38 @@ export default function Login() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [returnTo, setReturnTo] = useState('/');
+
+  useEffect(() => {
+    let active = true;
+    const destination = requestedReturnTo(window.location.search);
+    setReturnTo(destination);
+    void createClient().auth.getUser().then(({ data, error }) => {
+      if (active && !error && data.user) window.location.replace(destination);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setMessage('Entrando…');
     setSuccess(false);
-    const { error } = await createClient().auth.signInWithPassword({ email, password });
-    setMessage(error ? error.message : 'Login realizado. Você já pode estudar.');
-    setSuccess(!error);
-    setLoading(false);
+    try {
+      const { error } = await createClient().auth.signInWithPassword({ email, password });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      const destination = safeReturnTo(new URLSearchParams(window.location.search).get('next'));
+      setMessage('Login realizado. Redirecionando…');
+      setSuccess(true);
+      window.location.replace(destination);
+    } catch (reason: unknown) {
+      setMessage(reason instanceof Error ? reason.message : 'Não foi possível entrar. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return <main className="auth"><div className="card auth-card">
@@ -33,6 +56,6 @@ export default function Login() {
       <button className="btn" type="submit" disabled={loading}>{loading ? 'Entrando…' : 'Entrar'}</button>
       {message && <div className={`notice ${success ? 'success' : message === 'Entrando…' ? '' : 'error'}`} role={success ? 'status' : 'alert'} aria-live="polite">{message}</div>}
     </form>
-    <p className="subtitle auth-switch">Ainda não tem conta? <Link href="/register" className="inline-link">Criar agora</Link></p>
+    <p className="subtitle auth-switch">Ainda não tem conta? <Link href={`/register?next=${encodeURIComponent(returnTo)}`} className="inline-link">Criar agora</Link></p>
   </div></main>;
 }

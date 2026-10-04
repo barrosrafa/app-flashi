@@ -1,13 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { createClient } from '../../../lib/supabase/client';
+import { requestedReturnTo, safeReturnTo } from '../../../lib/auth/navigation';
 
 export default function Register() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [returnTo, setReturnTo] = useState('/');
+
+  useEffect(() => {
+    let active = true;
+    const destination = requestedReturnTo(window.location.search);
+    setReturnTo(destination);
+    void createClient().auth.getUser().then(({ data, error }) => {
+      if (active && !error && data.user) window.location.replace(destination);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -15,14 +27,28 @@ export default function Register() {
     setLoading(true);
     setMessage('Criando sua conta…');
     setSuccess(false);
-    const { error } = await createClient().auth.signUp({
-      email: String(form.get('email') ?? ''),
-      password: String(form.get('password') ?? ''),
-      options: { data: { full_name: String(form.get('name') ?? '') } },
-    });
-    setMessage(error ? error.message : 'Conta criada. Verifique seu e-mail para confirmar o acesso.');
-    setSuccess(!error);
-    setLoading(false);
+    try {
+      const { data, error } = await createClient().auth.signUp({
+        email: String(form.get('email') ?? ''),
+        password: String(form.get('password') ?? ''),
+        options: { data: { full_name: String(form.get('name') ?? '') } },
+      });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      setSuccess(true);
+      if (data.session) {
+        setMessage('Conta criada. Redirecionando…');
+        window.location.replace(safeReturnTo(new URLSearchParams(window.location.search).get('next')));
+        return;
+      }
+      setMessage('Conta criada. Verifique seu e-mail para confirmar o acesso; depois entre para continuar.');
+    } catch (reason: unknown) {
+      setMessage(reason instanceof Error ? reason.message : 'Não foi possível criar a conta. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return <main className="auth"><div className="card auth-card">
@@ -37,6 +63,6 @@ export default function Register() {
       <button className="btn" type="submit" disabled={loading}>{loading ? 'Criando conta…' : 'Criar conta'}</button>
       {message && <div className={`notice ${success ? 'success' : message === 'Criando sua conta…' ? '' : 'error'}`} role={success ? 'status' : 'alert'} aria-live="polite">{message}</div>}
     </form>
-    <p className="subtitle auth-switch">Já tem conta? <Link href="/login" className="inline-link">Entrar</Link></p>
+    <p className="subtitle auth-switch">Já tem conta? <Link href={`/login?next=${encodeURIComponent(returnTo)}`} className="inline-link">Entrar</Link></p>
   </div></main>;
 }

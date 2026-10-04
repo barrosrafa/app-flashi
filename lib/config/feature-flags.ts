@@ -1,12 +1,11 @@
-import { isFeatureEnabled as readFlag, type FeatureFlag as ExistingFlag } from '../feature-flags';
+import { isFeatureEnabled as readFlag, type FeatureFlag } from '../feature-flags';
 
-/** Todas as funcionalidades são expostas ao usuário final; flags permanecem como contrato de compatibilidade. */
 export const FF = {
   sync_worker: readFlag('sync_worker'),
-  sync_v2: readFlag('sync_worker'),
+  sync_v2: readFlag('sync_v2'),
   media: readFlag('media'),
   semantic: readFlag('semantic'),
-  semantic_search: readFlag('semantic'),
+  semantic_search: readFlag('semantic_search'),
   anki: readFlag('anki'),
   anki_io: readFlag('anki_io'),
   ai_ingest: readFlag('ai_ingest'),
@@ -18,13 +17,13 @@ export const FF = {
   tags: readFlag('tags'),
   socratic: readFlag('socratic'),
   templates: readFlag('templates'),
-  template_renderer: true,
+  template_renderer: readFlag('template_renderer'),
   references: readFlag('references'),
-  import_url: true,
-  mcp: true,
-} as const;
+  import_url: readFlag('import_url'),
+  mcp: readFlag('mcp'),
+} satisfies Record<FeatureFlag, boolean>;
 
-export type FeatureFlag = keyof typeof FF;
+export type { FeatureFlag };
 export function isEnabled(flag: FeatureFlag): boolean {
-  return FF[flag] ?? readFlag(flag as ExistingFlag);
+  return FF[flag];
 }

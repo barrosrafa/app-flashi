@@ -8,6 +8,7 @@ import { createIngestionJob, listIngestionJobs, type IngestionJob, type Ingestio
 import { getFsrsOptimizationStatus, listFsrsOptimizationRuns, requestFsrsOptimization, type OptimizationRun } from '../../lib/services/optimizer-service';
 import { exportAnkiPackage, importAnkiPackage } from '../../lib/services/anki-service';
 import { isEnabled } from '../../lib/config/feature-flags';
+import { redirectToLoginForAuthError } from '../../lib/auth/navigation';
 
 const ingestionSources: IngestionSource[] = ['raw_text_block', 'web_page', 'youtube_url', 'pdf_document'];
 
@@ -35,7 +36,10 @@ export default function Tools() {
         setIngestionJobs(jobs);
         setOptimizationRuns(runs);
       })
-      .catch(() => setMessage('Entre na sua conta para usar as ferramentas avançadas.'));
+      .catch((reason: unknown) => {
+        if (redirectToLoginForAuthError(reason, `${window.location.pathname}${window.location.search}`)) return;
+        setMessage('Não foi possível carregar as ferramentas avançadas. Verifique sua conexão e tente novamente.');
+      });
   }, []);
 
   async function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -60,9 +64,14 @@ export default function Tools() {
     setBusy('ingestion');
     setMessage('Criando job de ingestão…');
     try {
+      const sourceType = String(form.get('source_type') ?? '') as IngestionSource;
+      if (sourceType === 'web_page' || sourceType === 'youtube_url') {
+        setMessage('A importação de URLs e vídeos está temporariamente desativada até configurarmos um gateway de rede seguro. Use texto ou PDF.');
+        return;
+      }
       const job = await createIngestionJob({
         deckId: String(form.get('deck_id') ?? ''),
-        sourceType: String(form.get('source_type') ?? '') as IngestionSource,
+        sourceType,
         content: String(form.get('content') ?? '').trim() || undefined,
         storagePath: String(form.get('storage_path') ?? '').trim() || undefined,
       });
@@ -138,10 +147,10 @@ export default function Tools() {
         </section>}
 
         {isEnabled('ai_ingest') && <section className="card tool-card" aria-labelledby="ingestion-title">
-          <div className="eyebrow">Transformar fonte</div><h2 id="ingestion-title">Criar job de fonte</h2><p className="subtitle">Envie texto, uma página ou um vídeo para um deck.</p>
+          <div className="eyebrow">Transformar fonte</div><h2 id="ingestion-title">Criar job de fonte</h2><p className="subtitle">Gere sugestões com texto ou PDF. Ingestão de URLs/vídeos está pausada até haver egress seguro.</p>
           <form className="form" onSubmit={submitIngestion}>
             <div className="field"><label htmlFor="ingest-deck">Deck de destino</label><select id="ingest-deck" name="deck_id" required defaultValue="" disabled={!decks.length}>{decks.length ? <><option value="" disabled>Selecione um deck</option>{decks.map((deck) => <option value={deck.id} key={deck.id}>{deck.name}</option>)}</> : <option value="">Nenhum deck disponível</option>}</select></div>
-            <div className="field"><label htmlFor="source-type">Tipo de fonte</label><select id="source-type" name="source_type" defaultValue="raw_text_block">{ingestionSources.map((source) => <option value={source} key={source}>{source.replaceAll('_', ' ')}</option>)}</select></div>
+            <div className="field"><label htmlFor="source-type">Tipo de fonte</label><select id="source-type" name="source_type" defaultValue="raw_text_block">{ingestionSources.map((source) => <option value={source} key={source} disabled={source === 'web_page' || source === 'youtube_url'}>{source.replaceAll('_', ' ')}{source === 'web_page' || source === 'youtube_url' ? ' (temporariamente indisponível)' : ''}</option>)}</select></div>
             <div className="field"><label htmlFor="content">Conteúdo ou referência</label><textarea id="content" name="content" maxLength={2000} placeholder="Cole um texto, URL ou referência validada pelo backend" /></div>
             <button className="btn" type="submit" disabled={!decks.length || busy !== null}>{busy === 'ingestion' ? 'Criando job…' : 'Criar job de fonte'}</button>
           </form>

@@ -1,16 +1,26 @@
 import { invokeEdge } from '../services/http/edge-client';
 import { createClient } from '../supabase/client';
-import { db, SYNC_TABLES, type SyncableRecord, type SyncTableName } from './schema';
+import { db, type SyncableRecord, type SyncTableName } from './schema';
 import { recordTelemetry } from './telemetry';
 
 type SyncChange = { entity_type: string; entity_key: string; usn: number | string; is_deleted?: boolean; payload?: SyncableRecord | null };
 type SyncResponse = { data?: SyncChange[]; next_usn?: string | number; has_more?: boolean; cursor_commit_rule?: string } | SyncChange[];
-const ENTITY_TABLE_MAP: Record<string, SyncTableName> = Object.fromEntries(SYNC_TABLES.map((table) => [table, table]));
-Object.assign(ENTITY_TABLE_MAP, { deck: 'decks', card: 'cards', note: 'notes', card_learning_state: 'card_learning_state', review_log: 'review_logs', tag: 'tags', card_template: 'card_templates', study_settings: 'study_settings', user_deck_settings: 'user_deck_settings', daily_statistics: 'daily_statistics', note_card_definition: 'note_card_definitions', note_cloze_deletion: 'note_cloze_deletions', fsrs_optimization_run: 'fsrs_optimization_runs', ai_ingestion_job: 'ai_ingestion_jobs', note_image_occlusion_box: 'note_image_occlusion_boxes', note_reference: 'note_references', user_gamification_profile: 'user_gamification_profiles', profile: 'profiles', user_badge: 'user_badges', deck_exam: 'deck_exams', socratic_remediation_session: 'socratic_remediation_sessions', card_tag: 'card_tags' });
+const ENTITY_TABLE_MAP: Partial<Record<string, SyncTableName>> = {
+  deck: 'decks', note: 'notes', card: 'cards', card_media: 'card_media',
+  card_learning_state: 'card_learning_state', review_log: 'review_logs', tag: 'tags',
+  card_template: 'card_templates', study_settings: 'study_settings',
+  user_deck_settings: 'user_deck_settings', daily_statistics: 'daily_statistics',
+  note_card_definition: 'note_card_definitions', note_cloze_deletion: 'note_cloze_deletions',
+  fsrs_optimization_run: 'fsrs_optimization_runs', ai_ingestion_job: 'ai_ingestion_jobs',
+  note_image_occlusion_box: 'note_image_occlusion_boxes', note_reference: 'note_references',
+  user_gamification_profile: 'user_gamification_profiles', user_badge: 'user_badges',
+  deck_exam: 'deck_exams', socratic_remediation_session: 'socratic_remediation_sessions',
+  card_tag: 'card_tags',
+};
 
 function normalize(data: SyncResponse | null) {
   const rows = Array.isArray(data) ? data : data?.data ?? [];
-  return { rows: rows.sort((a, b) => BigInt(String(a.usn)) < BigInt(String(b.usn)) ? -1 : 1), nextUsn: Array.isArray(data) ? undefined : data?.next_usn, hasMore: Array.isArray(data) ? false : Boolean(data?.has_more) };
+  return { rows: rows.sort((a, b) => { const left = BigInt(String(a.usn)); const right = BigInt(String(b.usn)); return left < right ? -1 : left > right ? 1 : 0; }), nextUsn: Array.isArray(data) ? undefined : data?.next_usn, hasMore: Array.isArray(data) ? false : Boolean(data?.has_more) };
 }
 
 export async function executeIncrementalSync(): Promise<boolean> {
@@ -21,6 +31,7 @@ export async function executeIncrementalSync(): Promise<boolean> {
   let cursor = (await db.sync_meta.get(cursorKey))?.value ?? '0';
   let pages = 0;
   let totalChanges = 0;
+  const unknownTypes = new Set<string>();
   try {
     do {
       const response = await invokeEdge<SyncResponse>('sync', { body: { last_usn: cursor, limit: 500 } });
@@ -29,7 +40,7 @@ export async function executeIncrementalSync(): Promise<boolean> {
       await db.transaction('rw', db.tables, async () => {
         for (const change of rows) {
           const table = ENTITY_TABLE_MAP[change.entity_type];
-          if (!table) continue;
+          if (!table) { unknownTypes.add(change.entity_type); continue; }
           const local = db.table(table) as any;
           if (change.is_deleted) {
             await local.put({ id: change.entity_key, ...(change.payload ?? {}), deleted_at: (change.payload as any)?.deleted_at ?? new Date().toISOString(), usn: String(change.usn), user_id: user.id, _dirty: 0, _synced_at: new Date().toISOString() });
@@ -45,10 +56,10 @@ export async function executeIncrementalSync(): Promise<boolean> {
       pages += 1;
       if (!hasMore) break;
     } while (pages < 20);
-    recordTelemetry('sync.success', { duration_ms: Math.round(performance.now() - startedAt), changes: totalChanges, cursor });
+    recordTelemetry('sync.success', { duration_ms: Math.round(performance.now() - startedAt), changes: totalChanges, cursor, unknown_entity_types: [...unknownTypes] });
     return true;
   } catch (error) {
-    recordTelemetry('sync.failure', { duration_ms: Math.round(performance.now() - startedAt), cursor, message: error instanceof Error ? error.message : 'unknown' });
+    recordTelemetry('sync.failure', { duration_ms: Math.round(performance.now() - startedAt), cursor, unknown_entity_types: [...unknownTypes], message: error instanceof Error ? error.message : 'unknown' });
     return false;
   }
 }

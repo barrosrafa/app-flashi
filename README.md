@@ -11,16 +11,16 @@ Este documento descreve o que existe no código desta branch. Não é uma especi
 - código versionado em `app/`, `components/`, `lib/`, `src/`, `scripts/` e `tests/`;
 - configuração em `package.json`, `tsconfig.json`, `playwright.config.ts`, `proxy.ts`, `.env.example` e `public/sw.js`;
 - tipos Supabase em `src/types/database.ts`;
-- backend de referência `barrosrafa/Flashi`, branch `v2`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
+- backend de referência `barrosrafa/Flashi`, branch de integração `manus/execute-audit-plan`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
 - testes e validadores executados nesta revisão.
 
 Documentos em `docs/` preservam auditorias e checkpoints históricos. Eles são evidência de trabalhos anteriores, mas não substituem o código atual quando houver divergência.
 
 ### Estado verificado da branch
 
-- Branch: `main`.
-- Implementação SDD v5 e correção abrangente de i18n publicadas no repositório frontend.
-- Backend de referência: `barrosrafa/Flashi`, branch `v2`.
+- Branch documentada nesta entrega: `manus/execute-audit-plan`, baseada em `main`.
+- Inclui a implementação SDD v5, i18n e as correções de autenticação, sync, oclusão e serviços descritas neste README.
+- Backend de referência: `barrosrafa/Flashi`, branch `manus/execute-audit-plan` (snapshot `v2` como base).
 - O frontend não altera o repositório do backend.
 
 ---
@@ -115,8 +115,8 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | Rota | Implementação | Dependências e comportamento |
 |---|---|---|
 | `/` | `app/page.tsx` | Dashboard; carrega fila, sequência, estatísticas e decks. Sem sessão mostra estado de autenticação. |
-| `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; redireciona para `/`; apresenta erro/sucesso. |
-| `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
+| `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; retorna para o caminho interno seguro em `next`, ou para `/` se não houver destino; erros de credenciais permanecem na tela. |
+| `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; se o Supabase criar sessão, segue para `next` seguro ou `/`; se exigir confirmação de email, preserva o destino para login. |
 | `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks através de `listDecks`; estado vazio e link para criação. |
 | `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
 | `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` + `DeckDetailClient` | Carrega detalhe do deck; integra cards, notes, mídia e colaboração quando os contratos/flags estão disponíveis. |
@@ -216,7 +216,7 @@ O teste e2e não substitui auditoria de acessibilidade. Os checks existentes cob
 
 ### IA e importação por URL
 
-- `ingestion-service.ts`: aceita `pdf_document`, `youtube_url`, `raw_text_block` e `web_page`; texto enviado pelo cliente é limitado a 2.000 caracteres; PDF é enviado para `import-media`; jobs são consultáveis por `ai_ingestion_jobs`.
+- `ingestion-service.ts`: o contrato TypeScript também nomeia `pdf_document`, `youtube_url`, `raw_text_block` e `web_page`; no backend atual, `youtube_url` e `web_page` falham fechados com `503 / EXTERNAL_FETCH_DISABLED` até existir egress controlado, e a UI não oferece essas fontes. Texto tem limite de 2.000 caracteres; PDF é enviado para `import-media`; jobs são consultáveis em `ai_ingestion_jobs`.
 - `import-deck-service.ts`: aceita `csv`, `markdown`, `quizlet` e `remnote`; limita arquivos a 15 MiB; URL é baixada pelo browser e depende de CORS; o arquivo é enviado ao bucket `import-media` antes de `import-deck`.
 - `ai-ingest-worker` e materialização das sugestões são backend. A UI informa que o conteúdo não é salvo sem revisão, mas a geração e materialização não ocorrem no componente React.
 
@@ -287,7 +287,11 @@ learning, reviews, exams, outbox, sync_meta.
 7. avança o cursor na mesma transação Dexie;
 8. registra telemetria local de sucesso/falha.
 
-O mapa inclui aliases como `deck`, `note`, `card`, `card_learning_state`, `review_log`, `card_template`, `profile`, `mcp_tool_audit`, `ai_ingestion_job`, `deck_exam`, `user_badge` e `socratic_remediation_session`. Tipos desconhecidos são ignorados.
+O mapa aceita somente os aliases definidos em `ENTITY_TABLE_MAP`: `deck`, `note`, `card`, `card_media`, `card_learning_state`, `review_log`, `tag`, `card_template`, `study_settings`, `user_deck_settings`, `daily_statistics`, `note_card_definition`, `note_cloze_deletion`, `fsrs_optimization_run`, `ai_ingestion_job`, `note_image_occlusion_box`, `note_reference`, `user_gamification_profile`, `user_badge`, `deck_exam`, `socratic_remediation_session` e `card_tag`. Tipos desconhecidos não são gravados em uma tabela inferida; são coletados em `unknown_entity_types` na telemetria de sucesso/falha. O cursor é isolado por usuário e os USNs são ordenados como `BigInt` para preservar precisão.
+
+### CORS do sync e das Edge Functions
+
+O browser chama `sync` com JWT e passa primeiro por um preflight `OPTIONS`. O backend só devolve `Access-Control-Allow-Origin` quando a origem exata consta na secret `ALLOWED_ORIGINS` do Supabase; valores são separados por vírgula e não aceitam wildcard. Se a origem não estiver allowlisted, a Edge Function pode responder `204` ao preflight, mas sem o cabeçalho de autorização CORS, e o browser bloqueia a chamada antes do handler. Configure cada origem de desenvolvimento, preview ou produção no projeto Supabase correspondente; não use a chave `service_role` no frontend. Veja a seção CORS do README do backend.
 
 ### Worker
 
@@ -386,12 +390,12 @@ O frontend gera paths começando pelo UUID do usuário quando o serviço conhece
 - retries padrão de 2;
 - usa `AbortController` e `Promise.race`;
 - não repete 429;
-- classifica 401/403 como `AuthRequiredError`;
+- classifica somente 401 como `AuthRequiredError`; 403 vira `PermissionDeniedError` e não pede login nem é retentado como se a sessão tivesse expirado;
 - pode classificar 503 como `UnavailableError` quando `noRetryOnUnavailable` está ativo;
 - repete falhas transitórias até o limite;
 - publica erros no `edgeErrorBus`.
 
-Os tipos são `EdgeError`, `RateLimitError`, `AuthRequiredError`, `UnavailableError` e `EdgeTimeoutError`. `RateLimitBanner` apresenta o countdown quando a página trata `retryAfterSec`.
+Os tipos são `EdgeError`, `RateLimitError`, `AuthRequiredError`, `PermissionDeniedError`, `UnavailableError` e `EdgeTimeoutError`. `RateLimitBanner` apresenta o countdown quando a página trata `retryAfterSec`. O `proxy.ts` guarda o destino protegido em `next`; `lib/auth/navigation.ts` rejeita destinos externos, loops para login/cadastro e caminhos inválidos. Após login/cadastro com sessão, a navegação volta ao destino seguro ou à Home.
 
 ### Regras de segurança implementadas/esperadas
 
@@ -410,7 +414,7 @@ A autenticação de uma rota não equivale à autorização de cada operação: 
 
 ## 10. Feature flags
 
-Existem duas camadas de leitura de flags: `lib/feature-flags.ts` e `lib/config/feature-flags.ts`. A primeira aceita `1` ou `true`; a segunda compara diretamente com `1` para as flags v2/v3/v4 e usa fallback para a primeira camada em `isEnabled`.
+As duas camadas de leitura de flags (`lib/feature-flags.ts` e `lib/config/feature-flags.ts`) usam um mapa único de aliases para cada `NEXT_PUBLIC_FF_*`. As referências a `process.env.NEXT_PUBLIC_*` são estáticas para o Next.js incluí-las no bundle; `1` e `true` (sem distinção de caixa) ativam a flag. Alterar `.env.local` exige reiniciar o servidor de desenvolvimento ou reconstruir o bundle de produção.
 
 | Variável | Flag | Uso observado |
 |---|---|---|
@@ -477,11 +481,12 @@ O manual visual e operacional, incluindo screenshots, está em [`docs/manual_usu
 
 ### Testes unitários atuais
 
-`pnpm test` executa os testes unitários presentes em `tests/`. Na validação desta branch foram executados **20 testes em 6 ficheiros**:
+`pnpm test` executa os testes unitários presentes em `tests/`. Na validação desta branch de integração foram executados **32 testes em 8 arquivos**:
 
-- `tests/edge-client.test.ts`: autenticação, retorno normal, 429, retry 503, indisponibilidade sem retry e timeout;
-- `tests/feature-services.test.ts`: validação de oclusão e coordenadas percentuais;
-- `tests/sync-engine.test.ts`: aliases de entidades, tipos desconhecidos, mutation ID e ratings;
+- `tests/edge-client.test.ts`: autenticação 401, autorização 403, retorno normal, 429, retry 503, indisponibilidade sem retry e timeout;
+- `tests/auth-navigation.test.ts`: destino interno seguro, fallback para Home, preservação de query e bloqueio de open redirect/loop;
+- `tests/feature-services.test.ts`: validação de oclusão, coordenadas percentuais e configuração de flags;
+- `tests/sync-engine.test.ts`: aliases exatos do backend, tipos desconhecidos, mutation ID e ratings;
 - `tests/template-renderer.test.ts`: interpolação, múltiplas gerações e template inválido;
 - `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida;
 - `tests/v5-features.test.ts`: contratos de serviços introduzidos na paridade v5.
@@ -498,6 +503,8 @@ O manual visual e operacional, incluindo screenshots, está em [`docs/manual_usu
 - navegação offline depois do service worker aquecer;
 - fluxo autenticado opcional de login, criação de deck e card.
 
+O teste Playwright sem credenciais também verifica que uma rota protegida envia a pessoa a `/login` com `next` preservado; o retorno após login real é coberto por teste unitário e por E2E autenticado somente quando há credenciais de homologação.
+
 O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definidos. Sem essas variáveis, é intencionalmente skipped; não há credenciais no repositório.
 
 ### Scripts auxiliares
@@ -511,16 +518,17 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 
 ### Validação realizada para esta documentação
 
-Nesta revisão foram inspecionados todos os ficheiros versionados do frontend e o backend de referência, incluindo rotas, componentes, serviços, schema local, testes, scripts, PWA, proxy, migrations e Edge Functions. A branch foi previamente validada com:
+Nesta revisão foram inspecionados os ficheiros versionados do frontend e o backend de referência, incluindo rotas, componentes, serviços, schema local, testes, scripts, PWA, proxy, migrations e Edge Functions. A branch `manus/execute-audit-plan` foi validada com:
 
 ```text
 pnpm typecheck       passou
-pnpm test            20 testes passaram em 6 ficheiros
-pnpm build           passou; 29 rotas App Router listadas, 24 páginas estáticas geradas
-backend validate_readme.py  passou
+pnpm test            32 testes passaram em 8 ficheiros
+pnpm build           passou
+Playwright           4 testes de rotas passaram sem credenciais (3 públicos + redirect protegido)
+backend test_contracts.py  10 testes passaram
 ```
 
-Os números acima são resultados do estado validado; repetir os comandos é necessário após novas alterações.
+O E2E autenticado de login/criação requer `E2E_EMAIL` e `E2E_PASSWORD` e não foi executado neste ambiente. O typecheck, testes unitários e build passaram; repetir os comandos é necessário após novas alterações.
 
 ---
 
@@ -665,7 +673,7 @@ Os repositórios individuais em `lib/db/repositories/` são, em grande parte, re
 - [Vitest](https://vitest.dev/guide/)
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
 
-**Última auditoria técnica:** 2026-10-02 — implementação SDD v5.
+**Última auditoria técnica desta branch:** 2026-10-03 — integração, autenticação e sincronização; as métricas das seções históricas de SDD v5/i18n referem-se às respectivas datas de execução.
 
 
 ---
@@ -939,7 +947,7 @@ Para verificar a preferência persistida, abra `/profile`, altere o idioma para 
 
 ## SDD — entrega completa
 
-Todas as capacidades do SDD ficam disponíveis no produto final, sem gates de UI: estudo offline-first com outbox e retry, fila priorizada por exames, XP idempotente por sessão, leaderboard, badges, preferências SRS/FSRS, decks com hierarquia/visibilidade/arquivamento/restauração, importações CSV/Markdown/Quizlet/RemNote/URL, ingestão por IA, workers, mídia, oclusão, busca semântica, Anki e colaboração.
+As capacidades do SDD estão implementadas segundo as feature flags, sessões, contratos backend e dependências operacionais descritos neste README; uma flag desativada ou um serviço não implantado não equivale a uma funcionalidade disponível. Estão documentados os fluxos de estudo offline/outbox, exames, gamificação, leaderboard, preferências SRS/FSRS, decks, importações, ingestão AI, workers, mídia, oclusão, busca semântica, Anki e colaboração. No backend atual, ingestão `web_page`/YouTube permanece bloqueada até existir egress controlado, e a autenticação real precisa ser testada com conta de homologação.
 
 ### Rotas principais
 

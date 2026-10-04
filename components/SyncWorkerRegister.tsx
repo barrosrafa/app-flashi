@@ -3,9 +3,10 @@ import { useEffect } from 'react';
 import { startSyncWorker } from '../lib/db/sync-worker';
 import { createClient } from '../lib/supabase/client';
 import { resetLocalSyncState } from '../lib/db/sync-engine';
+import { isEnabled } from '../lib/config/feature-flags';
 export function SyncWorkerRegister() {
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return;
+    if (!isEnabled('sync_worker') || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return;
     const supabase = createClient();
     let currentUserId: string | null = null;
     let stopped = false;

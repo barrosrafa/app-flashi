@@ -3,6 +3,7 @@
 import { TagSelector } from './tags/TagSelector';
 import { ReferenceEditor } from './notes/ReferenceEditor';
 import { isEnabled } from '../lib/config/feature-flags';
+import { redirectToLoginForAuthError } from '../lib/auth/navigation';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { archiveCard, createCard, listCards, type Flashcard } from '../lib/services/card-service';
@@ -31,9 +32,10 @@ export default function CardBrowser({ deckId }: { deckId: string }) {
   async function load() {
     try {
       setCards(await listCards(deckId));
-    } catch {
+    } catch (reason: unknown) {
+      if (redirectToLoginForAuthError(reason, `${window.location.pathname}${window.location.search}`)) return;
       setMessageKind('error');
-      setMessage('Entre na sua conta para carregar cards do Supabase.');
+      setMessage('Não foi possível carregar os cards do Supabase. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -54,8 +56,9 @@ export default function CardBrowser({ deckId }: { deckId: string }) {
       setMessage('Card inserido. Ele já está disponível para a próxima revisão.');
       await load();
     } catch (reason: unknown) {
+      if (redirectToLoginForAuthError(reason, `${window.location.pathname}${window.location.search}`)) return;
       setMessageKind('error');
-      setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED' ? 'Entre na sua conta para inserir cards.' : 'Não foi possível inserir o card.');
+      setMessage('Não foi possível inserir o card. Verifique sua conexão e tente novamente.');
     } finally {
       setBusy(false);
     }
