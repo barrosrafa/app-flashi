@@ -1,5 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { Database, Json } from '../../src/types/database';
+import { createObservedFetch } from '../observability/network';
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
@@ -12,7 +13,9 @@ export function isSupabaseConfigured() {
 }
 
 export function createClient() {
-  return createBrowserClient<Database>(supabaseUrl, supabasePublishableKey);
+  return createBrowserClient<Database>(supabaseUrl, supabasePublishableKey, {
+    global: { fetch: createObservedFetch(fetch) },
+  });
 }
 
 export type Tables<TableName extends keyof Database['public']['Tables']> =

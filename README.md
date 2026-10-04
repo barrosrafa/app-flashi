@@ -1064,9 +1064,28 @@ O cliente Edge comum injeta `X-Request-Id` em todas as chamadas e aceita `idempo
 O equivalente de ativação foi implementado na stack efetiva do projeto: PostgreSQL/RLS/RPC/Edge Function. O SDD original cita NestJS, Prisma, Redis, `nestjs-cls` e OpenTelemetry, mas esses componentes não existem nesta arquitetura Supabase; não foram adicionados como código morto. O banco oferece a transação, RLS, fingerprint, tabela de idempotência, entitlements, quotas e rate limit por usuário. Observabilidade distribuída fica representada por `request_id` propagado nas Edge Functions e respostas; exportação OpenTelemetry e armazenamento Redis permanecem adaptadores futuros de infraestrutura.
 
 
-## Observabilidade e activation
+## Observabilidade completa — frontend
 
-A branch `feat/sdd-activation` usa Sentry para sinais técnicos e PostHog para eventos de produto. Ambos são opcionais: sem DSN/token, o app continua funcionando. Configure as variáveis de `.env.example`; nunca coloque tokens privados em `NEXT_PUBLIC_`. A rota `/activation` é protegida e correlaciona eventos com `request_id`; dados privados, metas brutas e chaves de idempotência não são enviados.
+A branch `feat/sdd-activation` usa **Sentry** para exceções, boundaries, contexto técnico, traces e replay seguro, e **PostHog** para comportamento, funis e coortes. Ambos são opcionais e best-effort: sem DSN/token, o produto continua funcionando e uma falha de telemetria nunca bloqueia Auth, estudo, sync ou mutações.
+
+### Cobertura instrumentada
+
+- **38 rotas/páginas:** `page_viewed` por mudança de pathname.
+- **Botões, links e formulários:** `ui_interaction` por delegação global para `button`, `a`, `role=button`, submits e controles equivalentes.
+- **Erros de cliente:** `window.error`, `unhandledrejection`, `error.tsx` e `global-error.tsx`, com código normalizado e rota.
+- **Edge Functions:** `api_request_started` e `api_request_completed`, incluindo request ID, tentativa, retry, timeout, duração, status e erro.
+- **Supabase direto:** `supabase_request_completed` para Auth, REST/Data, RPC, Storage e Realtime HTTP, sem duplicar a camada de Edge Function.
+- **Offline-first:** eventos de estudo, sync, outbox, retries, falhas e backlog local.
+
+### Funis de produto
+
+`signup_started` → `signup_completed`; `activation_viewed` → `activation_submitted` → `activation_backend_completed` → `activation_completed`/`activation_failed`; `study_session_started` → `card_rated` → `study_session_completed`; criação de deck/card; importação/IA; e sync offline.
+
+### Privacidade e configuração
+
+Não são enviados tokens, cookies, headers de autorização, e-mails, prompts, conteúdo de cards/notas, metas, datas-alvo, minutos brutos ou chaves de idempotência. Configure no `.env.local` as variáveis `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`, `NEXT_PUBLIC_POSTHOG_HOST` e `NEXT_PUBLIC_POSTHOG_ENABLED`. Nunca coloque tokens privados em `NEXT_PUBLIC_`.
+
+O inventário de rotas, serviços, eventos, erros, funis, dashboards, alertas e lacunas operacionais está em [`docs/observability-audit.md`](docs/observability-audit.md); o contrato resumido está em [`docs/observability-map.md`](docs/observability-map.md).
 
 Validação local: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` e `pnpm build`.
 

@@ -2,6 +2,11 @@ import { track } from './posthog';
 
 export type AnalyticsEventMap = {
   page_viewed: { route: string };
+  ui_interaction: { interaction: 'click' | 'submit'; target: string; route: string };
+  client_error: { error_code: string; source: 'error' | 'unhandledrejection' | 'boundary'; route?: string };
+  api_request_started: { function_name: string; request_id: string; attempt: number; read_only: boolean };
+  api_request_completed: { function_name: string; request_id: string; status: 'success' | 'error' | 'timeout'; duration_ms: number; attempts: number; error_code?: string };
+  supabase_request_completed: { category: 'auth' | 'data' | 'rpc' | 'storage' | 'realtime' | 'edge'; operation: string; method: string; status: number; outcome: 'success' | 'error' | 'network_error'; duration_ms: number; error_code?: string };
   signup_started: { surface: 'register' };
   signup_completed: { email_confirmation_required: boolean };
   login_succeeded: { surface: 'login' };
