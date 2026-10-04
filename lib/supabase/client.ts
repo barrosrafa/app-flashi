@@ -2,14 +2,18 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { Database, Json } from '../../src/types/database';
 import { createObservedFetch } from '../observability/network';
 
+// A publishable key is intentionally safe to expose in the browser. Keep the
+// project fallback aligned with the Supabase project used by this deployment;
+// Vercel environment variables still take precedence when present at build time.
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
   'https://fchpvgfjjxjpxfmtsrnc.supabase.co';
 const supabasePublishableKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  'sb_publishable_rMFjWImWBXMppQJ7NBg3bw_hF4xjMuv';
 
 export function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim());
+  return Boolean(supabaseUrl.trim() && supabasePublishableKey.trim());
 }
 
 export function createClient() {
