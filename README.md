@@ -540,8 +540,8 @@ As suítes não submetem cadastro, recuperação de senha, upload ou gravação 
 1. O README não afirma que todas as entidades de `SYNC_TABLES` são escritas/flushadas pelo frontend: a outbox implementa apenas seis tabelas de upsert/delete.
 2. A existência de um repositório Dexie não prova que uma página use esse repositório em vez da Data API.
 3. `SyncWorkerRegister` está sempre montado, mas o worker não inicia com a flag padrão desligada.
-4. A UI de ingestão cria jobs; o worker, o provedor de IA e a materialização das notas estão no backend.
-5. A importação por URL não contorna CORS: o download é feito pelo browser.
+4. A UI de ingestão cria jobs; o worker do backend materializa notas e cards diretamente no deck, e precisa estar agendado para retirar jobs da fila.
+5. A importação por URL é baixada no backend para evitar CORS; são aceitos destinos HTTPS públicos com limite de 15 MiB.
 6. A oclusão recebe uma nota existente e cria cartões Cloze; não cria automaticamente um deck ou uma nota a partir do ID do deck.
 7. O template renderer interpola texto; não é um motor de HTML seguro, não executa código e não implementa editor de templates.
 8. O adaptador MCP é um cliente local da aplicação; esta branch não expõe um servidor MCP HTTP público.

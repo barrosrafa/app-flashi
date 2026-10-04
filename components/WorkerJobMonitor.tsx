@@ -66,7 +66,13 @@ export function WorkerJobMonitor({ deckId }: { deckId?: string }) {
           <h3>{tr('Ingestão por IA')}</h3>
           {!aiJobs.length ? <p className="muted">{tr('Nenhum job registrado.')}</p> : <div className="job-list">{aiJobs.map((job) => (
             <div className="job-row" key={job.id}>
-              <div><strong>{statusLabel(job.status)}</strong><span>{tr(sourceLabels[job.source_type] ?? job.source_type)} · {new Date(job.created_at).toLocaleString(locale)}</span>{job.error_message && <small className="notice error">{job.error_message}</small>}</div>
+              <div>
+                <strong>{statusLabel(job.status)}</strong>
+                <span>{tr(sourceLabels[job.source_type] ?? job.source_type)} · {new Date(job.created_at).toLocaleString(locale)}</span>
+                {job.status === 'completed' && <span>{job.notes_generated_count} {tr('notas')} · {job.cards_generated_count} {tr('cards')}</span>}
+                {job.status === 'completed' && <a className="link-button" href={`/decks/${job.deck_id}/cards`}>{tr('Ver cards no deck')}</a>}
+                {job.error_message && <small className="notice error">{job.error_message}</small>}
+              </div>
               {job.status === 'failed' && <button className="link-button" type="button" onClick={() => void retryAi(job)} disabled={busy === job.id}>{tr(busy === job.id ? 'Reenviando…' : 'Tentar novamente')}</button>}
             </div>
           ))}</div>}
