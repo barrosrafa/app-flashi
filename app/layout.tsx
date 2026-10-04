@@ -5,9 +5,11 @@ import { SyncWorkerRegister } from '../components/SyncWorkerRegister';
 import { EdgeErrorNotice } from '../components/EdgeErrorNotice';
 import { ThemeProvider } from '../lib/theme/ThemeProvider';
 import { LanguageProvider } from '../contexts/LanguageContext';
+import { siteUrl } from '../lib/site-url';
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#080B14' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#4F46E5' };
 export const metadata: Metadata = {
+  metadataBase: siteUrl,
   title: {
     default: 'Flashi — Estudo que fica',
     template: '%s | Flashi',

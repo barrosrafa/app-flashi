@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { createClient } from '../lib/supabase/client';
+import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { defaultLocale, isSupportedLocale, locales, type Dictionary, type SupportedLocale } from '../locales';
 import { translateUiText } from './autoTranslations';
 
@@ -19,10 +19,6 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 const STORAGE_KEY = 'flashi_locale';
 const COOKIE_KEY = 'NEXT_LOCALE';
-
-function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
-}
 
 function readStoredLocale(): SupportedLocale {
   if (typeof window === 'undefined') return defaultLocale;
@@ -47,35 +43,56 @@ type TranslatedValue = { source: string; output: string };
 const translatedTexts = new WeakMap<Text, TranslatedValue>();
 const translatedAttributes = new WeakMap<Element, Map<string, TranslatedValue>>();
 
-function translateDocument(locale: SupportedLocale) {
-  if (typeof document === 'undefined' || !document.body) return;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    const text = node as Text;
-    const parent = text.parentElement;
-    if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
-    const current = text.nodeValue ?? '';
-    if (!current.trim()) continue;
-    const previous = translatedTexts.get(text);
-    const source = previous && current === previous.output ? previous.source : current;
-    const output = translateUiText(source, locale);
-    translatedTexts.set(text, { source, output });
-    if (current !== output) text.nodeValue = output;
+function translateTextNode(text: Text, locale: SupportedLocale) {
+  const parent = text.parentElement;
+  if (!parent || parent.closest('script, style, noscript, [contenteditable="true"]')) return;
+  const current = text.nodeValue ?? '';
+  if (!current.trim()) return;
+  const previous = translatedTexts.get(text);
+  const source = previous && current === previous.output ? previous.source : current;
+  const output = translateUiText(source, locale);
+  translatedTexts.set(text, { source, output });
+  if (current !== output) text.nodeValue = output;
+}
+
+function translateAttribute(element: Element, name: string, locale: SupportedLocale) {
+  const current = element.getAttribute(name);
+  if (!current) return;
+  const attributes = translatedAttributes.get(element) ?? new Map<string, TranslatedValue>();
+  const previous = attributes.get(name);
+  const source = previous && current === previous.output ? previous.source : current;
+  const output = translateUiText(source, locale);
+  attributes.set(name, { source, output });
+  translatedAttributes.set(element, attributes);
+  if (current !== output) element.setAttribute(name, output);
+}
+
+function translateSubtree(root: Node, locale: SupportedLocale) {
+  if (typeof document === 'undefined') return;
+  if (root.nodeType === Node.TEXT_NODE) {
+    translateTextNode(root as Text, locale);
+    return;
   }
-  document.querySelectorAll<HTMLElement>('[aria-label], [placeholder], [title]').forEach((element) => {
-    const attributes = translatedAttributes.get(element) ?? new Map<string, TranslatedValue>();
-    for (const name of ['aria-label', 'placeholder', 'title']) {
-      const current = element.getAttribute(name);
-      if (!current) continue;
-      const previous = attributes.get(name);
-      const source = previous && current === previous.output ? previous.source : current;
-      const output = translateUiText(source, locale);
-      attributes.set(name, { source, output });
-      if (current !== output) element.setAttribute(name, output);
-    }
-    translatedAttributes.set(element, attributes);
-  });
+  const rootElement = root.nodeType === Node.ELEMENT_NODE ? root as Element : null;
+  if (rootElement?.matches('script, style, noscript')) return;
+
+  const elements: Element[] = [];
+  if (rootElement) elements.push(rootElement);
+  if (rootElement) elements.push(...rootElement.querySelectorAll('[aria-label], [placeholder], [title]'));
+  else if (root.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+    elements.push(...(root as DocumentFragment).querySelectorAll('[aria-label], [placeholder], [title]'));
+  }
+  for (const element of elements) {
+    for (const name of ['aria-label', 'placeholder', 'title']) translateAttribute(element, name, locale);
+  }
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) translateTextNode(node as Text, locale);
+}
+
+function translateDocument(locale: SupportedLocale) {
+  if (typeof document !== 'undefined' && document.body) translateSubtree(document.body, locale);
 }
 
 async function persistLocale(locale: SupportedLocale) {
@@ -104,7 +121,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     let observer: MutationObserver | undefined;
     const frame = window.requestAnimationFrame(() => {
       translateDocument(locale);
-      observer = new MutationObserver(() => translateDocument(locale));
+      observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === 'characterData' && record.target.nodeType === Node.TEXT_NODE) {
+            translateTextNode(record.target as Text, locale);
+          } else if (record.type === 'attributes' && record.target.nodeType === Node.ELEMENT_NODE && record.attributeName) {
+            translateAttribute(record.target as Element, record.attributeName, locale);
+          } else if (record.type === 'childList') {
+            for (const addedNode of record.addedNodes) translateSubtree(addedNode, locale);
+          }
+        }
+      });
       if (document.body) observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'placeholder', 'title'] });
     });
     return () => {

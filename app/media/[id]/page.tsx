@@ -1,6 +1,10 @@
-'use client';
-import { useState } from 'react';
-import { AppShell, Topbar } from '../../../components/AppShell';
-import { isFeatureEnabled } from '../../../lib/feature-flags';
-import { createSignedMediaUrl } from '../../../lib/services/media-service';
-export default function MediaPage({ params }: { params: Promise<{ id: string }> }) { const [path, setPath] = useState(''); const [url, setUrl] = useState(''); const [message, setMessage] = useState(''); if (!isFeatureEnabled('media')) return <AppShell><Topbar title="Mídia" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; async function load() { try { const { id } = await params; const signed = await createSignedMediaUrl(path || id); setUrl(signed); } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível assinar a mídia.'); } } return <AppShell><Topbar title="Mídia privada" subtitle="URLs assinadas são temporárias e nunca tornam o bucket público." /><section className="card"><div className="field"><label htmlFor="path">Caminho do bucket card-media</label><input id="path" value={path} onChange={(e) => setPath(e.target.value)} placeholder="user_id/card_id/asset.ext" /></div><button className="btn" onClick={() => void load()}>Gerar URL temporária</button>{url && <p><a href={url} target="_blank" rel="noreferrer">Abrir mídia assinada</a></p>}<p className="status-text" role="status">{message}</p></section></AppShell>; }
+import { privatePageMetadata } from '../../../lib/private-page-metadata';
+import ClientPage from './client-page';
+
+export const metadata = privatePageMetadata('Mídia privada');
+
+type Props = { params: Promise<{ id: string }> };
+
+export default function Page({ params }: Props) {
+  return <ClientPage params={params} />;
+}

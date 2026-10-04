@@ -1,11 +1,10 @@
 import type { MetadataRoute } from 'next';
-export const dynamic = 'force-dynamic';
+import { siteUrl } from '../lib/site-url';
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-  if (!siteOrigin) return [];
-  return [''].map((path) => ({
-    url: `${siteOrigin}${path}`,
-    changeFrequency: path ? 'yearly' : 'weekly',
-    priority: path ? 0.4 : 1,
-  }));
+  return [{
+    url: siteUrl.toString(),
+    changeFrequency: 'weekly',
+    priority: 1,
+  }];
 }

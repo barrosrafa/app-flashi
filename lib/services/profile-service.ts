@@ -1,4 +1,4 @@
-import { createClient, type Tables } from '../supabase/client';
+import { createClient, isSupabaseConfigured, type Tables } from '../supabase/client';
 import type { Database, Json } from '../../src/types/database';
 
 export type Profile = Tables<'profiles'>;
@@ -23,10 +23,22 @@ export type StudySettingsInput = {
   fsrsWeights: number[];
 };
 
+async function requireUser(supabase = createClient()) {
+  if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    if (error.name === 'AuthSessionMissingError' || error.message.toLowerCase().includes('auth session missing')) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    throw error;
+  }
+  if (!data.user) throw new Error('AUTH_REQUIRED');
+  return data.user;
+}
+
 export async function getProfileData(): Promise<ProfileData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('AUTH_REQUIRED');
+  const user = await requireUser(supabase);
   const [{ data: profile, error: profileError }, { data: settings, error: settingsError }] = await Promise.all([
     supabase.from('profiles').select('id,display_name,avatar_url,language,timezone,settings,created_at,updated_at').eq('id', user.id).maybeSingle(),
     supabase.from('study_settings').select('*').eq('user_id', user.id).maybeSingle(),
@@ -48,8 +60,7 @@ function steps(value: number[], name: string) {
 
 export async function updateProfilePreferences(input: StudySettingsInput) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('AUTH_REQUIRED');
+  const user = await requireUser(supabase);
   const retention = Number(input.fsrsDesiredRetention);
   if (!Number.isFinite(retention) || retention <= 0.5 || retention >= 1) throw new Error('FSRS_RETENTION_INVALID');
   if (!Array.isArray(input.fsrsWeights) || (input.fsrsWeights.length !== 0 && input.fsrsWeights.length !== 21) || input.fsrsWeights.some((weight) => !Number.isFinite(weight))) throw new Error('FSRS_WEIGHTS_INVALID');

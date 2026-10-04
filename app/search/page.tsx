@@ -1,8 +1,8 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { AppShell, Topbar } from '../../components/AppShell';
-import { SemanticHitRow } from '../../components/SemanticHitRow';
-import { RateLimitBanner } from '../../components/RateLimitBanner';
-import { isEnabled } from '../../lib/config/feature-flags';
-import { semanticSearchService, type SearchResult } from '../../lib/services/semantic-search-service';
-export default function SearchPage() { const [q, setQ] = useState(''); const [result, setResult] = useState<SearchResult | null>(null); const [rate, setRate] = useState<number | null>(null); const [loading, setLoading] = useState(false); useEffect(() => { if (!isEnabled('semantic_search')) return; if (q.trim().length < 3) { setResult(null); return; } const timer = setTimeout(async () => { setLoading(true); setRate(null); try { setResult(await semanticSearchService.query(q)); } catch (error) { if (error instanceof Error && 'retryAfterSec' in error) setRate(Number((error as { retryAfterSec: number }).retryAfterSec)); } finally { setLoading(false); } }, 350); return () => clearTimeout(timer); }, [q]); if (!isEnabled('semantic_search')) return <AppShell><Topbar title="Busca" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; return <AppShell><Topbar title="Busca semântica" subtitle="Encontre notas pelo significado." /><section className="card"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por significado…" aria-label="Busca" />{rate !== null && <RateLimitBanner retryAfterSec={rate} onExpire={() => setRate(null)} />}{loading && <p className="status-text">Buscando…</p>}{result && <><p className="status-text">Modo: {result.mode} · {result.results.length} resultado(s)</p><ul className="result-list">{result.results.map((hit) => <SemanticHitRow key={hit.note_id} hit={hit} />)}</ul></>}</section></AppShell>; }
+import { privatePageMetadata } from '../../lib/private-page-metadata';
+import ClientPage from './client-page';
+
+export const metadata = privatePageMetadata('Busca');
+
+export default function Page() {
+  return <ClientPage />;
+}

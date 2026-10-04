@@ -1,6 +1,8 @@
-'use client';
-import { useState } from 'react';
-import { AppShell, Topbar } from '../../components/AppShell';
-import { isFeatureEnabled } from '../../lib/feature-flags';
-import { createImageOcclusionNote, type OcclusionMask } from '../../lib/services/occlusion-service';
-export default function OcclusionPage() { const [noteId, setNoteId] = useState(''); const [boxes, setBoxes] = useState<OcclusionMask[]>([]); const [message, setMessage] = useState(''); if (!isFeatureEnabled('occlusion')) return <AppShell><Topbar title="Oclusão de imagem" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; function add() { setBoxes((current) => [...current, { x: .1, y: .1, w: .3, h: .2 }]); } async function save() { try { await createImageOcclusionNote(noteId, boxes); setMessage('Oclusão enfileirada para sincronização.'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível criar a oclusão.'); } } return <AppShell><Topbar title="Oclusão de imagem" subtitle="As caixas são guardadas em percentuais para funcionar em qualquer viewport." /><section className="card"><div className="field"><label htmlFor="note">ID da nota</label><input id="note" value={noteId} onChange={(e) => setNoteId(e.target.value)} /></div><button className="btn secondary" onClick={add}>Adicionar região</button><p>{boxes.length} região(ões) definida(s).</p><button className="btn" onClick={() => void save()} disabled={!noteId || !boxes.length}>Criar cartões Cloze</button><p className="status-text" role="status">{message}</p></section></AppShell>; }
+import { privatePageMetadata } from '../../lib/private-page-metadata';
+import ClientPage from './client-page';
+
+export const metadata = privatePageMetadata('Oclusão de imagem');
+
+export default function Page() {
+  return <ClientPage />;
+}

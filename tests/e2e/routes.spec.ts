@@ -34,12 +34,16 @@ test('landing pública entrega metadados, destino de cadastro e SEO técnico', a
   const socialUrl = new URL((await page.locator('meta[property="og:url"]').getAttribute('content')) ?? '');
   expect(socialUrl.origin).toBe(canonical.origin);
   expect(socialUrl.pathname).toBe('/');
+  const structuredData = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? '{}');
+  expect(structuredData).toMatchObject({ '@type': 'SoftwareApplication', name: 'Flashi', inLanguage: 'pt-BR' });
   await expect(page.getByRole('navigation', { name: 'Navegação pública' }).getByRole('link', { name: 'Criar conta' })).toBeVisible();
   const robots = await page.request.get('/robots.txt');
   expect(robots.ok()).toBeTruthy();
-  expect(await robots.text()).toContain('Disallow: /dashboard');
+  expect(await robots.text()).toContain('Allow: /');
+  expect(await robots.text()).not.toContain('Disallow: /dashboard');
   const sitemap = await page.request.get('/sitemap.xml');
   expect(sitemap.ok()).toBeTruthy();
+  expect(await sitemap.text()).toContain(canonical.origin);
 });
 test('PWA aponta para o app e tem os ícones instaláveis', async ({ page }) => {
   const manifest = await page.request.get('/manifest.webmanifest');
@@ -48,6 +52,61 @@ test('PWA aponta para o app e tem os ícones instaláveis', async ({ page }) => 
   expect(value.start_url).toBe('/dashboard');
   expect(value.icons).toEqual(expect.arrayContaining([expect.objectContaining({ sizes: '192x192' }), expect.objectContaining({ sizes: '512x512', purpose: 'maskable' })]));
 });
+
+test('dropdowns exibem opções nomeadas e mantêm contraste no tema escuro', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('flashi-theme', 'dark'));
+  await page.goto('/tools');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#080B14');
+  const select = page.getByLabel('Tipo de busca');
+  await expect(select).toBeVisible();
+  const colors = await select.evaluate((element) => {
+    const control = getComputedStyle(element);
+    const option = getComputedStyle(element.querySelector('option')!);
+    return { background: control.backgroundColor, color: control.color, optionBackground: option.backgroundColor, optionColor: option.color };
+  });
+  expect(colors).toEqual({
+    background: 'rgb(17, 24, 39)',
+    color: 'rgb(248, 250, 252)',
+    optionBackground: 'rgb(17, 24, 39)',
+    optionColor: 'rgb(248, 250, 252)',
+  });
+  const options = await select.locator('option').allTextContents();
+  expect(options.length).toBeGreaterThan(1);
+  expect(options.every((label) => label.trim().length > 0)).toBeTruthy();
+  await select.selectOption('lexical');
+  await expect(select).toHaveValue('lexical');
+});
+
+test('seletor de tema é um grupo de rádio navegável por teclado e atualiza a cor do browser', async ({ page }) => {
+  await page.goto('/profile');
+  const radios = page.getByRole('radio');
+  await expect(radios).toHaveCount(3);
+  const light = page.getByRole('radio', { name: /Claro/ });
+  await light.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: /Escuro/ })).toBeChecked();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#080B14');
+});
+
+test('tradução incremental cobre texto e atributos adicionados depois da montagem', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('flashi_locale', 'en'));
+  await page.goto('/profile');
+  await expect(page.getByRole('heading', { name: 'Your profile' })).toBeVisible();
+  await page.evaluate(() => {
+    const region = document.createElement('section');
+    const message = document.createElement('p');
+    message.textContent = 'Esta funcionalidade está desativada.';
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', 'Tema da interface');
+    button.textContent = 'Perfil';
+    region.append(message, button);
+    document.body.append(region);
+  });
+  await expect(page.getByText('This feature is disabled.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Interface theme' })).toBeVisible();
+});
 test.describe('rotas principais', () => {
   for (const route of routes) {
     test(`${route.path} abre sem erro de aplicação`, async ({ page }) => {
@@ -55,6 +114,7 @@ test.describe('rotas principais', () => {
       page.on('pageerror', (error) => errors.push(error.message));
       await page.goto(route.path);
       await expect(page.getByRole('heading', { name: route.heading, exact: route.exact ?? false })).toBeVisible();
+      if (route.path !== '/') await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
       expect(errors).toEqual([]);
     });
   }
@@ -179,6 +239,7 @@ test.describe('todas as telas secundárias abrem sem erro fatal', () => {
       const response = await page.goto(route);
       expect(response?.status() ?? 0).toBeLessThan(500);
       await expect(page.locator('h1').first()).toBeVisible();
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
       expect(errors).toEqual([]);
     });
   }
@@ -212,18 +273,19 @@ test('formulário simplificado revela campos opcionais somente quando solicitado
   await expect(description).toBeVisible();
 });
 
-test('estados sem sessão não sugerem dados zerados nem preferências editáveis', async ({ page }) => {
+test('estados sem credenciais Supabase não sugerem dados zerados nem falsa sessão', async ({ page }) => {
   await page.goto('/dashboard');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Entre na sua conta');
+  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
+  await expect(page.getByRole('heading', { name: 'Conecte seu projeto Supabase' })).toBeVisible();
   await expect(page.getByText('Carregando fila…')).toBeHidden();
 
   await page.goto('/decks');
-  await expect(page.locator('.notice[role="alert"]')).toContainText('Entre na sua conta');
+  await expect(page.locator('.notice[role="alert"]')).toContainText('Configure a conexão do Supabase');
   await expect(page.getByRole('heading', { name: 'Sua biblioteca' })).toContainText('—');
   await expect(page.getByText('Sua biblioteca (0)')).toHaveCount(0);
 
   await page.goto('/profile');
-  await expect(page.getByRole('status').getByText('Entre na sua conta para editar o perfil.')).toBeVisible();
+  await expect(page.getByRole('status').getByText('Configure a conexão do Supabase para carregar o perfil.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Guardar preferências|Salvar preferências/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Entrar' }).first()).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Nome de exibição' })).toHaveCount(0);
 });

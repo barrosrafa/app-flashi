@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
 
 interface ThemeContextValue {
@@ -28,20 +28,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (isTheme(stored)) setThemeState(stored);
-  }, []);
-
-  useEffect(() => {
-    const apply = () => {
-      const resolved = theme === 'system' ? getSystemTheme() : theme;
+    const activeTheme = isTheme(stored) ? stored : theme;
+    const apply = (selectedTheme: Theme) => {
+      const resolved = selectedTheme === 'system' ? getSystemTheme() : selectedTheme;
+      setThemeState(selectedTheme);
       setResolvedTheme(resolved);
       document.documentElement.dataset.theme = resolved;
       document.documentElement.style.colorScheme = resolved;
+      const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (themeColor) themeColor.content = resolved === 'dark' ? '#080B14' : '#F8FAFC';
     };
 
-    apply();
+    // Apply the stored choice before any fallback can repaint the interface in another theme.
+    apply(activeTheme);
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => { if (theme === 'system') apply(); };
+    const handleChange = () => { if (activeTheme === 'system') apply('system'); };
     media.addEventListener?.('change', handleChange);
     return () => media.removeEventListener?.('change', handleChange);
   }, [theme]);
@@ -50,8 +51,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     theme,
     resolvedTheme,
     setTheme: (nextTheme: Theme) => {
-      setThemeState(nextTheme);
       window.localStorage.setItem(STORAGE_KEY, nextTheme);
+      setThemeState(nextTheme);
     },
   }), [theme, resolvedTheme]);
 
@@ -60,8 +61,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within a ThemeProvider');
+  if (!context) throw new Error('useTheme must be used within ThemeProvider');
   return context;
 }
-
-export type { Theme, ResolvedTheme };

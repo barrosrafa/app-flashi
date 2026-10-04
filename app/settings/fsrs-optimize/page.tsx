@@ -1,7 +1,8 @@
-'use client';
-import { useState } from 'react';
-import { AppShell, Topbar } from '../../../components/AppShell';
-import { isFeatureEnabled } from '../../../lib/feature-flags';
-import { fsrsOptimizeService } from '../../../lib/services/fsrs-optimize-service';
-import { WorkerJobMonitor } from '../../../components/WorkerJobMonitor';
-export default function FsrsOptimizePage() { const [status, setStatus] = useState(''); const [busy, setBusy] = useState(false); if (!isFeatureEnabled('fsrs_opt')) return <AppShell><Topbar title="Otimização FSRS" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; async function start() { setBusy(true); setStatus('Solicitando otimização…'); try { const result = await fsrsOptimizeService.start(); setStatus(`Job ${result.run_id} enfileirado. O processamento acontece em segundo plano.`); } catch (error) { setStatus(error instanceof Error ? error.message : 'Não foi possível iniciar.'); } finally { setBusy(false); } } return <AppShell><Topbar title="Otimização FSRS" subtitle="Personalize os parâmetros com o seu histórico, sem recalcular o algoritmo no cliente." /><section className="card"><p>O backend valida se existe volume suficiente de revisões e executa o job com segurança.</p><button className="btn" onClick={() => void start()} disabled={busy}>{busy ? 'Solicitando…' : 'Otimizar meu FSRS'}</button><p className="status-text" role="status">{status}</p></section><WorkerJobMonitor /></AppShell>; }
+import { privatePageMetadata } from '../../../lib/private-page-metadata';
+import ClientPage from './client-page';
+
+export const metadata = privatePageMetadata('Otimização FSRS');
+
+export default function Page() {
+  return <ClientPage />;
+}

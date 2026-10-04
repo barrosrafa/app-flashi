@@ -1,8 +1,10 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { AppShell, Topbar } from '../../../components/AppShell';
-import { isEnabled } from '../../../lib/config/feature-flags';
-import { templateService } from '../../../lib/services/template-service';
-import { validateTemplate } from '../../../lib/validation-template-schema';
-import type { CardGenerationRule, CardTemplate, FieldDefinition } from '../../../lib/types/card-template';
-export default function TemplateEditor({ params }: { params: Promise<{ id: string }> }) { const [id, setId] = useState(''); const [template, setTemplate] = useState<Partial<CardTemplate>>({ name: '', field_definitions: [{ name: 'Front' }, { name: 'Back' }], card_generation: [{ name: 'Card 1', front: '{{Front}}', back: '{{Back}}' }] }); const [message, setMessage] = useState(''); useEffect(() => { void params.then(({ id: value }) => { setId(value); if (value !== 'new') void templateService.get(value).then((item) => item && setTemplate(item)).catch(() => setMessage('Não foi possível carregar template.')); }); }, [params]); if (!isEnabled('templates')) return <AppShell><Topbar title="Template" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; const fields = (template.field_definitions ?? []) as FieldDefinition[]; const generations = (template.card_generation ?? []) as CardGenerationRule[]; async function save(e: React.FormEvent) { e.preventDefault(); const errors = validateTemplate(template); if (errors.length) { setMessage(errors.join(' · ')); return; } try { if (id === 'new') await templateService.create({ name: template.name!, field_definitions: fields, card_generation: generations }); else await templateService.update(id, { name: template.name, field_definitions: fields, card_generation: generations }); setMessage('Template salvo.'); } catch { setMessage('Não foi possível salvar template.'); } } return <AppShell><Topbar title={id === 'new' ? 'Novo template' : 'Editar template'} /><form className="card form" onSubmit={save}><label htmlFor="template-name">Nome</label><input id="template-name" value={template.name ?? ''} onChange={(e) => setTemplate({ ...template, name: e.target.value })} /><h2>Campos</h2>{fields.map((field, index) => <input key={index} value={field.name} onChange={(e) => setTemplate({ ...template, field_definitions: fields.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} aria-label={`Campo ${index + 1}`} />)}<button className="link-button" type="button" onClick={() => setTemplate({ ...template, field_definitions: [...fields, { name: `Field${fields.length + 1}` }] })}>Adicionar campo</button><h2>Gerações</h2>{generations.map((rule, index) => <div key={index} className="grid"><input value={rule.front} onChange={(e) => setTemplate({ ...template, card_generation: generations.map((item, i) => i === index ? { ...item, front: e.target.value } : item) })} aria-label={`Frente ${index + 1}`} /><input value={rule.back} onChange={(e) => setTemplate({ ...template, card_generation: generations.map((item, i) => i === index ? { ...item, back: e.target.value } : item) })} aria-label={`Verso ${index + 1}`} /></div>)}<button className="btn" type="submit">Salvar template</button>{message && <p className="status-text" role="status">{message}</p>}</form></AppShell>; }
+import { privatePageMetadata } from '../../../lib/private-page-metadata';
+import ClientPage from './client-page';
+
+export const metadata = privatePageMetadata('Template');
+
+type Props = { params: Promise<{ id: string }> };
+
+export default function Page({ params }: Props) {
+  return <ClientPage params={params} />;
+}

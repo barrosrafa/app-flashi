@@ -14,6 +14,7 @@ export default function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [authRequired, setAuthRequired] = useState(false);
+  const [setupRequired, setSetupRequired] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,10 +22,14 @@ export default function DashboardClient() {
       .then(setData)
       .catch((reason: unknown) => {
         const requiresAuth = reason instanceof Error && reason.message === 'AUTH_REQUIRED';
+        const requiresSetup = reason instanceof Error && reason.message === 'SUPABASE_NOT_CONFIGURED';
         setAuthRequired(requiresAuth);
-        setError(requiresAuth
-          ? 'Entre na sua conta para carregar seus indicadores.'
-          : 'Não foi possível carregar o dashboard. Tente novamente em instantes.');
+        setSetupRequired(requiresSetup);
+        setError(requiresSetup
+          ? 'Configure a conexão do Supabase para carregar seus indicadores.'
+          : requiresAuth
+            ? 'Entre na sua conta para carregar seus indicadores.'
+            : 'Não foi possível carregar o dashboard. Tente novamente em instantes.');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -36,7 +41,9 @@ export default function DashboardClient() {
     ? `${data.dueNewCount} novos · ${data.dueReviewCount} em revisão`
     : loading
       ? 'Carregando fila…'
-      : authRequired
+        : setupRequired
+          ? 'Configure a conexão do Supabase para acessar sua fila.'
+          : authRequired
         ? 'Entre para acessar sua fila.'
         : 'Não foi possível carregar agora.';
 
@@ -48,8 +55,8 @@ export default function DashboardClient() {
       <div className="card next-session next-session-primary">
         <div>
           <div className="eyebrow">Hoje</div>
-          <h2>{data?.nextDeck?.name ?? (authRequired ? 'Entre para ver sua fila' : data && dueCount === 0 ? 'Tudo em dia' : 'Continue no seu ritmo')}</h2>
-          <p className="subtitle">{data && dueCount > 0 ? `${dueCount} ${dueCount === 1 ? 'card disponível' : 'cards disponíveis'} para revisar` : data ? 'Sua fila está em dia. Explore os decks ou crie novos cards.' : authRequired ? 'Entre para acessar seus decks e sua fila de revisão.' : loading ? 'Preparando sua próxima sessão.' : 'Abra seus decks e escolha por onde quer começar.'}</p>
+          <h2>{data?.nextDeck?.name ?? (setupRequired ? 'Conecte seu projeto Supabase' : authRequired ? 'Entre para ver sua fila' : data && dueCount === 0 ? 'Tudo em dia' : 'Continue no seu ritmo')}</h2>
+          <p className="subtitle">{data && dueCount > 0 ? `${dueCount} ${dueCount === 1 ? 'card disponível' : 'cards disponíveis'} para revisar` : data ? 'Sua fila está em dia. Explore os decks ou crie novos cards.' : setupRequired ? 'Adicione as credenciais do projeto à configuração do ambiente para carregar seus dados.' : authRequired ? 'Entre para acessar seus decks e sua fila de revisão.' : loading ? 'Preparando sua próxima sessão.' : 'Abra seus decks e escolha por onde quer começar.'}</p>
         </div>
         <Link className="btn" href={studyHref}>{sessionLabel}<span aria-hidden="true">→</span></Link>
       </div>

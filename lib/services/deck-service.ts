@@ -1,4 +1,4 @@
-import { createClient, type Tables } from '../supabase/client';
+import { createClient, isSupabaseConfigured, type Tables } from '../supabase/client';
 import type { Database, Json } from '../../src/types/database';
 import { db } from '../db/schema';
 
@@ -15,7 +15,13 @@ function jsonRecord(value: Json): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 async function requireUser() {
-  const { data: { user } } = await createClient().auth.getUser();
+  if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
+  const { data, error } = await createClient().auth.getUser();
+  if (error) {
+    if (error.status === 401 || error.name === 'AuthSessionMissingError') throw new Error('AUTH_REQUIRED');
+    throw error;
+  }
+  const user = data.user;
   if (!user) throw new Error('AUTH_REQUIRED');
   return user;
 }

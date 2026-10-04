@@ -8,8 +8,9 @@ Este documento descreve o que existe no código desta branch. Não é uma especi
 
 ### Fonte de verdade usada nesta documentação
 
-- código versionado em `app/`, `components/`, `lib/`, `src/`, `scripts/` e `tests/`;
-- configuração em `package.json`, `tsconfig.json`, `playwright.config.ts`, `proxy.ts`, `.env.example` e `public/sw.js`;
+- código versionado em `app/`, `components/`, `contexts/`, `lib/`, `locales/`, `src/`, `scripts/` e `tests/`;
+- configuração em `package.json`, `pnpm-workspace.yaml`, `eslint.config.mjs`, `tsconfig.json`, `playwright.config.ts`, `proxy.ts`, `.env.example` e `public/sw.js`;
+- metadados compartilhados em `lib/site-url.ts` e `lib/private-page-metadata.ts`;
 - tipos Supabase em `src/types/database.ts`;
 - backend de referência `barrosrafa/Flashi`, branch `v2`, incluindo `supabase/functions/`, `supabase/migrations/` e `supabase/functions/README.md`;
 - testes e validadores executados nesta revisão.
@@ -61,6 +62,7 @@ flowchart TD
 | Persistência local | `lib/db/` | Dexie, cursor USN, tombstones, outbox e worker opcional. |
 | Tipos | `src/types/database.ts` | Tipos gerados/espelhados das tabelas, enums e funções Supabase usadas pelo frontend. |
 | PWA | `app/manifest.ts`, `public/sw.js` | Manifesto, cache do shell e fallback de navegação offline. |
+| Indexabilidade | `lib/site-url.ts`, `lib/private-page-metadata.ts`, `app/robots.ts`, `app/sitemap.ts` | Canonical pela origem configurada; landing pública no sitemap; áreas de conta/estudo com `noindex`. |
 | Backend | repositório `Flashi` | RLS, integridade, RPCs, filas, processamento assíncrono, Storage e Edge Functions. |
 
 O browser usa somente a chave pública do Supabase. Não há `service_role` no frontend. O worker `fsrs-optimize-worker` e o `ai-ingest-worker` pertencem ao backend e não são invocados pelo browser.
@@ -88,16 +90,16 @@ O browser usa somente a chave pública do Supabase. Não há `service_role` no f
 | `pnpm dev` | Inicia `next dev`. |
 | `pnpm build` | Gera o build de produção com `next build`. |
 | `pnpm start` | Inicia o servidor de produção após build. |
-| `pnpm lint` | Está declarado como `next lint`; a disponibilidade depende da versão/configuração do Next instalada. |
+| `pnpm lint` | Executa `eslint .` com a configuração flat do ESLint 9, Next core-web-vitals e regras TypeScript. |
 | `pnpm typecheck` | Executa `tsc --noEmit`. |
 | `pnpm test` | Executa `vitest run tests --exclude tests/e2e/**`. |
 | `pnpm test:e2e` | Executa Playwright e pode iniciar `pnpm dev` automaticamente. |
-| `pnpm smoke:ui` | Percorre rotas e viewports, sem acionar operações remotas. |
+| `pnpm smoke:ui` | Verifica 36 rotas em quatro larguras e nos temas claro/escuro: overflow, texto visível cortado, rótulos, nomes/tamanho de controles e opções/cores de dropdowns. Só aciona interações locais reversíveis. |
 | `pnpm screenshots` | Atualiza a documentação visual desktop/mobile e o manifesto de capturas. |
 
 ### Variáveis mínimas
 
-Crie `.env.local` com os valores do seu projeto Supabase e a origem pública que será usada no build. `NEXT_PUBLIC_SITE_URL` é a origem exata, sem caminho de página. Em produção, substitua o default local pela URL HTTPS estável antes de publicar.
+Crie `.env.local` com os valores do seu projeto Supabase e a origem pública que será usada no build. `NEXT_PUBLIC_SITE_URL` é a origem exata, sem caminho de página; o build de produção exige uma origem HTTPS pública e falha se ela estiver ausente, for localhost ou incluir caminho/query/fragmento.
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://<projeto>.supabase.co
@@ -109,7 +111,7 @@ O `.env.example` contém uma URL pública de projeto e uma chave de exemplo subs
 
 ### URL canônica e Auth Redirect URLs
 
-- `NEXT_PUBLIC_SITE_URL` alimenta canonical, Open Graph, `robots.txt` e `sitemap.xml`; configure-a no ambiente **antes do build**.
+- `NEXT_PUBLIC_SITE_URL` alimenta canonical, Open Graph, `robots.txt` e `sitemap.xml`; configure-a no ambiente **antes do build**. Em desenvolvimento, a origem padrão é `http://localhost:3000`.
 - Em Supabase Dashboard → Authentication → URL Configuration, mantenha o Site URL de produção e acrescente a URL exata de callback de cada origem usada para testes, terminando em `/reset-password`.
 - Não use wildcard de domínio. O preview temporário de sandbox é efêmero; substitua pela origem final da aplicação antes do deploy de produção.
 - Os arquivos `.env.local` e segredos nunca devem ser versionados. A chave `sb_publishable_*` é a chave pública apropriada para o browser; nunca use `service_role` no frontend.
@@ -126,13 +128,13 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 
 | Rota | Implementação | Dependências e comportamento |
 |---|---|---|
-| `/` | `app/page.tsx` | Landing pública SSR com conteúdo, CTAs, canonical/Open Graph condicionais ao domínio e zero dependência de sessão. |
-| `/dashboard` | `app/dashboard/page.tsx` + `DashboardClient` | Painel autenticado com próxima revisão priorizada; sem sessão, orienta login e não deixa a fila parecer em carregamento infinito. |
+| `/` | `app/page.tsx` | Landing pública SSR com canonical, Open Graph e JSON-LD factual; zero dependência de sessão. |
+| `/dashboard` | `app/dashboard/page.tsx` + `DashboardClient` | Painel autenticado com próxima revisão priorizada; diferencia login necessário de credenciais Supabase ausentes e não deixa a fila parecer em carregamento infinito. |
 | `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; redireciona para `/dashboard`; oferece mostrar senha e recuperação. |
 | `/forgot-password` | `app/(auth)/forgot-password/page.tsx` | Solicita e-mail de recuperação e retorna mensagem sem enumerar contas. |
 | `/reset-password` | `app/(auth)/reset-password/page.tsx` | Valida confirmação e chama `auth.updateUser`; requer redirect autorizado no Supabase. |
 | `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
-| `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks autenticados; sem sessão, pede login sem exibir uma contagem falsa ou estado vazio. |
+| `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks autenticados; diferencia configuração ausente de falta de sessão e não exibe contagem zero falsa. |
 | `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
 | `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` + `DeckDetailClient` | Carrega detalhe do deck; integra cards, notes, mídia e colaboração quando os contratos/flags estão disponíveis. |
 | `/decks/[deckId]/cards` | `app/decks/[deckId]/cards/page.tsx` + `CardBrowser` | Cria, pesquisa e arquiva cards; criação usa `mcp_create_note`. |
@@ -145,15 +147,16 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 | `/search` | `app/search/page.tsx` | **Flag `semantic_search`**; debounce de 350 ms, busca semântica com fallback lexical para indisponibilidade 503. |
 | `/analytics` | `app/analytics/page.tsx` | Lê estatísticas e reviews; apresenta períodos de 7/30/90 dias, tabela acessível e comparações semanais quando há histórico. |
 | `/exams` | `app/exams/page.tsx` | **Flag `exams`**; cria/lista exames e usa RPC de fila com prioridade. |
-| `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings` com sessão; não expõe formulário de valores padrão sem login. Aparência local continua acessível. |
+| `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings` com sessão; oculta formulários enquanto não há credenciais/sessão. Aparência local continua acessível. |
 | `/profile/badges` | `app/profile/badges/page.tsx` | **Flag `gamification`**; lê perfil XP, badges do usuário e catálogo. |
 | `/tools` | `app/tools/page.tsx` | **Várias flags**; pesquisa, ingestão IA, FSRS, import/export Anki. |
 | `/tools/mcp` | `app/tools/mcp/page.tsx` | **Flag `mcp`**; lista e executa as duas ferramentas do adaptador MCP. |
 | `/settings/fsrs-optimize` | `app/settings/fsrs-optimize/page.tsx` | **Flag `fsrs_opt`**; solicita job de otimização. |
-| `/import/ai-ingest` | `app/import/ai-ingest/page.tsx` | **Flag `ai_ingest`**; submete texto a um job e não materializa notas diretamente. |
+| `/import/ai-ingest` | `app/import/ai-ingest/page.tsx` | **Flag `ai_ingest`**; submete texto a um job; o worker de backend grava notas/cartões no deck após processar. |
 | `/import/anki` | `app/import/anki/page.tsx` | **Flag `anki_io`**; usa `useAnkiImport` para upload `.apkg`. |
+| `/import/deck` | `app/import/deck/page.tsx` | Importa arquivos de decks e URL HTTPS pelo backend, com validação, limite de tamanho, monitoramento do job e link para os cards materializados. |
 | `/export/anki` | `app/export/anki/page.tsx` | Exportação de deck através de `anki-transfer`. |
-| `/import/url` | `app/import/url/page.tsx` | **Flag `import_url`**; browser faz `fetch` da URL, envia o arquivo ao bucket e chama `import-deck`. CORS é obrigatório. |
+| `/import/url` | `app/import/url/page.tsx` | **Flag `import_url`**; o backend baixa destinos HTTPS públicos permitidos (até 15 MiB), evitando dependência de CORS no browser. |
 | `/media/[id]` | `app/media/[id]/page.tsx` | Exibe mídia através de URL assinada; estados sem recurso/sem registro não fabricam conteúdo. |
 | `/occlusion` | `app/occlusion/page.tsx` | **Flag `occlusion`**; formulário simples de nota e regiões percentuais. |
 | `/manifest.webmanifest` | `app/manifest.ts` | Resposta JSON gerada pelo Next; não é uma tela de UI. |
@@ -174,7 +177,7 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 - `Topbar` com título e subtítulo;
 - `SyncStatusPanel`, que informa offline, alterações pendentes, falhas e ações de sincronização local.
 
-`app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`. `NEXT_PUBLIC_SITE_URL` configura a origem canônica da landing; o `manifest`, ícones e metadata pública estão no App Router.
+`app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`. As páginas do App Router mantêm a fronteira server/client para metadata: a landing é indexável e as telas de conta/estudo usam `privatePageMetadata()` (`noindex, nofollow`). `robots.ts` aponta ao sitemap público, que contém somente a landing. O `manifest`, ícones e metadata pública também vivem no App Router.
 
 ### Componentes de domínio
 
@@ -233,8 +236,8 @@ O teste e2e não substitui auditoria de acessibilidade. Os checks existentes cob
 ### IA e importação por URL
 
 - `ingestion-service.ts`: aceita `pdf_document`, `youtube_url`, `raw_text_block` e `web_page`; texto enviado pelo cliente é limitado a 2.000 caracteres; PDF é enviado para `import-media`; jobs são consultáveis por `ai_ingestion_jobs`.
-- `import-deck-service.ts`: aceita `csv`, `markdown`, `quizlet` e `remnote`; limita arquivos a 15 MiB; URL é baixada pelo browser e depende de CORS; o arquivo é enviado ao bucket `import-media` antes de `import-deck`.
-- `ai-ingest-worker` e materialização das sugestões são backend. A UI informa que o conteúdo não é salvo sem revisão, mas a geração e materialização não ocorrem no componente React.
+- `import-deck-service.ts`: aceita `csv`, `markdown`, `quizlet` e `remnote`; limita arquivos e downloads de URL a 15 MiB; a URL é baixada pelo backend e o arquivo é enviado ao bucket `import-media` antes de `import-deck`.
+- `ai-ingest-worker` e materialização das sugestões são backend. O browser cria o job; o worker processa e grava notas/cartões diretamente no deck escolhido.
 
 ### Anki
 
@@ -506,7 +509,7 @@ O manual visual e operacional, com capturas atualizadas em desktop e mobile, est
 
 ### E2E Playwright
 
-`tests/e2e/routes.spec.ts` cobre rotas principais e secundárias do App Router, ausência de erros JavaScript, formulários/labels, SEO/PWA, exibição de resposta e avaliação na prévia, navegação offline, menus móveis, validação da confirmação de senha, divulgação de campos opcionais e overflow em 320–1280px. Operações remotas (cadastro, envio de recuperação, upload e gravação de conteúdo) não são submetidas pela suíte pública. O fluxo autenticado opcional de login, criação de deck e card só roda com credenciais de homologação.
+`tests/e2e/routes.spec.ts` cobre rotas principais e secundárias do App Router, ausência de erros JavaScript, formulários/labels, metadados indexáveis/`noindex`, SEO/PWA, dropdowns no tema escuro, resposta/avaliação na prévia, navegação offline, menus móveis, seletor de tema por teclado, validação de senha, campos opcionais e overflow em 320–1280px. Operações remotas (cadastro, envio de recuperação, upload e gravação de conteúdo) não são submetidas pela suíte pública. O fluxo autenticado opcional de login, criação de deck e card só roda com credenciais de homologação.
 
 O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definidos. Sem essas variáveis, é intencionalmente skipped; não há credenciais no repositório.
 
@@ -514,7 +517,7 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 
 | Script | Uso |
 |---|---|
-| `scripts/ui-smoke.mjs` | Visita 36 rotas em desktop/tablet/mobile, verifica erros, overflow e nomes/tamanho dos controles; clica somente em controles locais reversíveis, nunca em envios ou ações destrutivas. Rode com `pnpm smoke:ui`. |
+| `scripts/ui-smoke.mjs` | Visita 36 rotas em 4 larguras × 2 temas; verifica erros, overflow, texto visível cortado, rótulos/nome e tamanho dos controles e conteúdo/cores de dropdowns. Clica somente em controles locais reversíveis; ignora o botão de DevTools injetado pelo Next em modo dev. Rode com `pnpm smoke:ui`. |
 | `scripts/capture-screens.mjs` | Captura 36 estados/telas em desktop e mobile e grava imagens WebP em `docs/*.webp` e `docs/screenshots/mobile/`, com manifesto em `docs/screenshots/capture-manifest.json`. Rode com `pnpm screenshots` com o app em `localhost:3000`. |
 | `scripts/make-contact-sheet.py` | Agrupa capturas em folhas de contacto; requer Pillow no ambiente. |
 | `scripts/supabase-smoke.mjs` | Faz checks REST/Edge com URL e publishable key fornecidas no ambiente; não autentica um usuário. |
@@ -524,12 +527,21 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 Verificação executada nesta revisão (03/10/2026):
 
 - `pnpm typecheck`: passou.
-- `pnpm test`: 27 testes em 8 arquivos, todos passaram.
-- `pnpm build`: passou; Next.js gerou 33 páginas estáticas e as rotas dinâmicas esperadas.
-- `pnpm test:e2e`: 46 passaram; 1 teste autenticado ficou intencionalmente ignorado por não haver credenciais de homologação.
-- `pnpm smoke:ui`: 36 rotas em desktop/tablet/mobile; 1.654 controles visíveis verificados sem erros, overflow ou alvos pequenos.
-- `pnpm screenshots`: 71 imagens WebP atualizadas (35 desktop + 36 mobile), sem falhas de rota; manifesto em `docs/screenshots/capture-manifest.json`.
+- `pnpm test`: 29 testes em 9 arquivos, todos passaram.
+- `pnpm lint`: passou sem erros; restaram 17 avisos não bloqueantes sobre dependências de hooks, imports/variáveis e imagens dinâmicas (`<img>`).
+- `pnpm build`: passou; Next.js gerou 34/34 páginas estáticas e as rotas dinâmicas esperadas.
+- `pnpm test:e2e`: 49 passaram; 1 fluxo autenticado foi intencionalmente ignorado por não haver credenciais de homologação.
+- `pnpm smoke:ui`: 36 rotas × 4 larguras × 2 temas; 4.180 verificações de controles, 112 dropdowns e 288 títulos, sem overflow, erro JavaScript, texto cortado, falta de rótulo/opções ou alvo menor que 44 px.
 - `git diff --check`: passou.
+
+### Correções aplicadas na auditoria UX/UI
+
+- O tema salvo é aplicado antes de qualquer fallback visual; radio group é semântico e operável por teclado, `<select>`/`<option>` seguem os tokens claro/escuro e a cor da barra do navegador acompanha o tema resolvido.
+- Dashboard, biblioteca e perfil distinguem credenciais Supabase ausentes de falta de sessão; não apresentam números zerados/falsos nem formulários editáveis sem configuração.
+- Dropdowns de importação exibem uma opção placeholder nomeada e permanecem desabilitados quando não há deck de destino; uploads e campos dinâmicos receberam rótulos acessíveis.
+- O editor de oclusão substitui pressupostos de classes Tailwind não compiladas por estilos próprios e oferece seleção/edição de regiões com alternativas por teclado e coordenadas.
+- A tradução dinâmica observa somente alterações incrementais da subárvore, evitando uma varredura completa do documento em cada mutação.
+- As dependências diretas que estavam como `latest` foram fixadas nas versões já resolvidas pelo lockfile original, evitando upgrades colaterais ao adicionar o lint. O lockfile inclui o grafo do ESLint 9/Next 16; `pnpm-workspace.yaml` permite os scripts de build já aprovados de `sharp` e `unrs-resolver`.
 
 As suítes não submetem cadastro, recuperação de senha, upload ou gravação remota. O teste autenticado de persistência requer `E2E_EMAIL` e `E2E_PASSWORD` de homologação.
 

@@ -594,6 +594,47 @@ pre { background: var(--bg); color: var(--text-secondary); border-color: var(--b
 .analytics-insight h2 { margin: 0 0 8px; color: var(--text-primary); font-size: 18px; }
 .analytics-insight p { color: var(--text-secondary); line-height: 1.6; }
 
+/* Native selects keep their option list readable in both color schemes. */
+select { color-scheme: inherit; }
+select option { background: var(--surface); color: var(--text-primary); }
+
+/* Theme choices use native radios for reliable keyboard and assistive-tech behavior. */
+.theme-switcher { min-width: 0; margin: 0; }
+.theme-option { min-width: 0; cursor: pointer; }
+.theme-option > input { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; accent-color: var(--primary); }
+.theme-option:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.theme-option-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Oclusion coordinates are editable without dragging; masks are only a visual layer. */
+.occlusion-editor { display: grid; gap: 14px; min-width: 0; }
+.occlusion-editor__help { margin: 0; color: var(--text-secondary); line-height: 1.55; }
+.occlusion-editor__canvas { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface-hover); touch-action: none; user-select: none; }
+.occlusion-editor__canvas img { display: block; width: 100%; height: auto; }
+.occlusion-editor__mask { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--text-primary) 78%, transparent); pointer-events: none; }
+.occlusion-editor__mask.is-draft { border-style: dashed; background: color-mix(in srgb, var(--primary) 18%, transparent); }
+.occlusion-editor__mask.is-selected { border-color: var(--warning); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 28%, transparent); }
+.occlusion-editor__region-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.occlusion-editor__region-heading h3 { margin: 0; color: var(--text-primary); font-size: 16px; }
+.occlusion-editor__regions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.occlusion-editor__region { display: grid; grid-template-columns: minmax(88px, auto) minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-hover); }
+.occlusion-editor__select-region { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
+.occlusion-editor__select-region.active { border-color: var(--primary); background: var(--surface-active); }
+.occlusion-editor__coordinates { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+.occlusion-editor__coordinates legend { padding: 0 6px; color: var(--text-primary); font-weight: 700; }
+.occlusion-editor__coordinates label { color: var(--text-secondary); font-size: 13px; font-weight: 700; }
+.occlusion-editor__coordinates input { width: 100%; min-height: 44px; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text-primary); }
+.occlusion-card { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.occlusion-card > img { display: block; width: 100%; height: auto; }
+.occlusion-card__mask { position: absolute; display: grid; place-items: center; min-width: 24px; min-height: 24px; padding: 3px; border: 2px solid #fff; border-radius: 4px; background: rgba(15, 23, 42, .9); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.occlusion-card__mask.is-revealed { background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--text-primary); }
+.occlusion-card__mask:focus-visible { z-index: 1; }
+
+@media (max-width: 680px) {
+  .occlusion-editor__coordinates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .occlusion-editor__region { grid-template-columns: minmax(0, 1fr) auto; }
+  .occlusion-editor__region .status-text { grid-column: 1 / -1; grid-row: 2; }
+}
+
 /* Preserve a comfortable hit area for navigation and inline actions on every screen. */
 a.brand { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; }
 .main a:not(.btn):not(.skip-link),

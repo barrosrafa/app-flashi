@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation, type TranslationKey } from '../contexts/LanguageContext';
 import { SyncStatusPanel } from './SyncStatusPanel';
 
@@ -62,15 +62,27 @@ function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: stri
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t } = useTranslation();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+  const moreOpen = openMenuPath === pathname;
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const previousPath = useRef(pathname);
   const primaryMobile: NavItem[] = [...primary, { href: '/search', label: 'nav.search', icon: 'search' }];
   const isPrimaryRoute = primaryMobile.some(({ href }) => isActive(pathname, href));
-  useEffect(() => { setMoreOpen(false); }, [pathname]);
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMoreOpen(false); };
+    const routeChanged = previousPath.current !== pathname;
+    previousPath.current = pathname;
+    if (routeChanged) window.requestAnimationFrame(() => document.getElementById('main-content')?.focus());
+  }, [pathname]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpenMenuPath(null);
+      window.requestAnimationFrame(() => moreButtonRef.current?.focus());
+    };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, []);
+  }, [moreOpen]);
   return <div className="app">
     <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <aside className="sidebar" aria-label="Flashi">
@@ -84,13 +96,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <main className="main" id="main-content" tabIndex={-1}>{children}</main>
     <nav className="mobile-nav" aria-label="Navegação principal">
       {primaryMobile.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}
-      <button type="button" className={!isPrimaryRoute ? 'active' : ''} aria-label={t('nav.moreOptions')} aria-expanded={moreOpen} aria-controls={moreOpen ? 'mobile-more-menu' : undefined} onClick={() => setMoreOpen((open) => !open)}><Icon name="more" /><span>{t('nav.more')}</span></button>
+      <button ref={moreButtonRef} type="button" className={!isPrimaryRoute ? 'active' : ''} aria-label={t('nav.moreOptions')} aria-expanded={moreOpen} aria-controls={moreOpen ? 'mobile-more-menu' : undefined} onClick={() => setOpenMenuPath((openPath) => openPath === pathname ? null : pathname)}><Icon name="more" /><span>{t('nav.more')}</span></button>
     </nav>
-    {moreOpen && <div className="mobile-more-menu" id="mobile-more-menu">
-      <button className="mobile-more-close" type="button" onClick={() => setMoreOpen(false)}>{t('nav.closeMenu')}</button>
-      {groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.filter((item) => item.href !== '/search').map((item) => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMoreOpen(false)} />)}</section>)}
+    {moreOpen && <nav className="mobile-more-menu" id="mobile-more-menu" aria-label={t('nav.moreOptions')}>
+      <button className="mobile-more-close" type="button" onClick={() => { setOpenMenuPath(null); window.requestAnimationFrame(() => moreButtonRef.current?.focus()); }}>{t('nav.closeMenu')}</button>
+      {groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.filter((item) => item.href !== '/search').map((item) => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpenMenuPath(null)} />)}</section>)}
       <div className="mobile-sync-status"><SyncStatusPanel /></div>
-    </div>}
+    </nav>}
   </div>;
 }
 export function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {

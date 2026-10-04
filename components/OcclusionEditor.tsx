@@ -1,5 +1,225 @@
 'use client';
-import { useRef, useState } from 'react';
+
+import { useRef, useState, type PointerEvent } from 'react';
 import type { OcclusionMask } from '../lib/services/occlusion-service';
+
 type Point = { x: number; y: number };
-export function OcclusionEditor({ imageUrl, value, onChange }: { imageUrl: string; value: OcclusionMask[]; onChange: (masks: OcclusionMask[]) => void }) { const ref = useRef<HTMLDivElement>(null); const [draft, setDraft] = useState<OcclusionMask | null>(null); const [selected, setSelected] = useState<number | null>(null); const start = useRef<Point | null>(null); const mode = useRef<'create' | 'move' | 'resize'>('create'); const origin = useRef<OcclusionMask | null>(null); const point = (e: React.PointerEvent): Point => { const r = ref.current!.getBoundingClientRect(); return { x: Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)), y: Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)) }; }; function hit(p: Point) { return value.findIndex((m) => p.x >= m.x && p.x <= m.x + m.w && p.y >= m.y && p.y <= m.y + m.h); } function down(e: React.PointerEvent) { const p = point(e); const index = hit(p); start.current = p; if (index >= 0) { setSelected(index); origin.current = value[index]; mode.current = p.x > value[index].x + value[index].w - 3 && p.y > value[index].y + value[index].h - 3 ? 'resize' : 'move'; } else { setSelected(null); mode.current = 'create'; setDraft({ x: p.x, y: p.y, w: 0, h: 0, cloze_ordinal: value.length + 1 }); } } function move(e: React.PointerEvent) { if (!start.current) return; const p = point(e); if (mode.current === 'create' && draft) setDraft({ ...draft, x: Math.min(start.current.x, p.x), y: Math.min(start.current.y, p.y), w: Math.abs(p.x - start.current.x), h: Math.abs(p.y - start.current.y) }); if (selected !== null && origin.current) { const o = origin.current; const dx = p.x - start.current.x, dy = p.y - start.current.y; const next = mode.current === 'resize' ? { ...o, w: Math.max(1, Math.min(100 - o.x, o.w + dx)), h: Math.max(1, Math.min(100 - o.y, o.h + dy)) } : { ...o, x: Math.max(0, Math.min(100 - o.w, o.x + dx)), y: Math.max(0, Math.min(100 - o.h, o.y + dy)) }; onChange(value.map((item, i) => i === selected ? next : item)); start.current = p; origin.current = next; } } function up() { if (draft && draft.w > 1 && draft.h > 1) onChange([...value, draft]); start.current = null; origin.current = null; setDraft(null); } return <div><div ref={ref} className="relative select-none touch-none" onPointerDown={down} onPointerMove={move} onPointerUp={up}><img src={imageUrl} alt="Imagem para oclusão" className="block w-full" draggable={false} />{[...value, ...(draft ? [draft] : [])].map((mask, index) => <div key={index} className={`absolute border-2 ${index === selected ? 'border-yellow-300' : index === value.length ? 'border-dashed border-blue-500' : 'border-white bg-black/80'}`} style={{ left: `${mask.x}%`, top: `${mask.y}%`, width: `${mask.w}%`, height: `${mask.h}%` }} />)}</div><ul>{value.map((mask, index) => <li key={index}>Caixa {index + 1} <button type="button" className="link-button" onClick={() => onChange(value.filter((_, i) => i !== index).map((item, i) => ({ ...item, cloze_ordinal: i + 1 })))}>Excluir</button></li>)}</ul></div>; }
+type DragMode = 'create' | 'move' | 'resize';
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+export function OcclusionEditor({
+  imageUrl,
+  value,
+  onChange,
+}: {
+  imageUrl: string;
+  value: OcclusionMask[];
+  onChange: (masks: OcclusionMask[]) => void;
+}) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<OcclusionMask | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+  const start = useRef<Point | null>(null);
+  const mode = useRef<DragMode>('create');
+  const origin = useRef<OcclusionMask | null>(null);
+
+  function point(event: PointerEvent<HTMLDivElement>): Point | null {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return null;
+    return {
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100),
+    };
+  }
+
+  function hitTest(position: Point) {
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const mask = value[index];
+      if (
+        position.x >= mask.x && position.x <= mask.x + mask.w &&
+        position.y >= mask.y && position.y <= mask.y + mask.h
+      ) return index;
+    }
+    return -1;
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    const position = point(event);
+    if (!position) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    start.current = position;
+    const index = hitTest(position);
+
+    if (index >= 0) {
+      const mask = value[index];
+      setSelected(index);
+      origin.current = mask;
+      const nearBottomRight = position.x >= mask.x + mask.w - 4 && position.y >= mask.y + mask.h - 4;
+      mode.current = nearBottomRight ? 'resize' : 'move';
+      return;
+    }
+
+    setSelected(null);
+    origin.current = null;
+    mode.current = 'create';
+    setDraft({ x: position.x, y: position.y, w: 0, h: 0, cloze_ordinal: value.length + 1 });
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!start.current) return;
+    const position = point(event);
+    if (!position) return;
+
+    if (mode.current === 'create') {
+      const first = start.current;
+      setDraft((current) => current ? {
+        ...current,
+        x: Math.min(first.x, position.x),
+        y: Math.min(first.y, position.y),
+        w: Math.abs(position.x - first.x),
+        h: Math.abs(position.y - first.y),
+      } : current);
+      return;
+    }
+
+    if (selected === null || !origin.current) return;
+    const original = origin.current;
+    const dx = position.x - start.current.x;
+    const dy = position.y - start.current.y;
+    const next = mode.current === 'resize'
+      ? {
+          ...original,
+          w: clamp(original.w + dx, 1, 100 - original.x),
+          h: clamp(original.h + dy, 1, 100 - original.y),
+        }
+      : {
+          ...original,
+          x: clamp(original.x + dx, 0, 100 - original.w),
+          y: clamp(original.y + dy, 0, 100 - original.h),
+        };
+    onChange(value.map((mask, index) => index === selected ? next : mask));
+    start.current = position;
+    origin.current = next;
+  }
+
+  function finishPointer() {
+    if (draft && draft.w >= 1 && draft.h >= 1) {
+      onChange([...value, { ...draft, cloze_ordinal: value.length + 1 }]);
+      setSelected(value.length);
+    }
+    start.current = null;
+    origin.current = null;
+    setDraft(null);
+  }
+
+  function addRegion() {
+    const offset = (value.length * 7) % 45;
+    const region: OcclusionMask = {
+      x: 10 + offset,
+      y: 10 + offset,
+      w: 25,
+      h: 20,
+      cloze_ordinal: value.length + 1,
+    };
+    onChange([...value, region]);
+    setSelected(value.length);
+  }
+
+  function updateRegion(index: number, patch: Partial<Pick<OcclusionMask, 'x' | 'y' | 'w' | 'h'>>) {
+    const current = value[index];
+    if (!current) return;
+    const x = clamp(patch.x ?? current.x, 0, 99);
+    const y = clamp(patch.y ?? current.y, 0, 99);
+    const w = clamp(patch.w ?? current.w, 1, 100 - x);
+    const h = clamp(patch.h ?? current.h, 1, 100 - y);
+    onChange(value.map((mask, itemIndex) => itemIndex === index
+      ? { ...mask, x, y, w, h }
+      : mask));
+  }
+
+  function deleteRegion(index: number) {
+    const next = value
+      .filter((_, itemIndex) => itemIndex !== index)
+      .map((mask, itemIndex) => ({ ...mask, cloze_ordinal: itemIndex + 1 }));
+    onChange(next);
+    setSelected(next.length ? Math.min(index, next.length - 1) : null);
+  }
+
+  const visibleMasks = [...value, ...(draft ? [draft] : [])];
+  const selectedMask = selected === null ? undefined : value[selected];
+
+  return (
+    <section className="occlusion-editor" aria-label="Editor de regiões de oclusão">
+      <p className="occlusion-editor__help" id="occlusion-editor-help">
+        Arraste sobre a imagem para criar uma região. Também é possível adicionar regiões e editar posição e tamanho pelos campos abaixo.
+      </p>
+      <div
+        ref={canvasRef}
+        className="occlusion-editor__canvas"
+        aria-describedby="occlusion-editor-help"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={finishPointer}
+      >
+        {/* The user-provided image is meaningful content; its surrounding instructions name the task. */}
+        <img src={imageUrl} alt="Imagem onde as regiões de oclusão serão posicionadas" draggable={false} />
+        {visibleMasks.map((mask, index) => {
+          const isDraft = index === value.length;
+          const isSelected = index === selected;
+          return (
+            <div
+              key={`${mask.cloze_ordinal ?? index + 1}-${index}`}
+              className={`occlusion-editor__mask${isDraft ? ' is-draft' : ''}${isSelected ? ' is-selected' : ''}`}
+              aria-hidden="true"
+              style={{ left: `${mask.x}%`, top: `${mask.y}%`, width: `${mask.w}%`, height: `${mask.h}%` }}
+            />
+          );
+        })}
+      </div>
+
+      <div className="occlusion-editor__region-heading">
+        <h3>Regiões</h3>
+        <button className="btn secondary" type="button" onClick={addRegion}>Adicionar região</button>
+      </div>
+      {value.length === 0 ? (
+        <p className="muted" role="status">Nenhuma região adicionada. Use o botão ou desenhe sobre a imagem.</p>
+      ) : (
+        <ul className="occlusion-editor__regions">
+          {value.map((mask, index) => (
+            <li className="occlusion-editor__region" key={`${mask.cloze_ordinal ?? index + 1}-${index}`}>
+              <button
+                className={`occlusion-editor__select-region${selected === index ? ' active' : ''}`}
+                type="button"
+                aria-pressed={selected === index}
+                onClick={() => setSelected(index)}
+              >
+                Caixa {index + 1}
+              </button>
+              <span className="status-text">{Math.round(mask.x)}%, {Math.round(mask.y)}% · {Math.round(mask.w)} × {Math.round(mask.h)}%</span>
+              <button className="link-button" type="button" onClick={() => deleteRegion(index)}>
+                Excluir caixa {index + 1}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {selectedMask && selected !== null && (
+        <fieldset className="occlusion-editor__coordinates" key={selected}>
+          <legend>Posição e tamanho da caixa {selected + 1}</legend>
+          <label htmlFor={`occlusion-x-${selected}`}>Esquerda (%)</label>
+          <input id={`occlusion-x-${selected}`} type="number" min="0" max={100 - selectedMask.w} step="0.5" value={selectedMask.x} onChange={(event) => updateRegion(selected, { x: Number(event.target.value) })} />
+          <label htmlFor={`occlusion-y-${selected}`}>Topo (%)</label>
+          <input id={`occlusion-y-${selected}`} type="number" min="0" max={100 - selectedMask.h} step="0.5" value={selectedMask.y} onChange={(event) => updateRegion(selected, { y: Number(event.target.value) })} />
+          <label htmlFor={`occlusion-w-${selected}`}>Largura (%)</label>
+          <input id={`occlusion-w-${selected}`} type="number" min="1" max={100 - selectedMask.x} step="0.5" value={selectedMask.w} onChange={(event) => updateRegion(selected, { w: Number(event.target.value) })} />
+          <label htmlFor={`occlusion-h-${selected}`}>Altura (%)</label>
+          <input id={`occlusion-h-${selected}`} type="number" min="1" max={100 - selectedMask.y} step="0.5" value={selectedMask.h} onChange={(event) => updateRegion(selected, { h: Number(event.target.value) })} />
+        </fieldset>
+      )}
+    </section>
+  );
+}

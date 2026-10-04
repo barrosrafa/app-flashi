@@ -1,17 +1,28 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { siteUrl } from '../lib/site-url';
 
-const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-const socialImage = siteOrigin ? `${siteOrigin}/opengraph.png` : undefined;
+const socialImage = '/opengraph.png';
 const title = 'Flashi — Estude um pouco hoje. Lembre por mais tempo.';
 const description = 'Organize seus flashcards por assunto, acompanhe as revisões e construa uma rotina de estudo no seu ritmo.';
 export const metadata: Metadata = {
   title,
   description,
-  ...(siteOrigin ? { metadataBase: new URL(siteOrigin), alternates: { canonical: '/' } } : {}),
+  alternates: { canonical: '/' },
   robots: { index: true, follow: true },
-  openGraph: { title, description, type: 'website', locale: 'pt_BR', siteName: 'Flashi', ...(siteOrigin ? { url: `${siteOrigin}/` } : {}), ...(socialImage ? { images: [{ url: socialImage, width: 1200, height: 630, alt: 'Flashi — estudo que fica' }] } : {}) },
-  twitter: { card: 'summary_large_image', title, description, ...(socialImage ? { images: [socialImage] } : {}) },
+  openGraph: { title, description, type: 'website', locale: 'pt_BR', siteName: 'Flashi', url: siteUrl.toString(), images: [{ url: socialImage, width: 1200, height: 630, alt: 'Flashi — estudo que fica' }] },
+  twitter: { card: 'summary_large_image', title, description, images: [socialImage] },
+};
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Flashi',
+  applicationCategory: 'EducationalApplication',
+  operatingSystem: 'Web',
+  inLanguage: 'pt-BR',
+  url: siteUrl.toString(),
+  description,
 };
 
 const steps = [
@@ -20,7 +31,7 @@ const steps = [
   { number: '03', title: 'Revise no seu ritmo', text: 'Abra sua fila de estudo e acompanhe o que já avançou.' },
 ];
 export default function Home() {
-  return <main className="landing-page">
+  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} /><main className="landing-page">
     <header className="landing-header">
       <Link href="/" className="brand" aria-label="Flashi, página inicial">flash<span>i</span></Link>
       <nav aria-label="Navegação pública"><Link href="#como-funciona">Como funciona</Link><Link href="#para-quem">Para quem</Link><Link href="/login">Entrar</Link><Link className="btn landing-header-cta" href="/register">Criar conta</Link></nav>
@@ -33,5 +44,5 @@ export default function Home() {
     <section className="landing-steps" id="como-funciona" aria-labelledby="steps-title"><div className="section-head"><div><p className="eyebrow">Simples para começar</p><h2 id="steps-title">Do primeiro deck à próxima revisão</h2></div><Link href="/register" className="inline-link">Criar minha conta →</Link></div><div className="landing-step-grid">{steps.map((step) => <article className="card landing-step" key={step.number}><span className="step-number">{step.number}</span><h3>{step.title}</h3><p>{step.text}</p></article>)}</div></section>
     <section className="landing-final"><div><p className="eyebrow">Comece pelo que quer aprender</p><h2>Um bom hábito começa com um card.</h2></div><Link href="/register" className="btn">Criar meu primeiro deck <span aria-hidden="true">→</span></Link></section>
     <footer className="landing-footer"><Link className="brand" href="/" aria-label="Flashi, página inicial">flash<span>i</span></Link><span>Estudo que fica.</span><div><Link href="/login">Entrar</Link><Link href="/register">Criar conta</Link><Link href="/dashboard">Abrir o app</Link></div></footer>
-  </main>;
+  </main></>;
 }

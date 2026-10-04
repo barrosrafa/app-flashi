@@ -1,4 +1,4 @@
-import { createClient } from '../supabase/client';
+import { createClient, isSupabaseConfigured } from '../supabase/client';
 import type { Database } from '../../src/types/database';
 import { listDecks, type Deck } from './deck-service';
 
@@ -20,10 +20,14 @@ export type DashboardData = {
 };
 
 export async function getDashboardData(): Promise<DashboardData> {
+  if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    if (error.status === 401 || error.name === 'AuthSessionMissingError') throw new Error('AUTH_REQUIRED');
+    throw error;
+  }
+  const user = data.user;
   if (!user) throw new Error('AUTH_REQUIRED');
 
   const today = new Date();

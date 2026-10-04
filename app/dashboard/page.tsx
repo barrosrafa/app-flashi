@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
 import DashboardClient from '../../components/DashboardClient';
-export const metadata: Metadata = { title: 'Hoje', robots: { index: false, follow: false } };
+import { privatePageMetadata } from '../../lib/private-page-metadata';
+
+export const metadata = privatePageMetadata('Hoje');
 export default function DashboardPage() { return <DashboardClient />; }
