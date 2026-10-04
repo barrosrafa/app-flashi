@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { getAuthErrorMessage } from '../../../lib/auth-messages';
-import { createClient, isSupabaseConfigured } from '../../../lib/supabase/client';
+import { createClient } from '../../../lib/supabase/client';
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
@@ -11,7 +11,6 @@ export default function ForgotPassword() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage(''); setSuccess(false);
     try {
-      if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
       const redirectTo = `${window.location.origin}/reset-password`;
       const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw error;

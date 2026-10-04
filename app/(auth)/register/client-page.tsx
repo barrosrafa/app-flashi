@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { getAuthErrorMessage } from '../../../lib/auth-messages';
-import { createClient, isSupabaseConfigured } from '../../../lib/supabase/client';
+import { createClient } from '../../../lib/supabase/client';
 import { capture } from '../../../lib/observability';
 export default function Register() {
   const [message, setMessage] = useState('');
@@ -16,7 +16,6 @@ export default function Register() {
     setSuccess(false);
     capture('signup_started', { surface: 'register' });
     try {
-      if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
       const { error } = await createClient().auth.signUp({
         email: String(form.get('email') ?? ''),
         password: String(form.get('password') ?? ''),

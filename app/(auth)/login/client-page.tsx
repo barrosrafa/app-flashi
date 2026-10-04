@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { getAuthErrorMessage } from '../../../lib/auth-messages';
-import { createClient, isSupabaseConfigured } from '../../../lib/supabase/client';
+import { createClient } from '../../../lib/supabase/client';
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -18,7 +18,6 @@ export default function Login() {
     setMessage('Entrando…');
     setSuccess(false);
     try {
-      if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
       const { error } = await createClient().auth.signInWithPassword({ email, password });
       setMessage(error ? getAuthErrorMessage(error, 'login') : 'Login realizado. Abrindo seu painel…');
       setSuccess(!error);
