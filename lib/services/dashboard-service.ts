@@ -71,8 +71,11 @@ export async function getDashboardData(): Promise<DashboardData> {
   const weeklyAccuracy = correct + incorrect === 0
     ? 0
     : Math.round((correct / (correct + incorrect)) * 100);
+  const dueByDeck = new Map<string, number>();
+  for (const card of dueCards) dueByDeck.set(card.deck_id, (dueByDeck.get(card.deck_id) ?? 0) + 1);
   const nextDeck = [...decks]
-    .sort((left, right) => right.newCount + right.reviewCount - (left.newCount + left.reviewCount))[0] ?? null;
+    .filter((deck) => (dueByDeck.get(deck.id) ?? 0) > 0)
+    .sort((left, right) => (dueByDeck.get(right.id) ?? 0) - (dueByDeck.get(left.id) ?? 0))[0] ?? null;
 
   return {
     decks,

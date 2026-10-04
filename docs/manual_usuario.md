@@ -1,15 +1,15 @@
 # Manual do usuário — Flashi
 
-**Versão documentada:** `feature/v5`  
-**Ambiente usado:** aplicação Flashi publicada no sandbox  
-**URL de teste:** <https://3000-ih6g90sjqt770kk9jsl1p-3f3678f4.us1.manus.computer/>  
-**Data da captura:** 03/10/2026
+**Versão documentada:** `main` (revisão de UX/UI)
+**Ambiente usado:** build local do projeto, verificado no preview temporário
+**Base das capturas:** `http://localhost:3000` (os prints não dependem de credenciais reais)
+**Data da captura:** 03/10/2026 — capturas atualizadas após a auditoria
 
 ## 1. Sobre este manual
 
 Este manual descreve a navegação, os textos apresentados, os botões, os campos de formulário, os estados vazios e a usabilidade observada na aplicação Flashi. As capturas foram feitas na aplicação em execução e estão armazenadas nesta mesma pasta `docs`.
 
-> **Importante:** algumas páginas dependem de autenticação, de um deck válido ou de dados reais. Quando a captura usa um UUID vazio ou uma conta sem dados, o manual identifica explicitamente o estado vazio, de carregamento ou de funcionalidade desativada.
+> **Importante:** algumas páginas dependem de autenticação, de um deck válido ou de dados reais. As capturas públicas foram feitas sem sessão de usuário. Quando a página exige login, deck ou ID real, o manual identifica a limitação; isso não significa que o recurso esteja desativado.
 
 ## 2. Conceitos básicos
 
@@ -18,7 +18,7 @@ Este manual descreve a navegação, os textos apresentados, os botões, os campo
 - **Note:** conteúdo estruturado que pode originar um ou mais cards.
 - **Repetição espaçada:** agenda revisões para o momento em que o conteúdo tende a ser esquecido.
 - **FSRS:** algoritmo de agendamento e otimização das revisões.
-- **Modo local-first:** a interface informa que o trabalho pode ser salvo localmente e sincronizado manualmente.
+- **Modo local-first:** parte dos dados pode ser armazenada localmente; status e ações de sincronização só aparecem quando o worker está habilitado.
 - **Estado vazio:** tela que explica o que falta fazer, sem apresentar dados fictícios.
 
 ## 3. Navegação global
@@ -27,43 +27,56 @@ A barra lateral aparece nas páginas autenticadas e apresenta:
 
 | Item | Destino | Uso |
 |---|---|---|
-| `flashi` | `/` | Volta à visão geral. |
-| **Visão geral** | `/` | Mostra o resumo do dia, fila de revisão, sequência, XP e decks. |
+| `flashi` | `/dashboard` | Volta ao painel. |
+| **Hoje** | `/dashboard` | Mostra próximo passo, fila, sequência, estatísticas e decks. |
 | **Meus decks** | `/decks` | Lista, cria e acessa decks. |
-| **Estudar agora** | `/study/demo` ou sessão de deck | Abre uma sessão de revisão. |
+| **Estudar** | `/study` ou `/study/{DECK_ID}` | Escolhe deck antes de iniciar uma sessão. |
 | **Desempenho** | `/analytics` | Mostra métricas e atividade por período. |
 | **Ferramentas** | `/tools` | Busca conteúdo e acessa recursos avançados. |
 | **Perfil** | `/profile` | Edita preferências e encerra a sessão. |
 | Avatar com inicial | `/profile` | Atalho para o perfil. |
 
-No rodapé da barra lateral são exibidos **Modo local-first** e **Sincronização manual**. Os links têm área de clique ampla e a interface mantém foco visível para teclado.
+No desktop, as áreas ficam agrupadas. No mobile, Hoje, Estudar, Meus decks e Busca aparecem na barra inferior; as demais opções ficam em **Mais**, fechável com Esc. A caixa de sincronização mostra online/offline, pendências e ações quando disponíveis.
+
+### Página pública
+
+**Rota:** `/`
+
+![Landing pública](./32-landing-publica.webp)
+
+Visitantes veem os benefícios e os passos iniciais; os links **Criar conta** e **Entrar** levam para autenticação. O link **Abrir o app** leva ao painel em `/dashboard`. Não é necessário login para ler essa página.
+
+### Menu móvel
+
+![Menu Mais no mobile](./screenshots/mobile/35-mais-opcoes-mobile.webp)
+
+A barra inferior mantém quatro destinos e um botão **Mais**. Toque para ver perfil, desempenho, ferramentas e sincronização; **Fechar menu** ou **Esc** fecha o painel.
 
 ## 4. Visão geral
 
-**Rota:** `/`
+**Rota:** `/dashboard`
 
 ![Visão geral](./01-visao-geral.webp)
 
 ### Textos e informações
 
-- “Seu espaço de aprendizagem”.
-- “Seu ritmo hoje”.
+- “Pronto para estudar?”.
+- “Sua próxima sessão” e “Seu ritmo hoje”.
 - **Cartões para hoje**, **Sequência atual**, **Tempo estudado** e **XP total**.
-- “Continue estudando”.
-- “Escolha um deck para começar”.
+- Para visitantes, o painel explica que é preciso entrar para carregar a fila e os indicadores.
 - “Seus decks”.
 - “Desempenho nos últimos 7 dias”.
 
 ### Ações
 
-- **Escolher um deck →:** leva à biblioteca de decks.
+- **Entrar para estudar →:** leva ao login enquanto não há sessão; com uma conta, abre a próxima fila elegível.
 - **Ver todos:** também leva à biblioteca.
-- **Criar meu primeiro deck:** abre o formulário de criação.
+- **Criar meu primeiro deck:** aparece após login quando a conta realmente não tem decks e abre o formulário de criação.
 - **Avatar:** abre o perfil.
 
 ### Usabilidade
 
-A página prioriza a decisão principal: escolher um deck e começar. Quando a conta ainda não possui dados, os números aparecem como zero e o estado vazio orienta o próximo passo sem inventar atividade.
+A página prioriza o próximo passo com base na fila real. Para visitantes, mostra “Entre para ver sua fila” e “Entre para acessar sua fila”, sem afirmar que a pessoa tem zero revisões; o botão **Entrar para estudar** leva ao login.
 
 ## 5. Biblioteca de decks
 
@@ -75,16 +88,15 @@ A página prioriza a decisão principal: escolher um deck e começar. Quando a c
 
 - Título **Meus decks**.
 - “Organize seu conhecimento em pequenos espaços.”
-- Indicador “Sua biblioteca (0)” no estado capturado.
-- **Novo deck +**.
-- Estado vazio: “Nenhum deck criado”.
-- **Criar deck**.
+- A captura sem sessão mostra “Sua biblioteca (—)” e solicita login, sem confundir falta de sessão com biblioteca vazia.
+- **Novo deck +** continua visível; para listar, criar ou alterar dados, entre na conta.
+- Após autenticação, uma biblioteca realmente vazia apresenta o estado vazio e o botão **Criar deck**.
 
 ### Fluxo recomendado
 
-1. Acesse **Meus decks**.
+1. Acesse **Meus decks** e entre na conta para carregar sua biblioteca.
 2. Clique em **Novo deck +** ou **Criar deck**.
-3. Preencha nome e descrição.
+3. Preencha o nome; descrição e organização são opcionais em **Mais opções**.
 4. Salve o deck.
 5. Abra o deck criado para gerenciar cards, notes, mídia e colaboração.
 
@@ -93,6 +105,10 @@ A página prioriza a decisão principal: escolher um deck e começar. Quando a c
 **Rota:** `/decks/new`
 
 ![Novo deck](./12-novo-deck.webp)
+
+![Opções avançadas do deck](./36-opcoes-avancadas-deck.webp)
+
+Campos de organização e descrição são opcionais e ficam recolhidos até selecionar **Mais opções (descrição e organização)**.
 
 ### Campos
 
@@ -114,7 +130,7 @@ O formulário é curto, com labels explícitos e foco por teclado. Use um nome e
 
 ![Detalhe do deck](./20-detalhe-deck.webp)
 
-A captura utiliza um UUID vazio para documentar o estado de carregamento: **“Carregando deck…”**. Com um deck existente, a tela apresenta o resumo e as ações do deck.
+A captura documenta o estado sem sessão: **“Entre na sua conta para abrir este deck.”**. Com um identificador válido e sessão autenticada, a tela apresenta o resumo e as ações do deck.
 
 ### Ações disponíveis no detalhe
 
@@ -194,13 +210,13 @@ O editor de referências permite informar o ID da note relacionada, adicionar um
 
 ## 10. Modo de estudo
 
-### 10.1 Sessão demonstrativa
+### 10.1 Escolher um deck e iniciar a sessão
 
-**Rota:** `/study/demo`
+**Rota:** `/study`
 
-![Estudo inicial](./30-estudo-demo.webp)
+![Escolher deck para estudar](./03-estudo-inicial.webp)
 
-A sessão demonstrativa exibe “Prévia interativa do fluxo de revisão” e um card de exemplo:
+A rota lista seus decks. Em uma conta recém-criada, crie o primeiro deck antes de iniciar a revisão. A prévia demonstrativa fica em `/study/demo` e apresenta um card de exemplo:
 
 - tipo **Pergunta**;
 - badge **Novo**;
@@ -217,13 +233,13 @@ Após revelar, aparece:
 
 - **Resposta** com a explicação;
 - “Como foi sua lembrança?”;
-- instrução “1–4 ou Espaço = avaliar”;
+- instrução de teclado: **Espaço** revela; teclas **1–4** avaliam a resposta;
 - **1 De novo**;
 - **2 Difícil**;
 - **3 Bom**;
 - **4 Fácil**.
 
-Cada botão informa o próximo intervalo, por exemplo “< 1 min”, “6 min”, “10 min” ou “4 dias”. Escolha honestamente: a avaliação alimenta o agendamento FSRS.
+A interface não promete intervalos fixos: o agendador FSRS real calcula o próximo passo a partir do histórico e das configurações.
 
 ### 10.3 Controles visuais
 
@@ -233,11 +249,11 @@ Cada botão informa o próximo intervalo, por exemplo “< 1 min”, “6 min”
 
 ### 10.4 Deck sem cards
 
-**Rota:** `/study/{DECK_ID}`
+**Rota:** `/study/idiomas` (captura sem sessão de teste)
 
-![Estudo sem cards](./29-estudo-sem-cards.webp)
+![Estado do estudo](./29-estudo-sem-cards.webp)
 
-Quando não há cards para revisar, a tela informa **“Nenhum cartão para revisar agora.”** e oferece **Gerenciar cards**. Esse é o caminho correto para sair do estado vazio.
+A captura anônima pode pedir login antes de consultar a fila. Depois de entrar, quando não houver cards elegíveis, a tela informa o estado vazio e oferece um caminho para gerenciar os cards.
 
 ## 11. Desempenho
 
@@ -247,16 +263,16 @@ Quando não há cards para revisar, a tela informa **“Nenhum cartão para revi
 
 ### Métricas
 
-- **Retenção estimada**.
+- **Dias com estudo** nos últimos 7 dias.
 - **Cartões esta semana**.
 - **Tempo médio** por revisão registrada.
-- **Precisão**.
+- **Precisão**, com comparação em pontos percentuais quando existe histórico anterior.
 - Gráfico de **Atividade**.
 - **Tempo total nos últimos 7 dias**.
 
 ### Controle
 
-O seletor de período oferece **7 dias**, **30 dias** e **90 dias**. A página informa quando não há valores demonstrativos e calcula as métricas a partir de revisões reais.
+O seletor oferece **7 dias**, **30 dias** e **90 dias**. O gráfico tem tabela equivalente para leitura por tecnologia assistiva; o resumo compara volume e precisão com a semana anterior apenas quando há dados suficientes.
 
 ## 12. Ferramentas avançadas
 
@@ -283,7 +299,7 @@ Digite um conceito, escolha o modo e execute a busca. O modo semântico depende 
 
 A página apresenta o título **Busca semântica**, a descrição “Encontre notas pelo significado” e um campo **Buscar por significado…**. Digite uma pergunta ou conceito, envie e examine os resultados pelo grau de similaridade.
 
-A rota `/study/search` possui a mesma finalidade, mas no ambiente capturado estava desativada por feature flag:
+A rota `/study/search` é uma busca relacionada ao estudo; telas com dados reais podem exigir login:
 
 ![Busca de estudo](./25-busca-estudo.webp)
 
@@ -293,17 +309,11 @@ A rota `/study/search` possui a mesma finalidade, mas no ambiente capturado esta
 
 ![Perfil](./06-perfil.webp)
 
-### Campos
+Sem sessão, a página solicita login antes de exibir ou salvar dados de perfil. A captura mantém os controles locais de aparência disponíveis e não apresenta valores padrão como se fossem preferências carregadas.
 
-- **Nome de exibição**.
-- **Meta diária de cartões novos**.
+Após entrar, o formulário inclui nome de exibição, fuso horário e limites diários; as configurações avançadas de repetição espaçada ficam recolhidas. **Guardar preferências** salva as alterações; **Sair da conta** encerra a sessão e retorna à página pública.
 
-### Botões
-
-- **Salvar preferências:** grava as alterações.
-- **Sair da conta:** encerra a sessão Supabase.
-
-A descrição “Uma meta menor ajuda a manter a sessão sustentável” orienta a escolha. Recomenda-se começar com uma meta que possa ser cumprida diariamente.
+Comece com uma meta diária realista e ajuste parâmetros avançados somente quando conhecer seus efeitos.
 
 ## 15. Autenticação
 
@@ -314,9 +324,10 @@ A descrição “Uma meta menor ajuda a manter a sessão sustentável” orienta
 ![Login](./10-login.webp)
 
 - **E-mail** — placeholder `voce@email.com`.
-- **Senha**.
+- **Senha**, com controle para mostrar/ocultar.
 - **Entrar**.
-- **Criar agora** — leva ao cadastro.
+- **Esqueci minha senha** — abre a recuperação.
+- **Criar conta** — leva ao cadastro.
 
 Texto principal: “Seu próximo cartão começa aqui.” A tela explica que o login sincroniza decks em todos os dispositivos.
 
@@ -330,9 +341,28 @@ Texto principal: “Seu próximo cartão começa aqui.” A tela explica que o l
 - **E-mail**.
 - **Senha** — mínimo de 6 caracteres.
 - **Criar conta**.
+- Após o cadastro, verifique o e-mail para confirmar o acesso.
 - **Entrar** — retorna ao login.
 
-## 16. Importação e exportação
+## 16. Recuperação de senha
+
+### Solicitar link
+
+**Rota:** `/forgot-password`
+
+![Recuperar senha](./33-recuperacao-senha.webp)
+
+Informe o e-mail; a mensagem de sucesso não revela se uma conta existe. O envio real depende do provedor de e-mail configurado no Supabase.
+
+### Definir senha nova
+
+**Rota:** `/reset-password`
+
+![Nova senha](./34-nova-senha.webp)
+
+Abra pelo link recebido, digite e confirme uma senha com pelo menos 8 caracteres. Mensagens de link expirado/inválido direcionam a solicitar outro link. O domínio de retorno precisa ser autorizado no Supabase Authentication → URL Configuration.
+
+## 17. Importação e exportação
 
 ### Importar do Anki
 
@@ -340,7 +370,7 @@ Texto principal: “Seu próximo cartão começa aqui.” A tela explica que o l
 
 ![Importar Anki](./13-importar-anki-desativado.webp)
 
-No ambiente documentado, a tela apresenta **“Esta funcionalidade está desativada.”**. O botão não é exibido enquanto a feature flag estiver desligada.
+A tela permite escolher um pacote `.apkg`; enviar arquivo é uma operação externa, não executada durante a auditoria. Se a flag estiver desligada, a rota informa isso sem apresentar controles inativos.
 
 ### Exportar Anki
 
@@ -348,7 +378,7 @@ No ambiente documentado, a tela apresenta **“Esta funcionalidade está desativ
 
 ![Exportar Anki](./14-exportar-anki-desativado.webp)
 
-Também aparece como desativada no ambiente capturado. Não tente enviar arquivos enquanto a tela informar esse estado.
+A rota exige deck e sessão para exportar; nenhum job de exportação foi disparado pela suíte.
 
 ### Importar por URL
 
@@ -371,9 +401,9 @@ O texto informa que o conteúdo é baixado pelo cliente, enviado ao bucket priva
 
 ![Ingestão por IA](./08-ingestao-desativada.webp)
 
-A funcionalidade aparece desativada no ambiente documentado. Quando habilitada, o fluxo suporta escolha do deck, texto-fonte e acompanhamento de jobs sem salvar sugestões sem revisão humana.
+O fluxo permite selecionar deck e informar texto-fonte quando há sessão e contratos disponíveis; nenhuma tarefa de ingestão foi enviada na auditoria.
 
-## 17. Workers e operações assíncronas
+## 18. Workers e operações assíncronas
 
 ### Otimização FSRS
 
@@ -381,7 +411,7 @@ A funcionalidade aparece desativada no ambiente documentado. Quando habilitada, 
 
 ![Otimização FSRS](./18-fsrs-desativado.webp)
 
-No ambiente capturado, a feature está desativada. Quando habilitada, o fluxo permite solicitar a otimização baseada no histórico real de revisões, acompanhar o job e solicitar nova execução para falhas.
+A rota depende de autenticação e do serviço de otimização. Não foi solicitado job remoto durante a auditoria.
 
 ### Auditoria MCP
 
@@ -402,9 +432,9 @@ Controles:
 
 A seção **Auditoria MCP** mostra ferramenta, número de resultados, data e request ID. O backend só expõe as operações autorizadas.
 
-## 18. Recursos com feature flag desativada
+## 19. Estados sem sessão e recursos condicionais
 
-As capturas abaixo registram o comportamento esperado quando uma funcionalidade está desabilitada. A aplicação preserva a navegação, mas não expõe ações que não podem ser executadas.
+As capturas abaixo foram feitas sem credenciais de uma conta de teste. Rotas que precisam de sessão, deck ou ID real exibem login, estado vazio ou mensagem de erro. Isso não prova que a feature esteja desativada; ativação depende das flags e dos contratos do backend.
 
 | Recurso | Rota | Captura |
 |---|---|---|
@@ -417,9 +447,9 @@ As capturas abaixo registram o comportamento esperado quando uma funcionalidade 
 | Template individual | `/templates/{ID}` | [27-detalhe-template.webp](./27-detalhe-template.webp) |
 | Oclusão nova | `/decks/{ID}/occlusion/new` | [23-nova-oclusao.webp](./23-nova-oclusao.webp) |
 
-O texto **“Esta funcionalidade está desativada.”** é preferível a mostrar botões quebrados: o usuário sabe que não é um erro de preenchimento.
+Uma rota pode mostrar login, um estado vazio ou uma mensagem de recurso desativado. O estado é resultado da sessão/IDs/feature flags daquela execução; uma captura anônima não comprova indisponibilidade para uma conta autenticada.
 
-## 19. Guia de usabilidade e acessibilidade
+## 20. Guia de usabilidade e acessibilidade
 
 ### Teclado
 
@@ -449,22 +479,27 @@ O texto **“Esta funcionalidade está desativada.”** é preferível a mostrar
 - Badges e mensagens de status mostram o próximo intervalo ou o resultado da ação.
 - A aplicação evita dados fictícios em métricas e listas.
 
-## 20. Fluxo completo recomendado
+## 21. Fluxo completo recomendado
 
-1. Crie uma conta em **Criar agora**.
-2. Entre com e-mail e senha.
+1. Crie uma conta em **Criar conta** e confirme o e-mail, se solicitado.
+2. Entre com e-mail e senha; para recuperar acesso use **Esqueci minha senha**.
 3. Crie um deck em **Meus decks → Novo deck**.
 4. Abra **Gerenciar cards** e adicione um primeiro card.
 5. Abra **Gerenciar notes** para estruturar campos, templates, clozes e referências.
 6. Adicione mídia a um card, quando o recurso estiver habilitado.
 7. Clique em **Estudar agora**.
 8. Revele a resposta e escolha de 1 a 4.
-9. Consulte **Desempenho** para acompanhar retenção, precisão e tempo.
+9. Consulte **Desempenho** para acompanhar dias estudados, volume, precisão e tempo.
 10. Ajuste a meta diária no **Perfil**.
 11. Use **Ferramentas** e **Auditoria MCP** apenas quando necessário.
 
-## 21. Inventário de capturas
+## 22. Inventário de capturas
 
-Foram salvos **31 screenshots** nesta pasta, cobrindo visão geral, autenticação, decks, cards, notes, estudo, métricas, ferramentas, importações, estados vazios e recursos desativados.
+Foram atualizadas **31 capturas desktop** e adicionadas telas para landing pública, recuperação de senha, nova senha, menu móvel e opções avançadas de deck. Capturas mobile das mesmas telas estão em `screenshots/mobile/`; o inventário da execução está em `screenshots/capture-manifest.json`.
 
-Todos os arquivos de imagem são relativos a este manual para que o documento permaneça portável dentro do repositório.
+Todos os arquivos de imagem são relativos a este manual para manter o documento portável. As capturas mobile estão em `docs/screenshots/mobile/`; o script reproduzível é `scripts/capture-screens.mjs`.
+
+
+## 23. Escopo do teste de interação
+
+A revisão visitou todas as rotas documentadas em desktop, tablet e mobile, checou erros JavaScript, títulos, foco/nomes de controles e overflow; testou navegação pública, menu móvel, revelar/avaliar, campos opcionais, alternância de visibilidade da senha e validação de senhas divergentes. Por segurança, não enviou recuperação de e-mail, cadastro, login, arquivos, jobs, exportação nem comandos que gravariam/apagariam dados em Supabase. O fluxo autenticado depende de conta de homologação autorizada.

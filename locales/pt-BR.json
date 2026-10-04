@@ -7,10 +7,10 @@
     "languageSaved": "Idioma atualizado."
   },
   "nav": {
-    "overview": "Visão geral",
+    "overview": "Hoje",
     "decks": "Meus decks",
-    "study": "Estudar agora",
-    "exams": "Exames",
+    "study": "Estudar",
+    "exams": "Metas de estudo",
     "analytics": "Desempenho",
     "tools": "Ferramentas",
     "templates": "Templates",
@@ -24,7 +24,17 @@
     "leaderboard": "Ranking",
     "search": "Busca",
     "anki": "Anki",
-    "occlusion": "Oclusão"
+    "occlusion": "Oclusão",
+    "mcp": "Integrações MCP",
+    "groupPrimary": "Principal",
+    "groupTrack": "Acompanhar",
+    "groupCreate": "Criar e importar",
+    "groupAdvanced": "Avançado",
+    "groupAccount": "Conta",
+    "more": "Mais",
+    "closeMenu": "Fechar menu",
+    "moreOptions": "Mais opções",
+    "newDeck": "Criar deck"
   },
   "topbar": {
     "eyebrow": "Seu espaço de aprendizagem",

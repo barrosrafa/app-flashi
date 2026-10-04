@@ -1,0 +1,645 @@
+{
+  "capturedAt": "2026-10-04T01:44:05.003Z",
+  "baseURL": "http://localhost:3000",
+  "results": [
+    {
+      "viewport": "desktop",
+      "route": "/dashboard",
+      "state": "default",
+      "status": 200,
+      "heading": "Pronto para estudar?",
+      "screenshot": "docs/01-visao-geral.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks",
+      "state": "default",
+      "status": 200,
+      "heading": "Meus decks",
+      "screenshot": "docs/02-meus-decks.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/study",
+      "state": "default",
+      "status": 200,
+      "heading": "Estudar",
+      "screenshot": "docs/03-estudo-inicial.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/analytics",
+      "state": "default",
+      "status": 200,
+      "heading": "Desempenho",
+      "screenshot": "docs/04-desempenho.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/tools",
+      "state": "default",
+      "status": 200,
+      "heading": "Ferramentas avançadas",
+      "screenshot": "docs/05-ferramentas.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/profile",
+      "state": "default",
+      "status": 200,
+      "heading": "Seu perfil",
+      "screenshot": "docs/06-perfil.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/templates",
+      "state": "default",
+      "status": 200,
+      "heading": "Templates de cards",
+      "screenshot": "docs/07-templates-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/import/ai-ingest",
+      "state": "default",
+      "status": 200,
+      "heading": "Ingestão por IA",
+      "screenshot": "docs/08-ingestao-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/search",
+      "state": "default",
+      "status": 200,
+      "heading": "Busca semântica",
+      "screenshot": "docs/09-busca.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/login",
+      "state": "default",
+      "status": 200,
+      "heading": "Seu próximo cartão começa aqui.",
+      "screenshot": "docs/10-login.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/register",
+      "state": "default",
+      "status": 200,
+      "heading": "Aprenda algo hoje.",
+      "screenshot": "docs/11-cadastro.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/new",
+      "state": "default",
+      "status": 200,
+      "heading": "Novo deck",
+      "screenshot": "docs/12-novo-deck.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/import/anki",
+      "state": "default",
+      "status": 200,
+      "heading": "Importar do Anki",
+      "screenshot": "docs/13-importar-anki-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/export/anki",
+      "state": "default",
+      "status": 200,
+      "heading": "Exportar para Anki",
+      "screenshot": "docs/14-exportar-anki-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/import/url",
+      "state": "default",
+      "status": 200,
+      "heading": "Importar por URL",
+      "screenshot": "docs/15-importar-url.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/occlusion",
+      "state": "default",
+      "status": 200,
+      "heading": "Oclusão de imagem",
+      "screenshot": "docs/16-oclusao-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/profile/badges",
+      "state": "default",
+      "status": 200,
+      "heading": "Conquistas",
+      "screenshot": "docs/17-conquistas-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/settings/fsrs-optimize",
+      "state": "default",
+      "status": 200,
+      "heading": "Otimização FSRS",
+      "screenshot": "docs/18-fsrs-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/tools/mcp",
+      "state": "default",
+      "status": 200,
+      "heading": "Ferramentas MCP",
+      "screenshot": "docs/19-mcp.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/idiomas",
+      "state": "default",
+      "status": 200,
+      "heading": "Deck",
+      "screenshot": "docs/20-detalhe-deck.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/idiomas/cards",
+      "state": "default",
+      "status": 200,
+      "heading": "Gerenciar cards",
+      "screenshot": "docs/21-gerenciar-cards.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/idiomas/notes",
+      "state": "default",
+      "status": 200,
+      "heading": "Notes do deck",
+      "screenshot": "docs/22-gerenciar-notes.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/idiomas/occlusion/new",
+      "state": "default",
+      "status": 200,
+      "heading": "Nova oclusão de imagem",
+      "screenshot": "docs/23-nova-oclusao.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/socratic",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessões socráticas",
+      "screenshot": "docs/24-sessoes-socraticas.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/study/search",
+      "state": "default",
+      "status": 200,
+      "heading": "Busca semântica",
+      "screenshot": "docs/25-busca-estudo.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/media/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Mídia privada",
+      "screenshot": "docs/26-media-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/templates/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Editar template",
+      "screenshot": "docs/27-detalhe-template.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/socratic/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão socrática",
+      "screenshot": "docs/28-detalhe-socratico.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/study/idiomas",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/29-estudo-sem-cards.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/study/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/30-estudo-demo.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/study/demo",
+      "state": "revealed",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/31-estudo-resposta-e-avaliacao.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/",
+      "state": "default",
+      "status": 200,
+      "heading": "Estude um pouco hoje.Lembre por mais tempo.",
+      "screenshot": "docs/32-landing-publica.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/forgot-password",
+      "state": "default",
+      "status": 200,
+      "heading": "Vamos recuperar sua conta.",
+      "screenshot": "docs/33-recuperacao-senha.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/reset-password",
+      "state": "default",
+      "status": 200,
+      "heading": "Escolha uma senha nova.",
+      "screenshot": "docs/34-nova-senha.webp",
+      "errors": []
+    },
+    {
+      "viewport": "desktop",
+      "route": "/decks/new",
+      "state": "deck-options",
+      "status": 200,
+      "heading": "Novo deck",
+      "screenshot": "docs/36-opcoes-avancadas-deck.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/dashboard",
+      "state": "default",
+      "status": 200,
+      "heading": "Pronto para estudar?",
+      "screenshot": "docs/screenshots/mobile/01-visao-geral.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks",
+      "state": "default",
+      "status": 200,
+      "heading": "Meus decks",
+      "screenshot": "docs/screenshots/mobile/02-meus-decks.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/study",
+      "state": "default",
+      "status": 200,
+      "heading": "Estudar",
+      "screenshot": "docs/screenshots/mobile/03-estudo-inicial.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/analytics",
+      "state": "default",
+      "status": 200,
+      "heading": "Desempenho",
+      "screenshot": "docs/screenshots/mobile/04-desempenho.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/tools",
+      "state": "default",
+      "status": 200,
+      "heading": "Ferramentas avançadas",
+      "screenshot": "docs/screenshots/mobile/05-ferramentas.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/profile",
+      "state": "default",
+      "status": 200,
+      "heading": "Seu perfil",
+      "screenshot": "docs/screenshots/mobile/06-perfil.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/templates",
+      "state": "default",
+      "status": 200,
+      "heading": "Templates de cards",
+      "screenshot": "docs/screenshots/mobile/07-templates-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/import/ai-ingest",
+      "state": "default",
+      "status": 200,
+      "heading": "Ingestão por IA",
+      "screenshot": "docs/screenshots/mobile/08-ingestao-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/search",
+      "state": "default",
+      "status": 200,
+      "heading": "Busca semântica",
+      "screenshot": "docs/screenshots/mobile/09-busca.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/login",
+      "state": "default",
+      "status": 200,
+      "heading": "Seu próximo cartão começa aqui.",
+      "screenshot": "docs/screenshots/mobile/10-login.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/register",
+      "state": "default",
+      "status": 200,
+      "heading": "Aprenda algo hoje.",
+      "screenshot": "docs/screenshots/mobile/11-cadastro.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/new",
+      "state": "default",
+      "status": 200,
+      "heading": "Novo deck",
+      "screenshot": "docs/screenshots/mobile/12-novo-deck.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/import/anki",
+      "state": "default",
+      "status": 200,
+      "heading": "Importar do Anki",
+      "screenshot": "docs/screenshots/mobile/13-importar-anki-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/export/anki",
+      "state": "default",
+      "status": 200,
+      "heading": "Exportar para Anki",
+      "screenshot": "docs/screenshots/mobile/14-exportar-anki-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/import/url",
+      "state": "default",
+      "status": 200,
+      "heading": "Importar por URL",
+      "screenshot": "docs/screenshots/mobile/15-importar-url.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/occlusion",
+      "state": "default",
+      "status": 200,
+      "heading": "Oclusão de imagem",
+      "screenshot": "docs/screenshots/mobile/16-oclusao-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/profile/badges",
+      "state": "default",
+      "status": 200,
+      "heading": "Conquistas",
+      "screenshot": "docs/screenshots/mobile/17-conquistas-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/settings/fsrs-optimize",
+      "state": "default",
+      "status": 200,
+      "heading": "Otimização FSRS",
+      "screenshot": "docs/screenshots/mobile/18-fsrs-desativado.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/tools/mcp",
+      "state": "default",
+      "status": 200,
+      "heading": "Ferramentas MCP",
+      "screenshot": "docs/screenshots/mobile/19-mcp.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/idiomas",
+      "state": "default",
+      "status": 200,
+      "heading": "Deck",
+      "screenshot": "docs/screenshots/mobile/20-detalhe-deck.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/idiomas/cards",
+      "state": "default",
+      "status": 200,
+      "heading": "Gerenciar cards",
+      "screenshot": "docs/screenshots/mobile/21-gerenciar-cards.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/idiomas/notes",
+      "state": "default",
+      "status": 200,
+      "heading": "Notes do deck",
+      "screenshot": "docs/screenshots/mobile/22-gerenciar-notes.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/idiomas/occlusion/new",
+      "state": "default",
+      "status": 200,
+      "heading": "Nova oclusão de imagem",
+      "screenshot": "docs/screenshots/mobile/23-nova-oclusao.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/socratic",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessões socráticas",
+      "screenshot": "docs/screenshots/mobile/24-sessoes-socraticas.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/study/search",
+      "state": "default",
+      "status": 200,
+      "heading": "Busca semântica",
+      "screenshot": "docs/screenshots/mobile/25-busca-estudo.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/media/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Mídia privada",
+      "screenshot": "docs/screenshots/mobile/26-media-desativada.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/templates/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Editar template",
+      "screenshot": "docs/screenshots/mobile/27-detalhe-template.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/socratic/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão socrática",
+      "screenshot": "docs/screenshots/mobile/28-detalhe-socratico.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/study/idiomas",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/screenshots/mobile/29-estudo-sem-cards.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/study/demo",
+      "state": "default",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/screenshots/mobile/30-estudo-demo.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/study/demo",
+      "state": "revealed",
+      "status": 200,
+      "heading": "Sessão de estudo",
+      "screenshot": "docs/screenshots/mobile/31-estudo-resposta-e-avaliacao.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/",
+      "state": "default",
+      "status": 200,
+      "heading": "Estude um pouco hoje.Lembre por mais tempo.",
+      "screenshot": "docs/screenshots/mobile/32-landing-publica.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/forgot-password",
+      "state": "default",
+      "status": 200,
+      "heading": "Vamos recuperar sua conta.",
+      "screenshot": "docs/screenshots/mobile/33-recuperacao-senha.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/reset-password",
+      "state": "default",
+      "status": 200,
+      "heading": "Escolha uma senha nova.",
+      "screenshot": "docs/screenshots/mobile/34-nova-senha.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/dashboard",
+      "state": "more",
+      "status": 200,
+      "heading": "Pronto para estudar?",
+      "screenshot": "docs/screenshots/mobile/35-mais-opcoes-mobile.webp",
+      "errors": []
+    },
+    {
+      "viewport": "mobile",
+      "route": "/decks/new",
+      "state": "deck-options",
+      "status": 200,
+      "heading": "Novo deck",
+      "screenshot": "docs/screenshots/mobile/36-opcoes-avancadas-deck.webp",
+      "errors": []
+    }
+  ]
+}

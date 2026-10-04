@@ -7,10 +7,10 @@
     "languageSaved": "Idioma actualizado."
   },
   "nav": {
-    "overview": "Vista general",
+    "overview": "Hoy",
     "decks": "Mis mazos",
-    "study": "Estudiar ahora",
-    "exams": "Exámenes",
+    "study": "Estudiar",
+    "exams": "Metas de estudio",
     "analytics": "Rendimiento",
     "tools": "Herramientas",
     "templates": "Plantillas",
@@ -24,7 +24,17 @@
     "leaderboard": "Clasificación",
     "search": "Buscar",
     "anki": "Anki",
-    "occlusion": "Oclusión"
+    "occlusion": "Oclusión",
+    "mcp": "Integraciones MCP",
+    "groupPrimary": "Principal",
+    "groupTrack": "Seguimiento",
+    "groupCreate": "Crear e importar",
+    "groupAdvanced": "Avanzado",
+    "groupAccount": "Cuenta",
+    "more": "Más",
+    "closeMenu": "Cerrar menú",
+    "moreOptions": "Más opciones",
+    "newDeck": "Crear mazo"
   },
   "topbar": {
     "eyebrow": "Tu espacio de aprendizaje",

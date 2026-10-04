@@ -13,6 +13,7 @@ export type AnalyticsData = {
   cardsPreviousWeek: number;
   averageTimeSeconds: number;
   accuracy: number;
+  accuracyPreviousWeek: number | null;
   totalTimeMs: number;
   days: AnalyticsDay[];
 };
@@ -67,6 +68,10 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const incorrect = currentStatistics.reduce((sum, row) => sum + row.incorrect_count, 0);
   const totalAttempts = correct + incorrect;
   const accuracy = totalAttempts === 0 ? 0 : Math.round((correct / totalAttempts) * 100);
+  const previousCorrect = previousStatistics.reduce((sum, row) => sum + row.correct_count, 0);
+  const previousIncorrect = previousStatistics.reduce((sum, row) => sum + row.incorrect_count, 0);
+  const previousAttempts = previousCorrect + previousIncorrect;
+  const accuracyPreviousWeek = previousAttempts === 0 ? null : Math.round((previousCorrect / previousAttempts) * 100);
   const averageTimeSeconds = currentReviews.length === 0
     ? 0
     : Math.round(currentReviews.reduce((sum, review) => sum + (review.time_spent_ms ?? 0), 0) / currentReviews.length / 1000);
@@ -92,6 +97,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     cardsPreviousWeek,
     averageTimeSeconds,
     accuracy,
+    accuracyPreviousWeek,
     totalTimeMs: currentStatistics.reduce((sum, row) => sum + row.time_studied_ms, 0),
     days,
   };

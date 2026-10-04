@@ -7,10 +7,10 @@
     "languageSaved": "Language updated."
   },
   "nav": {
-    "overview": "Overview",
+    "overview": "Today",
     "decks": "My decks",
-    "study": "Study now",
-    "exams": "Exams",
+    "study": "Study",
+    "exams": "Study goals",
     "analytics": "Performance",
     "tools": "Tools",
     "templates": "Templates",
@@ -24,7 +24,17 @@
     "leaderboard": "Leaderboard",
     "search": "Search",
     "anki": "Anki",
-    "occlusion": "Occlusion"
+    "occlusion": "Occlusion",
+    "mcp": "MCP integrations",
+    "groupPrimary": "Main",
+    "groupTrack": "Track progress",
+    "groupCreate": "Create and import",
+    "groupAdvanced": "Advanced",
+    "groupAccount": "Account",
+    "more": "More",
+    "closeMenu": "Close menu",
+    "moreOptions": "More options",
+    "newDeck": "Create a deck"
   },
   "topbar": {
     "eyebrow": "Your learning space",

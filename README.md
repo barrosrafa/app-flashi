@@ -92,15 +92,27 @@ O browser usa somente a chave pública do Supabase. Não há `service_role` no f
 | `pnpm typecheck` | Executa `tsc --noEmit`. |
 | `pnpm test` | Executa `vitest run tests --exclude tests/e2e/**`. |
 | `pnpm test:e2e` | Executa Playwright e pode iniciar `pnpm dev` automaticamente. |
+| `pnpm smoke:ui` | Percorre rotas e viewports, sem acionar operações remotas. |
+| `pnpm screenshots` | Atualiza a documentação visual desktop/mobile e o manifesto de capturas. |
 
 ### Variáveis mínimas
+
+Crie `.env.local` com os valores do seu projeto Supabase e a origem pública que será usada no build. `NEXT_PUBLIC_SITE_URL` é a origem exata, sem caminho de página. Em produção, substitua o default local pela URL HTTPS estável antes de publicar.
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://<projeto>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 O `.env.example` contém uma URL pública de projeto e uma chave de exemplo substituível. Os ficheiros `.env*` são ignorados pelo Git, exceto `.env.example`.
+
+### URL canônica e Auth Redirect URLs
+
+- `NEXT_PUBLIC_SITE_URL` alimenta canonical, Open Graph, `robots.txt` e `sitemap.xml`; configure-a no ambiente **antes do build**.
+- Em Supabase Dashboard → Authentication → URL Configuration, mantenha o Site URL de produção e acrescente a URL exata de callback de cada origem usada para testes, terminando em `/reset-password`.
+- Não use wildcard de domínio. O preview temporário de sandbox é efêmero; substitua pela origem final da aplicação antes do deploy de produção.
+- Os arquivos `.env.local` e segredos nunca devem ser versionados. A chave `sb_publishable_*` é a chave pública apropriada para o browser; nunca use `service_role` no frontend.
 
 ### Configuração de autenticação server-side
 
@@ -110,26 +122,30 @@ O `.env.example` contém uma URL pública de projeto e uma chave de exemplo subs
 
 ## 4. Rotas do frontend
 
-Todas as rotas abaixo existem no App Router. A expressão **flag** significa que a página mostra estado “funcionalidade desativada” quando a variável correspondente não está ativa.
+Todas as rotas abaixo existem no App Router. A expressão **flag** significa que a página mostra o estado “funcionalidade desativada” quando a variável correspondente não está ativa; páginas com dado/identificador real também podem exigir uma sessão autenticada.
 
 | Rota | Implementação | Dependências e comportamento |
 |---|---|---|
-| `/` | `app/page.tsx` | Dashboard; carrega fila, sequência, estatísticas e decks. Sem sessão mostra estado de autenticação. |
-| `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; redireciona para `/`; apresenta erro/sucesso. |
+| `/` | `app/page.tsx` | Landing pública SSR com conteúdo, CTAs, canonical/Open Graph condicionais ao domínio e zero dependência de sessão. |
+| `/dashboard` | `app/dashboard/page.tsx` + `DashboardClient` | Painel autenticado com próxima revisão priorizada; sem sessão, orienta login e não deixa a fila parecer em carregamento infinito. |
+| `/login` | `app/(auth)/login/page.tsx` | `signInWithPassword`; redireciona para `/dashboard`; oferece mostrar senha e recuperação. |
+| `/forgot-password` | `app/(auth)/forgot-password/page.tsx` | Solicita e-mail de recuperação e retorna mensagem sem enumerar contas. |
+| `/reset-password` | `app/(auth)/reset-password/page.tsx` | Valida confirmação e chama `auth.updateUser`; requer redirect autorizado no Supabase. |
 | `/register` | `app/(auth)/register/page.tsx` | `signUp`; recolhe nome, email e senha; informa confirmação/erro do Auth. |
-| `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks através de `listDecks`; estado vazio e link para criação. |
+| `/decks` | `app/decks/page.tsx` + `DeckLibrary` | Lista decks autenticados; sem sessão, pede login sem exibir uma contagem falsa ou estado vazio. |
 | `/decks/new` | `app/decks/new/page.tsx` | Cria deck autenticado e redireciona para o gestor de cards. |
 | `/decks/[deckId]` | `app/decks/[deckId]/page.tsx` + `DeckDetailClient` | Carrega detalhe do deck; integra cards, notes, mídia e colaboração quando os contratos/flags estão disponíveis. |
 | `/decks/[deckId]/cards` | `app/decks/[deckId]/cards/page.tsx` + `CardBrowser` | Cria, pesquisa e arquiva cards; criação usa `mcp_create_note`. |
 | `/decks/[deckId]/notes` | `app/decks/[deckId]/notes/page.tsx` + `NoteWorkspace` | CRUD de notes, seleção de template, definições de campo, cloze e referências. |
 | `/decks/[deckId]/occlusion/new` | `app/decks/[deckId]/occlusion/new/page.tsx` | **Flag `occlusion`**; upload de imagem, editor de caixas percentuais e RPC de oclusão. |
+| `/study` | `app/study/page.tsx` | Lista decks para iniciar; diferencia fila vazia de falta de sessão. |
 | `/study/[deckId]` | `app/study/[deckId]/page.tsx` | Fila real, frente/verso, ratings, review FSRS e fallback local. Também carrega template do card quando disponível. |
 | `/study/demo` | mesma página com `deckId=demo` | Fixture local para demonstrar o fluxo sem tocar no backend. |
 | `/study/search` | `app/study/search/page.tsx` | Página de busca relacionada ao estudo. |
 | `/search` | `app/search/page.tsx` | **Flag `semantic_search`**; debounce de 350 ms, busca semântica com fallback lexical para indisponibilidade 503. |
-| `/analytics` | `app/analytics/page.tsx` | Lê estatísticas diárias e reviews; calcula dados dos últimos sete dias. |
+| `/analytics` | `app/analytics/page.tsx` | Lê estatísticas e reviews; apresenta períodos de 7/30/90 dias, tabela acessível e comparações semanais quando há histórico. |
 | `/exams` | `app/exams/page.tsx` | **Flag `exams`**; cria/lista exames e usa RPC de fila com prioridade. |
-| `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings`; permite sair via Auth. |
+| `/profile` | `app/profile/page.tsx` | Lê/atualiza `profiles` e `study_settings` com sessão; não expõe formulário de valores padrão sem login. Aparência local continua acessível. |
 | `/profile/badges` | `app/profile/badges/page.tsx` | **Flag `gamification`**; lê perfil XP, badges do usuário e catálogo. |
 | `/tools` | `app/tools/page.tsx` | **Várias flags**; pesquisa, ingestão IA, FSRS, import/export Anki. |
 | `/tools/mcp` | `app/tools/mcp/page.tsx` | **Flag `mcp`**; lista e executa as duas ferramentas do adaptador MCP. |
@@ -151,14 +167,14 @@ Todas as rotas abaixo existem no App Router. A expressão **flag** significa que
 `components/AppShell.tsx` fornece:
 
 - skip link para `#main-content`;
-- marca e link para `/`;
+- marca e link para `/dashboard`;
 - navegação com `aria-label` e `aria-current`;
 - ícones SVG decorativos;
 - avatar/link para `/profile`;
 - `Topbar` com título e subtítulo;
-- `SyncBadge`, que comunica “Online · salvo localmente”.
+- `SyncStatusPanel`, que informa offline, alterações pendentes, falhas e ações de sincronização local.
 
-`app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`, além de metadata, idioma `pt-BR`, manifest e Open Graph.
+`app/layout.tsx` registra `ServiceWorkerRegister`, `SyncWorkerRegister` e `EdgeErrorNotice`. `NEXT_PUBLIC_SITE_URL` configura a origem canônica da landing; o `manifest`, ícones e metadata pública estão no App Router.
 
 ### Componentes de domínio
 
@@ -435,7 +451,7 @@ Existem duas camadas de leitura de flags: `lib/feature-flags.ts` e `lib/config/f
 | `NEXT_PUBLIC_FF_TEMPLATES` | `templates` | Lista e detalhe de templates. |
 | `NEXT_PUBLIC_FF_REFERENCES` | `references` | Editor de referências entre notes. |
 
-O `.env.example` deixa as flags, exceto `template_renderer`, desligadas. Alterar `.env.local` exige reiniciar o processo Next.js.
+O `.env.example` habilita as flags listadas para ambiente de desenvolvimento. Defina cada `NEXT_PUBLIC_FF_*` para `0` quando quiser simular uma funcionalidade desligada; altere `.env.local` e reinicie o Next.js.
 
 ---
 
@@ -448,10 +464,10 @@ O `.env.example` deixa as flags, exceto `template_renderer`, desligadas. Alterar
 - display `standalone`;
 - cores de fundo/tema;
 - categorias `education` e `productivity`;
-- atalhos para `/study/demo` e `/decks`;
-- `icons: []`, ou seja, não há ícones PWA configurados neste código.
+- início em `/dashboard` e atalhos para `/study/demo` e `/decks`;
+- ícones SVG, PNG 192×192, PNG 512×512 maskable e Apple Touch Icon.
 
-`public/sw.js` usa cache `flashi-shell-v2`, pré-cacheia um conjunto de rotas públicas e aplica network-first para navegação. Quando a navegação falha, tenta o request em cache e depois `/`. Assets GET também usam cache-first com preenchimento posterior.
+`public/sw.js` usa cache `flashi-shell-v2`, pré-cacheia um conjunto de rotas públicas e aplica network-first para navegação. Quando a navegação falha, tenta o request em cache e depois `/dashboard`. Assets GET também usam cache-first com preenchimento posterior.
 
 Isso torna a **navegação do shell** resiliente depois de aquecida. Não significa que a Data API, Storage, Edge Functions ou todas as páginas dinâmicas funcionem sem rede. Dados locais e reviews dependem adicionalmente de Dexie, outbox e flags descritas na secção de sincronização.
 
@@ -471,32 +487,26 @@ Esta branch fechou as lacunas de interface que existiam apesar de os contratos j
 
 Essas telas não alteram o schema nem substituem RLS. Quando uma flag está desligada, a rota mostra o estado de recurso desativado; quando um contrato depende de usuário, deck, note ou job existente, o estado vazio é mostrado em vez de dados de demonstração.
 
-O manual visual e operacional, incluindo screenshots, está em [`docs/manual_usuario.md`](docs/manual_usuario.md). Este README mantém somente contratos de implementação, rotas e limites técnicos; não repete o passo a passo de cada botão do manual.
+O manual visual e operacional, com capturas atualizadas em desktop e mobile, está em [`docs/manual_usuario.md`](docs/manual_usuario.md). As imagens desktop são `docs/*.webp`; a variação mobile está em `docs/screenshots/mobile/` e o manifesto das capturas está em `docs/screenshots/capture-manifest.json`.
 
 ## 13. Testes e validação
 
 ### Testes unitários atuais
 
-`pnpm test` executa os testes unitários presentes em `tests/`. Na validação desta branch foram executados **20 testes em 6 ficheiros**:
+`pnpm test` executa os testes unitários presentes em `tests/`. Nesta revisão, 27 testes em 8 arquivos passaram; a cobertura inclui:
 
+- `tests/auth-messages.test.ts`: mensagens de autenticação e recuperação de senha;
 - `tests/edge-client.test.ts`: autenticação, retorno normal, 429, retry 503, indisponibilidade sem retry e timeout;
 - `tests/feature-services.test.ts`: validação de oclusão e coordenadas percentuais;
+- `tests/i18n.test.ts`: integridade dos recursos de tradução;
+- `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida;
 - `tests/sync-engine.test.ts`: aliases de entidades, tipos desconhecidos, mutation ID e ratings;
 - `tests/template-renderer.test.ts`: interpolação, múltiplas gerações e template inválido;
-- `tests/mcp-client.test.ts`: listagem de tools, `tools/list` e erro de tool desconhecida;
 - `tests/v5-features.test.ts`: contratos de serviços introduzidos na paridade v5.
 
 ### E2E Playwright
 
-`tests/e2e/routes.spec.ts` cobre:
-
-- abertura de rotas públicas e principais;
-- ausência de `pageerror`;
-- gestor de cards e labels;
-- fluxo `/study/demo` de revelar, avaliar e concluir;
-- presença dos painéis de `/tools`;
-- navegação offline depois do service worker aquecer;
-- fluxo autenticado opcional de login, criação de deck e card.
+`tests/e2e/routes.spec.ts` cobre rotas principais e secundárias do App Router, ausência de erros JavaScript, formulários/labels, SEO/PWA, exibição de resposta e avaliação na prévia, navegação offline, menus móveis, validação da confirmação de senha, divulgação de campos opcionais e overflow em 320–1280px. Operações remotas (cadastro, envio de recuperação, upload e gravação de conteúdo) não são submetidas pela suíte pública. O fluxo autenticado opcional de login, criação de deck e card só roda com credenciais de homologação.
 
 O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definidos. Sem essas variáveis, é intencionalmente skipped; não há credenciais no repositório.
 
@@ -504,23 +514,24 @@ O fluxo autenticado só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definido
 
 | Script | Uso |
 |---|---|
-| `scripts/ui-smoke.mjs` | Percorre 13 rotas em desktop/tablet/mobile, verifica overflow, page errors e dimensões mínimas de botões, e clica em botões visíveis. |
-| `scripts/capture-screens.mjs` | Captura 11 rotas em desktop/mobile e escreve `artifacts/screens/manifest.json`. |
+| `scripts/ui-smoke.mjs` | Visita 36 rotas em desktop/tablet/mobile, verifica erros, overflow e nomes/tamanho dos controles; clica somente em controles locais reversíveis, nunca em envios ou ações destrutivas. Rode com `pnpm smoke:ui`. |
+| `scripts/capture-screens.mjs` | Captura 36 estados/telas em desktop e mobile e grava imagens WebP em `docs/*.webp` e `docs/screenshots/mobile/`, com manifesto em `docs/screenshots/capture-manifest.json`. Rode com `pnpm screenshots` com o app em `localhost:3000`. |
 | `scripts/make-contact-sheet.py` | Agrupa capturas em folhas de contacto; requer Pillow no ambiente. |
 | `scripts/supabase-smoke.mjs` | Faz checks REST/Edge com URL e publishable key fornecidas no ambiente; não autentica um usuário. |
 
-### Validação realizada para esta documentação
+### Validação desta revisão
 
-Nesta revisão foram inspecionados todos os ficheiros versionados do frontend e o backend de referência, incluindo rotas, componentes, serviços, schema local, testes, scripts, PWA, proxy, migrations e Edge Functions. A branch foi previamente validada com:
+Verificação executada nesta revisão (03/10/2026):
 
-```text
-pnpm typecheck       passou
-pnpm test            20 testes passaram em 6 ficheiros
-pnpm build           passou; 29 rotas App Router listadas, 24 páginas estáticas geradas
-backend validate_readme.py  passou
-```
+- `pnpm typecheck`: passou.
+- `pnpm test`: 27 testes em 8 arquivos, todos passaram.
+- `pnpm build`: passou; Next.js gerou 33 páginas estáticas e as rotas dinâmicas esperadas.
+- `pnpm test:e2e`: 46 passaram; 1 teste autenticado ficou intencionalmente ignorado por não haver credenciais de homologação.
+- `pnpm smoke:ui`: 36 rotas em desktop/tablet/mobile; 1.654 controles visíveis verificados sem erros, overflow ou alvos pequenos.
+- `pnpm screenshots`: 71 imagens WebP atualizadas (35 desktop + 36 mobile), sem falhas de rota; manifesto em `docs/screenshots/capture-manifest.json`.
+- `git diff --check`: passou.
 
-Os números acima são resultados do estado validado; repetir os comandos é necessário após novas alterações.
+As suítes não submetem cadastro, recuperação de senha, upload ou gravação remota. O teste autenticado de persistência requer `E2E_EMAIL` e `E2E_PASSWORD` de homologação.
 
 ---
 
@@ -536,7 +547,7 @@ Os números acima são resultados do estado validado; repetir os comandos é nec
 8. O adaptador MCP é um cliente local da aplicação; esta branch não expõe um servidor MCP HTTP público.
 9. `fsrs-optimize-worker` e `ai-ingest-worker` são componentes backend protegidos e não devem receber chamadas do browser.
 10. O service worker cobre shell/cache de navegação, não sincronização de dados remotos.
-11. O manifest não possui ícones porque `icons` está vazio.
+11. O manifest declara ícones SVG/PNG locais e Apple Touch Icon; verifique as dimensões/assets com `pnpm test:e2e` antes de publicar.
 12. Os documentos de auditoria em `docs/` podem descrever checkpoints anteriores, fixtures e números antigos; não devem ser interpretados como estado atual sem confirmação no código.
 13. `NEXT_PUBLIC_FF_MEDIA`, `NEXT_PUBLIC_FF_SEMANTIC`, `NEXT_PUBLIC_FF_ANKI` e `NEXT_PUBLIC_FF_COLLAB` existem na configuração, mas a ativação efetiva de uma tela deve ser confirmada na rota correspondente.
 14. Não há teste E2E autenticado executado sem credenciais de homologação; testes públicos não comprovam persistência real para um usuário específico.
@@ -550,6 +561,8 @@ Os números acima são resultados do estado validado; repetir os comandos é nec
 ```text
 app/(auth)/login/page.tsx
 app/(auth)/register/page.tsx
+app/(auth)/forgot-password/page.tsx
+app/(auth)/reset-password/page.tsx
 app/analytics/page.tsx
 app/decks/[deckId]/cards/page.tsx
 app/decks/[deckId]/occlusion/new/page.tsx
@@ -563,6 +576,7 @@ app/import/anki/page.tsx
 app/import/url/page.tsx
 app/layout.tsx
 app/manifest.ts
+app/dashboard/page.tsx
 app/media/[id]/page.tsx
 app/occlusion/page.tsx
 app/page.tsx
@@ -813,14 +827,14 @@ NEXT_PUBLIC_FF_TEMPLATES=0
 NEXT_PUBLIC_FF_REFERENCES=0
 ```
 
-As flags são desligadas por padrão no `.env.example`. `NEXT_PUBLIC_FF_COLLAB`, `NEXT_PUBLIC_FF_ANKI_IO`, `NEXT_PUBLIC_FF_FSRS_OPT` e `NEXT_PUBLIC_FF_OCCLUSION` permanecem conforme a configuração anterior.
+No `.env.example`, as flags deste conjunto estão habilitadas com `1`; defina `0` no ambiente local para exercitar estados de recurso desabilitado. `template_renderer`, importação por URL e MCP têm comportamento habilitado diretamente no código, sem variável equivalente.
 
 ### 16.13 Validação v5
 
 Validações executadas após a implementação:
 
 - `pnpm typecheck` — passou;
-- `pnpm test` — **20 testes passaram em 6 ficheiros**;
+- `pnpm test` — resultado atual registrado na seção 13 (não reutilizar a contagem histórica abaixo);
 - `pnpm build` — passou, incluindo as rotas `/socratic`, `/socratic/[id]`, `/templates` e `/templates/[id]`;
 - `git diff --check` — passou;
 - validadores backend SQL/snapshot/README — passaram;
@@ -959,3 +973,8 @@ pnpm build
 ```
 
 O frontend usa `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e mantém buckets privados, RLS e jobs autenticados.
+
+
+## 17. Mudanças de navegação desta revisão
+
+`/` é agora a página pública; o painel exige contexto de app e fica em `/dashboard`. Atualize favoritos e links antigos do painel. `/study` seleciona um deck; `/study/demo` permanece uma prévia local. O manifest PWA abre `/dashboard`. O fluxo de recuperação adiciona `/forgot-password` e `/reset-password`; a segunda rota precisa constar explicitamente no redirect allowlist do projeto Supabase. Consulte o manual para as telas e os screenshots correspondentes.

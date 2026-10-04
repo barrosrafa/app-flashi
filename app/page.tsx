@@ -1,76 +1,37 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { AppShell, SyncBadge, Topbar } from '../components/AppShell';
-import { getDashboardData, type DashboardData } from '../lib/services/dashboard-service';
+import type { Metadata } from 'next';
 
-function formatMinutes(milliseconds: number) {
-  const minutes = Math.round(milliseconds / 60000);
-  return minutes === 0 ? '0 min' : `${minutes} min`;
-}
+const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
+const socialImage = siteOrigin ? `${siteOrigin}/opengraph.png` : undefined;
+const title = 'Flashi — Estude um pouco hoje. Lembre por mais tempo.';
+const description = 'Organize seus flashcards por assunto, acompanhe as revisões e construa uma rotina de estudo no seu ritmo.';
+export const metadata: Metadata = {
+  title,
+  description,
+  ...(siteOrigin ? { metadataBase: new URL(siteOrigin), alternates: { canonical: '/' } } : {}),
+  robots: { index: true, follow: true },
+  openGraph: { title, description, type: 'website', locale: 'pt_BR', siteName: 'Flashi', ...(siteOrigin ? { url: `${siteOrigin}/` } : {}), ...(socialImage ? { images: [{ url: socialImage, width: 1200, height: 630, alt: 'Flashi — estudo que fica' }] } : {}) },
+  twitter: { card: 'summary_large_image', title, description, ...(socialImage ? { images: [socialImage] } : {}) },
+};
 
+const steps = [
+  { number: '01', title: 'Organize por assunto', text: 'Crie decks para separar matérias, idiomas e objetivos de estudo.' },
+  { number: '02', title: 'Crie seus cards', text: 'Registre uma pergunta de um lado e a resposta do outro.' },
+  { number: '03', title: 'Revise no seu ritmo', text: 'Abra sua fila de estudo e acompanhe o que já avançou.' },
+];
 export default function Home() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState('');
-  const [authRequired, setAuthRequired] = useState(false);
-
-  useEffect(() => {
-    getDashboardData()
-      .then(setData)
-      .catch((reason: unknown) => {
-        const requiresAuth = reason instanceof Error && reason.message === 'AUTH_REQUIRED';
-        setAuthRequired(requiresAuth);
-        setError(requiresAuth ? 'Entre na sua conta para carregar seus indicadores.' : 'Não foi possível carregar o dashboard. Tente novamente em instantes.');
-      });
-  }, []);
-
-  const dueCount = data?.dueCards.length ?? 0;
-  const studyHref = data?.nextDeck ? `/study/${data.nextDeck.id}` : '/decks';
-  const greeting = data?.nextDeck ? `Bom dia, ${data.nextDeck.name}` : 'Seu espaço de estudo';
-  const sessionLabel = authRequired ? 'Entrar para estudar' : data?.nextDeck ? 'Começar sessão' : 'Escolher um deck';
-  const sessionHref = authRequired ? '/login' : studyHref;
-
-  return (
-    <AppShell>
-      <Topbar title={greeting} subtitle="Uma visão rápida do que merece sua atenção hoje." />
-      {error && (
-        <div className="notice error" role="alert">
-          <strong>{error}</strong>{' '}
-          {authRequired && <Link href="/login" className="inline-link">Entrar agora</Link>}
-        </div>
-      )}
-
-      <section aria-labelledby="today-title">
-        <div className="section-head compact-head">
-          <div><h2 id="today-title">Seu ritmo hoje</h2><p className="subtitle">Acompanhe o que está pronto para a próxima sessão.</p></div>
-          {data && <SyncBadge />}
-        </div>
-        <div className="grid stats">
-          <article className="card"><div className="stat-label">Cartões para hoje</div><div className="stat-value accent">{data ? dueCount : '—'}</div><div className="stat-label">{data ? `${data.dueNewCount} novos · ${data.dueReviewCount} em revisão` : 'Carregando fila…'}</div></article>
-          <article className="card"><div className="stat-label">Sequência atual</div><div className="stat-value">{data ? `${data.currentStreak} dias` : '—'}</div><div className="stat-label">Melhor: {data ? `${data.bestStreak} dias` : '—'}</div></article>
-          <article className="card"><div className="stat-label">Tempo estudado</div><div className="stat-value">{data ? formatMinutes(data.weeklyTimeMs) : '—'}</div><div className="stat-label">Últimos 7 dias</div></article>
-          <article className="card"><div className="stat-label">XP total</div><div className="stat-value">{data ? data.xpTotal.toLocaleString('pt-BR') : '—'}</div><div className="progress" role="progressbar" aria-label="Progresso para o próximo marco de XP" aria-valuemin={0} aria-valuemax={1000} aria-valuenow={data ? data.xpTotal % 1000 : 0}><span style={{ width: `${Math.min((data?.xpTotal ?? 0) % 1000 / 10, 100)}%` }} /></div></article>
-        </div>
-      </section>
-
-      <section aria-labelledby="continue-title">
-        <div className="section-head"><h2 id="continue-title">Continue estudando</h2></div>
-        <div className="card next-session">
-          <div><div className="eyebrow">Próxima sessão</div><h2>{data?.nextDeck?.name ?? 'Escolha um deck para começar'}</h2><p className="subtitle">{data ? `${dueCount} cartões na fila · sua próxima revisão já está pronta.` : authRequired ? 'Entre para acessar seus decks sincronizados.' : 'Carregando fila de estudo…'}</p></div>
-          <Link className="btn" href={sessionHref}>{sessionLabel}<span aria-hidden="true">→</span></Link>
-        </div>
-      </section>
-
-      <section aria-labelledby="decks-title">
-        <div className="section-head"><div><h2 id="decks-title">Seus decks</h2><p className="subtitle">Retome um assunto ou crie uma nova frente de estudo.</p></div><Link className="btn secondary" href="/decks">Ver todos</Link></div>
-        <div className="grid deck-grid">
-          {(data?.decks ?? []).map((deck) => <Link className="card deck-card" href={`/decks/${deck.id}`} key={deck.id}><div><div className="deck-top"><div className="deck-icon" aria-hidden="true">✦</div><span className="pill">{deck.visibility}</span></div><h3>{deck.name}</h3><div className="deck-count">{deck.cardCount} cartões</div></div><div><div className="progress" role="progressbar" aria-label={`Progresso de ${deck.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={deck.progress}><span style={{ width: `${deck.progress}%` }} /></div><div className="stat-label" style={{ marginTop: 8 }}>{deck.progress}% revisado · {deck.newCount} novos</div></div></Link>)}
-        </div>
-        {data && data.decks.length === 0 && <div className="card empty-state"><strong>Seu primeiro deck começa aqui.</strong><span>Crie uma coleção para transformar suas notas em sessões de revisão.</span><br /><Link className="btn" href="/decks/new">Criar meu primeiro deck</Link></div>}
-      </section>
-
-      {data && <section className="card performance-card" aria-labelledby="performance-title"><div className="stat-label" id="performance-title">Desempenho nos últimos 7 dias</div><div className="stat-value">{data.weeklyAccuracy}% de precisão</div><div className="stat-label">{data.weeklyCards} cartões estudados</div></section>}
-    </AppShell>
-  );
+  return <main className="landing-page">
+    <header className="landing-header">
+      <Link href="/" className="brand" aria-label="Flashi, página inicial">flash<span>i</span></Link>
+      <nav aria-label="Navegação pública"><Link href="#como-funciona">Como funciona</Link><Link href="#para-quem">Para quem</Link><Link href="/login">Entrar</Link><Link className="btn landing-header-cta" href="/register">Criar conta</Link></nav>
+    </header>
+    <section className="landing-hero" aria-labelledby="landing-title">
+      <div className="landing-copy"><p className="eyebrow">Aprendizagem ativa, um card por vez</p><h1 id="landing-title">Estude um pouco hoje.<br /><span>Lembre por mais tempo.</span></h1><p className="landing-lead">Transforme seus assuntos em flashcards, acompanhe as revisões e construa uma rotina que cabe no seu dia.</p><div className="landing-actions"><Link href="/register" className="btn">Começar a estudar <span aria-hidden="true">→</span></Link><Link href="/login" className="btn secondary">Já tenho uma conta</Link></div><p className="landing-note">Seu próximo passo: crie um deck e adicione o primeiro card.</p></div>
+      <div className="landing-preview" aria-label="Exemplo de um flashcard do Flashi"><div className="preview-top"><span className="preview-dot" /><span>SESSÃO DE ESTUDO</span><span className="preview-count">01 / 12</span></div><div className="preview-card"><span className="preview-label">PERGUNTA</span><p>Qual é a ideia principal que você quer lembrar?</p><div className="preview-divider" /><span className="preview-label">RESPOSTA</span><p className="preview-answer">Uma resposta curta, escrita por você, para revisar no momento certo.</p></div><div className="preview-progress"><span style={{ width: '42%' }} /></div><p className="preview-caption">Uma pergunta por vez. Seu progresso fica claro.</p></div>
+    </section>
+    <section className="landing-benefits" id="para-quem" aria-label="Benefícios do Flashi"><article><span className="landing-symbol" aria-hidden="true">↻</span><h2>Revisões com intenção</h2><p>Volte aos seus cards e mantenha o estudo ativo em vez de apenas reler suas anotações.</p></article><article><span className="landing-symbol" aria-hidden="true">▤</span><h2>Assuntos organizados</h2><p>Separe matérias, idiomas e metas em decks fáceis de encontrar e continuar.</p></article><article><span className="landing-symbol" aria-hidden="true">↗</span><h2>Progresso visível</h2><p>Acompanhe suas sessões e entenda o que já estudou, sem perder de vista o próximo passo.</p></article></section>
+    <section className="landing-steps" id="como-funciona" aria-labelledby="steps-title"><div className="section-head"><div><p className="eyebrow">Simples para começar</p><h2 id="steps-title">Do primeiro deck à próxima revisão</h2></div><Link href="/register" className="inline-link">Criar minha conta →</Link></div><div className="landing-step-grid">{steps.map((step) => <article className="card landing-step" key={step.number}><span className="step-number">{step.number}</span><h3>{step.title}</h3><p>{step.text}</p></article>)}</div></section>
+    <section className="landing-final"><div><p className="eyebrow">Comece pelo que quer aprender</p><h2>Um bom hábito começa com um card.</h2></div><Link href="/register" className="btn">Criar meu primeiro deck <span aria-hidden="true">→</span></Link></section>
+    <footer className="landing-footer"><Link className="brand" href="/" aria-label="Flashi, página inicial">flash<span>i</span></Link><span>Estudo que fica.</span><div><Link href="/login">Entrar</Link><Link href="/register">Criar conta</Link><Link href="/dashboard">Abrir o app</Link></div></footer>
+  </main>;
 }

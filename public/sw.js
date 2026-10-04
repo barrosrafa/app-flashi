@@ -1,6 +1,7 @@
-const CACHE_NAME = 'flashi-shell-v2';
+const CACHE_NAME = 'flashi-shell-v3';
 const APP_SHELL = [
   '/',
+  '/dashboard',
   '/decks',
   '/decks/new',
   '/analytics',

@@ -7,21 +7,47 @@ type RouteExpectation = {
 };
 
 const routes: RouteExpectation[] = [
-  { path: '/', heading: /Seu espaço de estudo|Bom dia,/ },
+  { path: '/', heading: 'Estude um pouco hoje.' },
+  { path: '/dashboard', heading: 'Pronto para estudar?' },
   { path: '/decks', heading: 'Meus decks' },
   { path: '/decks/new', heading: 'Novo deck' },
-  { path: '/decks/idiomas', heading: 'Inglês para concursos' },
+  { path: '/decks/idiomas', heading: 'Deck' },
   { path: '/decks/idiomas/cards', heading: 'Gerenciar cards' },
   { path: '/study/idiomas', heading: 'Sessão de estudo' },
   { path: '/study/demo', heading: 'Sessão de estudo' },
-  { path: '/exams', heading: 'Exames', exact: true },
+  { path: '/study', heading: 'Estudar' },
+  { path: '/exams', heading: 'Metas de estudo', exact: true },
   { path: '/analytics', heading: 'Desempenho' },
   { path: '/profile', heading: 'Seu perfil', exact: true },
   { path: '/tools', heading: 'Ferramentas avançadas' },
   { path: '/login', heading: 'Seu próximo cartão começa aqui.' },
   { path: '/register', heading: 'Aprenda algo hoje.' },
+  { path: '/forgot-password', heading: 'Vamos recuperar sua conta.' },
+  { path: '/reset-password', heading: 'Escolha uma senha nova.' },
 ];
 
+test('landing pública entrega metadados, destino de cadastro e SEO técnico', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle(/Flashi/);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /flashcards/i);
+  const canonical = new URL((await page.locator('link[rel="canonical"]').getAttribute('href')) ?? '');
+  const socialUrl = new URL((await page.locator('meta[property="og:url"]').getAttribute('content')) ?? '');
+  expect(socialUrl.origin).toBe(canonical.origin);
+  expect(socialUrl.pathname).toBe('/');
+  await expect(page.getByRole('navigation', { name: 'Navegação pública' }).getByRole('link', { name: 'Criar conta' })).toBeVisible();
+  const robots = await page.request.get('/robots.txt');
+  expect(robots.ok()).toBeTruthy();
+  expect(await robots.text()).toContain('Disallow: /dashboard');
+  const sitemap = await page.request.get('/sitemap.xml');
+  expect(sitemap.ok()).toBeTruthy();
+});
+test('PWA aponta para o app e tem os ícones instaláveis', async ({ page }) => {
+  const manifest = await page.request.get('/manifest.webmanifest');
+  expect(manifest.ok()).toBeTruthy();
+  const value = await manifest.json();
+  expect(value.start_url).toBe('/dashboard');
+  expect(value.icons).toEqual(expect.arrayContaining([expect.objectContaining({ sizes: '192x192' }), expect.objectContaining({ sizes: '512x512', purpose: 'maskable' })]));
+});
 test.describe('rotas principais', () => {
   for (const route of routes) {
     test(`${route.path} abre sem erro de aplicação`, async ({ page }) => {
@@ -47,8 +73,8 @@ test('prévia de estudo completa o fluxo frente, verso e avaliação', async ({ 
   await expect(page.getByRole('heading', { name: 'Sessão de estudo' })).toBeVisible();
   await page.getByRole('button', { name: /Revelar resposta/ }).click();
   await expect(page.getByRole('heading', { name: 'Como foi sua lembrança?' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Bom, próxima revisão/ })).toBeVisible();
-  await page.getByRole('button', { name: /Bom, próxima revisão/ }).click();
+  await expect(page.getByRole('button', { name: 'Bom', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Bom', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Sessão concluída');
 });
 
@@ -70,11 +96,13 @@ test('app shell abre offline depois de aquecer o service worker', async ({ brows
     await navigator.serviceWorker.ready;
   });
   await page.reload();
-  await expect(page.getByRole('heading', { name: /Seu espaço de estudo|Bom dia,/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Estude um pouco hoje.' })).toBeVisible();
+  await page.goto('/dashboard');
+  await expect(page.getByRole('heading', { name: 'Pronto para estudar?' })).toBeVisible();
 
   await context.setOffline(true);
-  await page.goto('/decks');
-  await expect(page.getByRole('heading', { name: 'Meus decks' })).toBeVisible();
+  await page.goto('/dashboard');
+  await expect(page.getByRole('heading', { name: 'Pronto para estudar?' })).toBeVisible();
 
   await context.setOffline(false);
   await context.close();
@@ -91,11 +119,12 @@ test.describe('fluxo autenticado opcional', () => {
     await page.getByLabel('E-mail').fill(e2eEmail!);
     await page.getByLabel('Senha').fill(e2ePassword!);
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByRole('heading', { name: /Seu espaço de estudo|Bom dia,/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Pronto para estudar?' })).toBeVisible();
 
     const deckName = `Deck E2E ${Date.now()}`;
     await page.goto('/decks/new');
     await page.getByLabel('Nome do deck').fill(deckName);
+    await page.getByText('Mais opções (descrição e organização)').click();
     await page.getByLabel('Descrição (opcional)').fill('Criado pela suíte E2E e2e');
     await page.getByRole('button', { name: 'Criar deck' }).click();
     await expect(page.getByRole('heading', { name: 'Gerenciar cards' })).toBeVisible();
@@ -107,4 +136,94 @@ test.describe('fluxo autenticado opcional', () => {
     await expect(page.getByRole('status')).toContainText(/Card inserido/);
     await expect(page.getByText('Qual é o objetivo do teste E2E?')).toBeVisible();
   });
+});
+
+test('landing e app não transbordam entre 320 e 1280 px', async ({ page }) => {
+  for (const width of [320, 375, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [path, heading] of [['/', 'Estude um pouco hoje.'], ['/dashboard', 'Pronto para estudar?']]) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${path} em ${width}px`).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test('navegação móvel mantém cinco destinos principais e revela as opções secundárias', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/dashboard');
+  const nav = page.getByRole('navigation', { name: 'Navegação principal' });
+  await expect(nav).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(nav.getByRole('link')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Mais opções' }).click();
+  await expect(page.getByRole('button', { name: 'Fechar menu' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Criar deck' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Perfil', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Mais opções' })).toHaveAttribute('aria-expanded', 'false');
+});
+
+const secondaryRoutes = [
+  '/import/ai-ingest', '/import/anki', '/export/anki', '/import/deck', '/import/url',
+  '/occlusion', '/profile/badges', '/settings/fsrs-optimize', '/tools/mcp',
+  '/decks/idiomas/notes', '/decks/idiomas/occlusion/new', '/socratic', '/study/search',
+  '/media/demo', '/templates', '/templates/demo', '/socratic/demo', '/leaderboard',
+];
+
+test.describe('todas as telas secundárias abrem sem erro fatal', () => {
+  for (const route of secondaryRoutes) {
+    test(route, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      const response = await page.goto(route);
+      expect(response?.status() ?? 0).toBeLessThan(500);
+      await expect(page.locator('h1').first()).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
+});
+
+test('controles de autenticação e divulgação avançada funcionam sem submeter dados remotos', async ({ page }) => {
+  await page.goto('/login');
+  const password = page.getByLabel('Senha');
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Mostrar senha' }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Ocultar senha' }).click();
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('link', { name: 'Esqueci minha senha' }).click();
+  await expect(page.getByRole('heading', { name: 'Vamos recuperar sua conta.' })).toBeVisible();
+  await page.getByRole('link', { name: 'Voltar para entrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Seu próximo cartão começa aqui.' })).toBeVisible();
+
+  await page.goto('/reset-password');
+  await page.getByLabel('Nova senha').fill('senha-segura-123');
+  await page.getByLabel('Confirmar senha').fill('senha-diferente-456');
+  await page.getByRole('button', { name: 'Atualizar senha' }).click();
+  await expect(page.locator('p.notice[role="alert"]')).toContainText('As senhas não são iguais');
+});
+
+test('formulário simplificado revela campos opcionais somente quando solicitado', async ({ page }) => {
+  await page.goto('/decks/new');
+  const description = page.getByLabel('Descrição (opcional)');
+  await expect(description).toBeHidden();
+  await page.getByText('Mais opções (descrição e organização)').click();
+  await expect(description).toBeVisible();
+});
+
+test('estados sem sessão não sugerem dados zerados nem preferências editáveis', async ({ page }) => {
+  await page.goto('/dashboard');
+  await expect(page.locator('.notice[role="alert"]')).toContainText('Entre na sua conta');
+  await expect(page.getByText('Carregando fila…')).toBeHidden();
+
+  await page.goto('/decks');
+  await expect(page.locator('.notice[role="alert"]')).toContainText('Entre na sua conta');
+  await expect(page.getByRole('heading', { name: 'Sua biblioteca' })).toContainText('—');
+  await expect(page.getByText('Sua biblioteca (0)')).toHaveCount(0);
+
+  await page.goto('/profile');
+  await expect(page.getByRole('status').getByText('Entre na sua conta para editar o perfil.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Guardar preferências|Salvar preferências/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Entrar' }).first()).toBeVisible();
 });

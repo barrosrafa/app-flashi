@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 import { SyncWorkerRegister } from '../components/SyncWorkerRegister';
@@ -6,6 +6,7 @@ import { EdgeErrorNotice } from '../components/EdgeErrorNotice';
 import { ThemeProvider } from '../lib/theme/ThemeProvider';
 import { LanguageProvider } from '../contexts/LanguageContext';
 
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#080B14' };
 export const metadata: Metadata = {
   title: {
     default: 'Flashi — Estudo que fica',

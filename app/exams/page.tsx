@@ -19,7 +19,7 @@ function isPriority(value: string): value is ExamPriority {
 }
 
 export default function Exams() {
-  if (!isEnabled('exams')) return <AppShell><Topbar title="Exames" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
+  if (!isEnabled('exams')) return <AppShell><Topbar title="Metas de estudo" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
   const [decks, setDecks] = useState<Deck[]>([]);
   const [exams, setExams] = useState<DeckExam[]>([]);
   const [message, setMessage] = useState('');
@@ -33,7 +33,7 @@ export default function Exams() {
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-          ? 'Entre na sua conta para configurar exames.'
+          ? 'Entre na sua conta para configurar metas.'
           : 'Não foi possível carregar decks e exames.');
       });
   }, []);
@@ -47,40 +47,40 @@ export default function Exams() {
     const priorityValue = String(form.get('priority_level') ?? '');
 
     if (!deckId || !examName || !targetDate || !isPriority(priorityValue)) {
-      setMessage('Preencha todos os campos do exame.');
+      setMessage('Preencha todos os campos da meta.');
       return;
     }
 
     try {
       const created = await createDeckExam(deckId, examName, targetDate, priorityValue);
       setExams((current) => [created, ...current]);
-      setMessage('Exame sincronizado com o Supabase.');
+      setMessage('Meta criada e salva.');
       event.currentTarget.reset();
     } catch (reason: unknown) {
       setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
-        ? 'Entre na sua conta para agendar um exame.'
-        : 'Não foi possível salvar o exame.');
+        ? 'Entre na sua conta para criar uma meta.'
+        : 'Não foi possível salvar a meta.');
     }
   }
 
   return (
     <AppShell>
-      <Topbar title="Exames" subtitle="Priorize seus decks por data-alvo — não são provas geradas por IA." />
+      <Topbar title="Metas de estudo" subtitle="Organize seus decks de acordo com datas e objetivos importantes." />
       {error && <div className="notice" role="status">{error}</div>}
       <div className="notice" style={{ marginBottom: 18 }}>A agenda de exames reordena sua fila de estudo usando fatores de prioridade do Supabase.</div>
       <div className="card">
         <form className="form" onSubmit={submit}>
-          <div className="field"><label htmlFor="exam_name">Nome do exame</label><input id="exam_name" name="exam_name" required placeholder="Ex.: Concurso TJ" /></div>
+          <div className="field"><label htmlFor="exam_name">Nome da meta</label><input id="exam_name" name="exam_name" required placeholder="Ex.: Concurso TJ" /></div>
           <div className="field"><label htmlFor="deck_id">Deck</label><select id="deck_id" name="deck_id" required defaultValue="">{decks.length ? <><option value="" disabled>Selecione um deck</option>{decks.map((deck) => <option value={deck.id} key={deck.id}>{deck.name}</option>)}</> : <option value="">Nenhum deck disponível</option>}</select></div>
           <div className="field"><label htmlFor="target_date">Data-alvo</label><input id="target_date" name="target_date" required type="date" /></div>
           <div className="field"><label htmlFor="priority_level">Prioridade</label><select id="priority_level" name="priority_level" defaultValue="currently_studying">{priorities.map((priority) => <option value={priority} key={priority}>{priorityLabels[priority]}</option>)}</select></div>
-          <button className="btn" type="submit" disabled={!decks.length}>Agendar exame</button>
+          <button className="btn" type="submit" disabled={!decks.length}>Salvar meta</button>
           {message && <div className="notice" role="status">{message}</div>}
         </form>
       </div>
-      <div className="section-head"><h2>Exames ativos ({exams.length})</h2></div>
+      <div className="section-head"><h2>Metas ativas ({exams.length})</h2></div>
       <div className="grid deck-grid">{exams.map((exam) => <div className="card" key={exam.id}><div className="eyebrow">{priorityLabels[exam.priority_level]}</div><h3>{exam.exam_name}</h3><p className="subtitle">Data-alvo: {exam.target_date}</p></div>)}</div>
-      {!exams.length && !error && <div className="card empty-state">Nenhum exame ativo para os seus decks.</div>}
+      {!exams.length && !error && <div className="card empty-state">Nenhuma meta ativa para os seus decks.</div>}
     </AppShell>
   );
 }

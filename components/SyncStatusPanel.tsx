@@ -23,7 +23,7 @@ export function SyncStatusPanel() {
     try { await flushOutboxQueue(); await executeIncrementalSync(); await refresh(); } finally { setBusy(false); }
   }
   async function retry(id: string) { setBusy(true); try { await retryOutboxItem(id); await refresh(); } finally { setBusy(false); } }
-  const label = !online ? 'Offline' : status.pending ? `${status.pending} pendente(s)` : 'Sincronizado';
+  const label = !online ? 'Offline · dados locais disponíveis' : status.pending ? `${status.pending} alteração(ões) aguardando sincronização` : 'Nenhuma alteração pendente neste dispositivo';
   return <div className="sidebar-sync" aria-live="polite">
     <div className="sidebar-sync-head"><span className={`status-dot ${online ? '' : 'offline'}`} aria-hidden="true" /> <span>{label}</span></div>
     {status.failed > 0 && <button className="link-button" type="button" onClick={() => void retry(status.items.find((item) => item.retries > 0)?.id ?? '')} disabled={busy}>Tentar novamente ({status.failed})</button>}
