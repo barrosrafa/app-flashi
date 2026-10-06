@@ -2,13 +2,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { flushOutboxQueue, getOutboxStatus, retryOutboxItem } from '../lib/db/outbox-queue';
 import { executeIncrementalSync } from '../lib/db/sync-engine';
+import { captureException } from '../lib/observability';
 
 type Status = Awaited<ReturnType<typeof getOutboxStatus>>;
 export function SyncStatusPanel() {
   const [status, setStatus] = useState<Status>({ pending: 0, failed: 0, items: [] });
   const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
-  const refresh = useCallback(async () => setStatus(await getOutboxStatus()), []);
+  const refresh = useCallback(async () => {
+    try {
+      setStatus(await getOutboxStatus());
+    } catch (error) {
+      if (!(error instanceof Error && error.message === 'AUTH_REQUIRED')) captureException(error, { tags: { area: 'sync_status_panel' } });
+      setStatus({ pending: 0, failed: 0, items: [] });
+    }
+  }, []);
   useEffect(() => {
     setOnline(navigator.onLine);
     void refresh();

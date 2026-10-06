@@ -1,12 +1,26 @@
 import { isFeatureEnabled } from '../feature-flags';
 import { executeIncrementalSync } from './sync-engine';
 import { flushOutboxQueue } from './outbox-queue';
+import { captureException } from '../observability';
 
 let stopCurrent: (() => void) | undefined;
 export function startSyncWorker(intervalMs = 60_000) {
   if (typeof window === 'undefined' || !isFeatureEnabled('sync_worker') || stopCurrent) return () => undefined;
   let running = false;
-  const sync = async () => { if (running || !navigator.onLine) return; running = true; try { await flushOutboxQueue(); await executeIncrementalSync(); } finally { running = false; } };
+  const sync = async () => {
+    if (running || !navigator.onLine) return;
+    running = true;
+    try {
+      await flushOutboxQueue();
+      await executeIncrementalSync();
+    } catch (error) {
+      if (!(error instanceof Error && error.message === 'AUTH_REQUIRED')) {
+        captureException(error, { tags: { area: 'sync_worker' } });
+      }
+    } finally {
+      running = false;
+    }
+  };
   const timer = window.setInterval(sync, intervalMs);
   const onOnline = () => void sync();
   const onFocus = () => void sync();
