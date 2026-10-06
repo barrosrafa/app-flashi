@@ -2,6 +2,7 @@ import { invokeEdge } from '../services/http/edge-client';
 import { createClient } from '../supabase/client';
 import { db, SYNC_TABLES, type SyncableRecord, type SyncTableName } from './schema';
 import { recordTelemetry } from './telemetry';
+import { capture, normalizeErrorCode } from '../observability';
 
 type SyncChange = { entity_type: string; entity_key: string; usn: number | string; is_deleted?: boolean; payload?: SyncableRecord | null };
 type SyncResponse = { data?: SyncChange[]; next_usn?: string | number; has_more?: boolean; cursor_commit_rule?: string } | SyncChange[];
@@ -21,6 +22,8 @@ export async function executeIncrementalSync(): Promise<boolean> {
   let cursor = (await db.sync_meta.get(cursorKey))?.value ?? '0';
   let pages = 0;
   let totalChanges = 0;
+  const pendingMutations = await db.outbox.where('user_id').equals(user.id).count();
+  capture('sync_started', { pending_mutations: pendingMutations });
   try {
     do {
       const response = await invokeEdge<SyncResponse>('sync', { body: { last_usn: cursor, limit: 500 } });
@@ -45,10 +48,14 @@ export async function executeIncrementalSync(): Promise<boolean> {
       pages += 1;
       if (!hasMore) break;
     } while (pages < 20);
-    recordTelemetry('sync.success', { duration_ms: Math.round(performance.now() - startedAt), changes: totalChanges, cursor });
+    const durationMs = Math.round(performance.now() - startedAt);
+    recordTelemetry('sync.success', { duration_ms: durationMs, changes: totalChanges, cursor });
+    capture('sync_completed', { synced: totalChanges, failed: 0, duration_ms: durationMs });
     return true;
   } catch (error) {
-    recordTelemetry('sync.failure', { duration_ms: Math.round(performance.now() - startedAt), cursor, message: error instanceof Error ? error.message : 'unknown' });
+    const durationMs = Math.round(performance.now() - startedAt);
+    recordTelemetry('sync.failure', { duration_ms: durationMs, cursor, message: error instanceof Error ? error.message : 'unknown' });
+    capture('sync_failed', { error_code: normalizeErrorCode(error), pending_mutations: pendingMutations });
     return false;
   }
 }
