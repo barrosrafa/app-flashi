@@ -2,9 +2,9 @@ import { createClient, type Tables, type Json, type Updates } from '../supabase/
 
 export type Note = Tables<'notes'>;
 export type NoteClozeDeletion = Tables<'note_cloze_deletions'>;
-export type NoteFields = Record<string, string>;
+export type NoteFields = Record<string, unknown>;
 export type NoteInput = { deckId: string; fields: NoteFields; templateId?: string | null; source?: string | null; sourceFormat?: string };
-function cleanFields(fields: NoteFields): NoteFields { return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key.trim(), String(value ?? '')]).filter(([key]) => key)); }
+function cleanFields(fields: NoteFields): NoteFields { return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key.trim(), value ?? '']).filter(([key]) => key)); }
 async function userId() { const { data, error } = await createClient().auth.getUser(); if (error || !data.user) throw new Error('AUTH_REQUIRED'); return data.user.id; }
 
 export const noteService = {

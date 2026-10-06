@@ -6,6 +6,12 @@ import { isEnabled } from '../../../lib/config/feature-flags';
 import { importDeckService, type ImportFormat, type ImportDeckResult } from '../../../lib/services/import-deck-service';
 
 const formats: ImportFormat[] = ['csv', 'markdown', 'quizlet', 'remnote'];
+function importErrorMessage(reason: unknown) {
+  const code = reason instanceof Error ? reason.message : '';
+  if (code.includes('URL_IMPORT_INVALID')) return 'Insira uma URL completa, por exemplo: https://exemplo.com/conteudo.csv.';
+  if (code.includes('URL_IMPORT_PROTOCOL')) return 'Use um endereço HTTPS (começando por https://) para importar com segurança.';
+  return reason instanceof Error ? reason.message : 'Falha na importação. Tente novamente.';
+}
 
 export default function ImportUrlPage() {
   const [url, setUrl] = useState('');
@@ -26,7 +32,7 @@ export default function ImportUrlPage() {
     try {
       setResult(await importDeckService.fromUrl({ url, deckId, format }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Falha na importação.');
+      setError(importErrorMessage(reason));
     } finally {
       setBusy(false);
     }
