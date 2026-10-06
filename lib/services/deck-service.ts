@@ -78,7 +78,7 @@ export async function softDeleteDeck(deckId: string) {
   if (error) throw error;
 }
 export async function restoreDeck(deckId: string) {
-  const { error } = await createClient().from('decks').update({ deleted_at: null, is_archived: false }).eq('id', deckId);
+  const { error } = await (createClient() as any).rpc('restore_deck', { p_deck_id: deckId });
   if (error) throw error;
 }
 export async function archiveDeck(deckId: string) {

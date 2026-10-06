@@ -28,6 +28,7 @@ export async function listCards(deckId: string): Promise<Flashcard[]> {
     .select('id,note_id,deck_id,fields,card_kind,is_archived,created_at')
     .eq('deck_id', deckId)
     .eq('is_archived', false)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(100);
 

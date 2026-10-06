@@ -43,7 +43,8 @@ export default function Exams() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const deckId = String(form.get('deck_id') ?? '');
     const examName = String(form.get('exam_name') ?? '').trim();
     const targetDate = String(form.get('target_date') ?? '');
@@ -58,7 +59,7 @@ export default function Exams() {
       const created = await createDeckExam(deckId, examName, targetDate, priorityValue);
       setExams((current) => [created, ...current]);
       setMessage('Meta criada e salva.');
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (reason: unknown) {
       setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
         ? 'Entre na sua conta para criar uma meta.'

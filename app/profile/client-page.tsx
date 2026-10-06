@@ -12,7 +12,7 @@ import { useTranslation } from '../../contexts/LanguageContext';
 import type { Database } from '../../src/types/database';
 
 const defaults = { newCardsPerDay: 20, maxReviewsPerDay: 200, algorithm: 'fsrs' as Database['public']['Enums']['srs_algorithm'], learningSteps: [1, 10], relearningSteps: [10], graduating: 1, easy: 4, startingEase: 2.5, dayStartHour: 4, retention: 0.9, maximumInterval: 36500, threshold: 1000, weights: [] as number[], params: {} };
-function csvNumbers(value: string) { return value.split(',').map((item) => Number(item.trim())).filter((item) => Number.isFinite(item)); }
+ function csvNumbers(value: string) { const text = value.trim(); if (!text) return []; const tokens = text.split(',').map((item) => item.trim()); if (tokens.some((item) => !item)) throw new Error('FSRS_WEIGHTS_INVALID'); const numbers = tokens.map(Number); if (numbers.some((item) => !Number.isFinite(item))) throw new Error('FSRS_WEIGHTS_INVALID'); return numbers; }
 
 export default function Profile() {
   const router = useRouter();

@@ -1899,6 +1899,7 @@ export type Database = {
         }[]
       }
       soft_delete_deck: { Args: { p_deck_id: string }; Returns: undefined }
+      restore_deck: { Args: { p_deck_id: string }; Returns: Json }
       sync_session_xp: {
         Args: { p_session_id: string }
         Returns: {

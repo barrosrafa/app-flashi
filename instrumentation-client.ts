@@ -7,10 +7,12 @@ const numberEnv = (name: string, fallback: number) => {
 };
 
 const environment = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production';
+const release = process.env.NEXT_PUBLIC_APP_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'local';
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment,
+  release: `flashi@${release}`,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
   tracesSampleRate: numberEnv('NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE', process.env.NODE_ENV === 'production' ? 0.1 : 1),
   replaysSessionSampleRate: numberEnv('NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE', 0.05),
@@ -36,10 +38,11 @@ if (posthogToken && process.env.NEXT_PUBLIC_POSTHOG_ENABLED !== '0') {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
     defaults: '2026-05-30',
     autocapture: false,
-    capture_pageview: true,
+    capture_pageview: false,
     capture_pageleave: true,
     persistence: 'localStorage+cookie',
     person_profiles: 'identified_only',
+    loaded: (client) => { client.register({ app: 'flashi', app_version: release, environment }); },
     tracing_headers: supabaseHost ? [supabaseHost] : [],
     session_recording: { maskAllInputs: true, blockClass: 'flashi-private-content' },
   });
