@@ -9,7 +9,7 @@ export function SyncWorkerRegister() {
     const supabase = createClient();
     let currentUserId: string | null = null;
     let stopped = false;
-    void supabase.auth.getUser().then(({ data }) => { currentUserId = data.user?.id ?? null; if (!stopped) startSyncWorker(); });
+    void supabase.auth.getUser().then(({ data }) => { currentUserId = data.user?.id ?? null; if (!stopped && data.user) startSyncWorker(); });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUserId = session?.user.id ?? null;
       if (event === 'SIGNED_IN' && currentUserId && currentUserId !== nextUserId) {
