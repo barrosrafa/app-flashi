@@ -4,12 +4,16 @@ import { captureException } from './sentry';
 type SupabaseCategory = 'auth' | 'data' | 'rpc' | 'storage' | 'realtime' | 'edge';
 
 function classify(url: URL): { category: SupabaseCategory; operation: string } | null {
+  const path = url.pathname;
+  // Edge Functions are proxied through the application origin (see
+  // lib/supabase/client.ts). Classify them before the host check so relative
+  // proxied calls are still attributed to the edge category.
+  if (path.startsWith('/functions/v1/')) return { category: 'edge', operation: path.replace('/functions/v1/', '').split('/')[0] || 'unknown' };
   const configured = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!configured) return null;
   let host = '';
   try { host = new URL(configured).host; } catch { return null; }
   if (url.host !== host) return null;
-  const path = url.pathname;
   if (path.startsWith('/auth/v1/')) return { category: 'auth', operation: path.replace('/auth/v1/', '').split('/')[0] || 'unknown' };
   if (path.startsWith('/rest/v1/rpc/')) return { category: 'rpc', operation: path.replace('/rest/v1/rpc/', '').split('/')[0] || 'unknown' };
   if (path.startsWith('/rest/v1/')) return { category: 'data', operation: path.replace('/rest/v1/', '').split('/')[0] || 'unknown' };
@@ -22,7 +26,7 @@ function classify(url: URL): { category: SupabaseCategory; operation: string } |
 export function createObservedFetch(baseFetch: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     if (typeof window === 'undefined') return baseFetch(input, init);
-    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, window.location.origin);
     const target = classify(url);
     if (!target || target.category === 'edge') return baseFetch(input, init);
     const startedAt = performance.now();

@@ -5,6 +5,7 @@ import { AppShell, Topbar } from '../../components/AppShell';
 import { createDeckExam, listDeckExams, type DeckExam, type ExamPriority } from '../../lib/services/exam-service';
 import { listDecks, type Deck } from '../../lib/services/deck-service';
 import { isEnabled } from '../../lib/config/feature-flags';
+import { createExamGoal } from '../../lib/services/exam-goal';
 
 const priorities: ExamPriority[] = ['exam_urgent', 'currently_studying', 'maintaining', 'paused'];
 const priorityLabels: Record<ExamPriority, string> = {
@@ -24,6 +25,7 @@ export default function Exams() {
   const [exams, setExams] = useState<DeckExam[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -43,6 +45,8 @@ export default function Exams() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // F07 — duplo clique não pode criar duas metas iguais.
+    if (submitting) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const deckId = String(form.get('deck_id') ?? '');
@@ -55,16 +59,25 @@ export default function Exams() {
       return;
     }
 
-    try {
-      const created = await createDeckExam(deckId, examName, targetDate, priorityValue);
-      setExams((current) => [created, ...current]);
-      setMessage('Meta criada e salva.');
-      formElement.reset();
-    } catch (reason: unknown) {
+    setSubmitting(true);
+    setMessage('');
+    // F07 — persistência, atualização da lista e limpeza do formulário são
+    // etapas separadas; nenhuma falha de interface pode mascarar um salvamento.
+    const result = await createExamGoal<DeckExam>({
+      create: () => createDeckExam(deckId, examName, targetDate, priorityValue),
+      onCreated: (created) => {
+        setExams((current) => [created, ...current]);
+        setMessage('Meta criada e salva.');
+      },
+      resetForm: () => formElement.reset(),
+    });
+    if (!result.ok) {
+      const reason = result.error;
       setMessage(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
         ? 'Entre na sua conta para criar uma meta.'
         : 'Não foi possível salvar a meta.');
     }
+    setSubmitting(false);
   }
 
   return (
@@ -78,7 +91,7 @@ export default function Exams() {
           <div className="field"><label htmlFor="deck_id">Deck</label><select id="deck_id" name="deck_id" required defaultValue="">{decks.length ? <><option value="" disabled>Selecione um deck</option>{decks.map((deck) => <option value={deck.id} key={deck.id}>{deck.name}</option>)}</> : <option value="">Nenhum deck disponível</option>}</select></div>
           <div className="field"><label htmlFor="target_date">Data-alvo</label><input id="target_date" name="target_date" required type="date" /></div>
           <div className="field"><label htmlFor="priority_level">Prioridade</label><select id="priority_level" name="priority_level" defaultValue="currently_studying">{priorities.map((priority) => <option value={priority} key={priority}>{priorityLabels[priority]}</option>)}</select></div>
-          <button className="btn" type="submit" disabled={!decks.length}>Salvar meta</button>
+          <button className="btn" type="submit" disabled={!decks.length || submitting}>{submitting ? 'Salvando…' : 'Salvar meta'}</button>
           {message && <div className="notice" role="status">{message}</div>}
         </form>
       </div>
