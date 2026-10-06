@@ -1,5 +1,6 @@
 import type { Json } from '../../src/types/database';
 import { invokeUserFunction, type EdgeError } from './edge-service';
+import { edgeErrorBus } from './http/event-bus';
 
 export type SearchMode = 'semantic' | 'lexical';
 export type SearchResult = {
@@ -41,11 +42,13 @@ export async function searchNotes(
     });
   } catch (reason) {
     if (mode === 'semantic' && canFallbackToLexical(reason)) {
-      return invokeUserFunction<SearchResponse>('semantic-search', {
+      const fallback = await invokeUserFunction<SearchResponse>('semantic-search', {
         query: cleanQuery,
         limit: Math.max(1, Math.min(limit, 100)),
         mode: 'lexical',
       });
+      edgeErrorBus.clear();
+      return fallback;
     }
     throw reason;
   }
