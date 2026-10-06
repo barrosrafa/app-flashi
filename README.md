@@ -1106,3 +1106,69 @@ pnpm build
 ```
 
 Para testar a jornada completa, configure `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, aplique as migrações do backend e execute `pnpm dev`.
+
+
+## 34. Auditoria de regressão, browser e observabilidade — 06/10/2026
+
+Esta seção registra a rodada repetida após a correção do erro prioritário de sincronização e complementa as seções históricas anteriores. O checkout validado contém o commit `222eb5d` (`fix: tratar sessão ausente no monitor de sync`). A documentação separa fatos verificados de capacidades que dependem de secrets, tráfego ou ingestão externa.
+
+### 34.1 Resultado Playwright
+
+`pnpm test:e2e` foi executado novamente em 06/10/2026. O resultado foi **52 cenários aprovados, 1 ignorado e 0 falhas**. O cenário ignorado é o fluxo autenticado que cria deck e card no Supabase; ele exige `E2E_EMAIL` e `E2E_PASSWORD` e, por segurança, não foi executado sem uma conta de teste dedicada. O resultado não deve ser interpretado como aprovação de mutações reais em produção.
+
+A suíte cobre as 48 áreas da auditoria por grupos de comportamento: landing/SEO, manifest/PWA, tema claro/escuro, i18n incremental, shell e navegação, dashboard, decks, cards, estudo real e demo, exames, analytics, perfil, onboarding, ferramentas, importação/exportação, mídia, oclusão, templates, Socrático, ranking, MCP, responsividade, offline, autenticação, estados sem sessão e telas secundárias. O número de testes é superior a 48 porque um mesmo achado possui verificações independentes de rota, estado, contrato e interação.
+
+Também foram confirmados os checks unitários e de tipos da rodada anterior: `pnpm typecheck` passou; `pnpm test` passou com 42 testes; `git diff --check` não encontrou whitespace inválido. Para reproduzir uma validação completa:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm lint
+NEXT_PUBLIC_SITE_URL=https://app-flashi.vercel.app pnpm build
+```
+
+### 34.2 Browser de produção
+
+Depois do deployment, o browser abriu `https://app-flashi.vercel.app/dashboard` com sessão autenticada e exibiu navegação, próxima sessão, decks e indicadores reais. A mensagem `Não foi possível carregar o dashboard` não reapareceu. O painel mostrou `Nenhuma alteração pendente neste dispositivo`, e a leitura do console retornou **sem saída**.
+
+A correção impede que o `SyncStatusPanel` chame o acesso à outbox como se toda rota tivesse sessão. Em páginas públicas ou durante expiração de sessão, `AUTH_REQUIRED` é estado esperado, não uma falha de rede e não deve virar `unhandledrejection`. Falhas inesperadas continuam sendo capturadas com código, etapa e request ID.
+
+### 34.3 Contrato do sync e outbox
+
+O ciclo implementado deve ser entendido na seguinte ordem: identificar o usuário; interromper silenciosamente se não houver sessão; ler somente a partição da conta atual; emitir início com a contagem real de pendências; enviar mutações idempotentes; fazer um único pull incremental; aplicar alterações e tombstones; emitir conclusão com contagens e duração; e, em erro inesperado, emitir falha e capturar a exceção.
+
+`lib/db/sync-worker.ts` não pode lançar `AUTH_REQUIRED` para o shell global. `lib/db/outbox-queue.ts` exige usuário e filtra por conta. O logout limpa o namespace local antes de outra conta utilizar o dispositivo. Não adicione outro pull ao worker sem revisar o cursor USN: dois pulls no mesmo ciclo podem duplicar requests e aplicar tombstones fora de ordem.
+
+### 34.4 Observabilidade frontend
+
+`instrumentation-client.ts` inicializa Sentry e PostHog uma vez. `ObservabilityBridge` é a origem de page views e interações. O PostHog está com `autocapture: false` e `capture_pageview: false`, portanto páginas não devem chamar captura automática além do bridge. A rede Supabase é classificada em `auth`, `data`, `rpc`, `storage`, `realtime` e `edge`; chamadas Edge não são recapturadas pelo wrapper de baixo nível para evitar duplicidade.
+
+Os eventos tipados em `lib/observability/events.ts` incluem `page_viewed`, `ui_interaction`, `client_error`, `api_request_started`, `api_request_completed`, `supabase_request_completed`, `sync_started`, `sync_completed`, `sync_failed`, eventos de ativação, estudo, criação de deck/card e ingestão AI. Propriedades permitidas são status, duração, contagens, buckets, rota normalizada, função, categoria, método, tentativa, código e request ID. Conteúdo de notes/cards, prompt, response, e-mail, cookie, token, authorization header e chave de idempotência não devem ser enviados.
+
+### 34.5 Sentry: cobertura e evidência
+
+O cliente e o servidor Next usam `NEXT_PUBLIC_SENTRY_DSN`, ambiente e release `flashi@<APP_VERSION|VERCEL_GIT_COMMIT_SHA|local>`. A configuração usa traces amostrados, replay de erro completo, replay de sessão amostrado e máscara de todo texto/mídia. `beforeSend` remove headers de autorização e cookies. O backend recebe configuração separada nas Edge Functions.
+
+A organização Sentry autorizada é `flashi`, na região `https://us.sentry.io`, com o projeto `javascript-nextjs`. Nesta rodada foram consultadas organizações, projetos, errors, logs, traces, replays e metrics. Nas últimas 24 horas, as buscas de produção por `AUTH_REQUIRED`, `sync`, `dashboard`, `outbox` e PostHog não retornaram erros, logs error/warn, traces lentos ou replays com erro/rage click. A consulta de métricas `error.count` e `http.request.duration` também não retornou série para os filtros utilizados.
+
+Isso significa **nenhuma ocorrência encontrada no intervalo consultado**, e não “DSN comprovado em todos os ambientes”. Para testar uma nova rota sem poluir produção, use staging ou uma chamada não destrutiva autorizada, capture o `X-Request-Id`, procure primeiro errors, depois logs, traces, metrics e replays, e nunca cole tokens ou payloads privados em uma issue.
+
+### 34.6 PostHog: capacidades e fatos observados
+
+O SDK público usa `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`, `NEXT_PUBLIC_POSTHOG_HOST` e `NEXT_PUBLIC_POSTHOG_ENABLED`; o host padrão é `https://us.i.posthog.com`. Identificação usa somente o UUID do usuário autenticado e perfis são `identified_only`. Inputs e conteúdo privado são mascarados/bloqueados. A camada server-side das Edge Functions usa variáveis não públicas.
+
+O schema PostHog consultado confirmou as superfícies `events`, `logs`, `posthog.trace_spans` e `posthog.metrics`. A taxonomia dos últimos 30 dias mostrou eventos recentes `supabase_request_completed`, `page_viewed`, `ui_interaction`, `api_request_started`, `$web_vitals`, `$identify`, `api_request_completed` e `client_error`. `sync_started`, `sync_completed` e `sync_failed` estão instrumentados no código, mas não apareceram nesse snapshot; a documentação não afirma que foram coletados até que uma sessão real de sync seja ingerida e pesquisada.
+
+As Edge Functions emitem `edge_request_completed`, `edge_request_failed`, `edge_request_error`, `dependency_request_completed` e `dependency_request_failed` quando `POSTHOG_PROJECT_TOKEN` existe e `POSTHOG_SERVER_ENABLED` não é `0`. A função de sanitização remove chaves sensíveis antes do envio. Um evento instrumentado é um contrato de código; um evento observado é um fato do projeto PostHog. Sempre diferencie os dois.
+
+### 34.7 Diagnóstico e manutenção
+
+Para uma falha nova, capture somente rota, status, código, função, duração, request ID, quantidade de pendências e cursor. Compare preflight CORS, status da Edge Function, logs do Supabase, Sentry e PostHog nesta ordem. `401` indica sessão/token; `403` indica autorização; `409` indica conflito/idempotência; `429` exige retry limitado; `5xx` exige diagnóstico de backend. A ausência de sessão nas rotas públicas não deve ser alertada como erro.
+
+Antes de alterar observabilidade, mantenha `AnalyticsEventMap`, a inicialização única do SDK e o bloqueio de PII. Antes de cada release, execute typecheck, testes, Playwright, lint e build; depois, confirme o deployment, abra uma rota autenticada no browser, leia console e consulte Sentry/PostHog após a janela de ingestão. Não crie dashboards ou alertas com campos de conteúdo.
+
+### 34.8 Estado documental desta rodada
+
+O frontend estava limpo antes desta atualização documental e o commit de correção do sync já estava publicado. Esta seção foi adicionada para tornar a manutenção futura auditável: ela registra a execução Playwright/browser, o projeto Sentry encontrado, as superfícies PostHog confirmadas e a diferença entre eventos implementados e eventos observados. Nenhuma credencial foi colocada no README.
