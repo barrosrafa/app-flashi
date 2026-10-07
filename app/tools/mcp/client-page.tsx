@@ -69,8 +69,8 @@ export default function McpToolsPage() {
     <section className="card form">
       <h2>Servidor MCP externo</h2>
       <p className="subtitle">A conexão executa initialize, notifications/initialized e tools/list de verdade. Endpoint e token ficam apenas nesta sessão.</p>
-      <label>Endpoint HTTPS<input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://mcp.exemplo.com/mcp" autoComplete="off" /></label>
-      <label>Token (não persistido)<input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token do servidor externo" autoComplete="new-password" /></label>
+      <label htmlFor="mcp-endpoint">Endpoint HTTPS</label><input id="mcp-endpoint" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://mcp.exemplo.com/mcp" autoComplete="off" />
+      <label htmlFor="mcp-token">Token (não persistido)</label><input id="mcp-token" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token do servidor externo" autoComplete="new-password" />
       <button className="btn secondary" type="button" onClick={() => void connectExternal()} disabled={busy || !endpoint.trim() || !token.trim()}>{busy ? 'Conectando…' : 'Conectar e listar tools'}</button>
       {externalStatus && <p className="notice" role="status">{externalStatus}</p>}
       {externalTools.length > 0 && <div><h3>Tools anunciadas pelo servidor externo</h3><ul>{externalTools.map((tool) => <li key={tool.name}><strong>{tool.name}</strong>{tool.description ? ` — ${tool.description}` : ''}</li>)}</ul></div>}
@@ -78,9 +78,9 @@ export default function McpToolsPage() {
     <section className="card form">
       <h2>Ferramentas internas Flashi</h2>
       <p className="subtitle">Estas ferramentas usam a sessão Flashi e não são o servidor MCP externo acima.</p>
-      <label>Ferramenta<select value={selected} onChange={(e) => setSelected(e.target.value)}>{internalTools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>
-      {selected === 'search_notes' && <><label>Consulta<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Termo de pesquisa" /></label><label>Limite<input type="number" min="1" max="100" value={limit} onChange={(e) => setLimit(e.target.value)} /></label></>}
-      {selected === 'create_note' && <><label>Deck de destino<select value={deckId} onChange={(e) => setDeckId(e.target.value)}><option value="">Selecione um deck</option>{decks.map((deck)=><option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>)}</select></label><label>Frente<input value={front} onChange={(e) => setFront(e.target.value)} /></label><label>Verso<textarea value={back} onChange={(e) => setBack(e.target.value)} /></label></>}
+      <label htmlFor="mcp-tool">Ferramenta</label><select id="mcp-tool" value={selected} onChange={(e) => setSelected(e.target.value)}>{internalTools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select>
+      {selected === 'search_notes' && <><label htmlFor="mcp-query">Consulta</label><input id="mcp-query" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Termo de pesquisa" /><label htmlFor="mcp-limit">Limite</label><input id="mcp-limit" type="number" min="1" max="100" value={limit} onChange={(e) => setLimit(e.target.value)} /></>}
+      {selected === 'create_note' && <><label htmlFor="mcp-deck">Deck de destino</label><select id="mcp-deck" value={deckId} onChange={(e) => setDeckId(e.target.value)}><option value="">Selecione um deck</option>{decks.map((deck)=><option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>)}</select><label htmlFor="mcp-front">Frente</label><input id="mcp-front" value={front} onChange={(e) => setFront(e.target.value)} /><label htmlFor="mcp-back">Verso</label><textarea id="mcp-back" value={back} onChange={(e) => setBack(e.target.value)} /></>}
       <button className="btn" type="button" onClick={() => void callInternal()} disabled={busy || (selected === 'search_notes' ? query.trim().length < 1 : !deckId || !front.trim() || !back.trim())}>{busy ? 'A executar…' : 'Executar ferramenta interna'}</button>
       <pre aria-live="polite">{result}</pre>
     </section>
