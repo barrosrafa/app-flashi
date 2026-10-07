@@ -15,6 +15,8 @@ const eslintConfig = [
   },
   globalIgnores([
     '.next/**',
+    'backend-source/**',
+    'ci-database/**',
     'out/**',
     'build/**',
     'next-env.d.ts',
