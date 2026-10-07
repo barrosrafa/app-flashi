@@ -48,11 +48,13 @@ jobs:
           umask 077
           supabase status --workdir ci-database -o env > /tmp/flashi-ci-env
           node scripts/create-ci-fixture.mjs
-          supabase functions serve --workdir ci-database > /tmp/flashi-ci-functions.log 2>&1 &
+          supabase functions serve --workdir ci-database --import-map ci-database/supabase/functions/deno.json > /tmp/flashi-ci-functions.log 2>&1 &
+          sleep 5
+          node scripts/check-ci-function.mjs || { node scripts/safe-ci-log.mjs /tmp/flashi-ci-functions.log; exit 1; }
       - name: Build actual application and browser
         run: pnpm build && pnpm exec playwright install --with-deps chromium
       - name: Mandatory login, deck/card, persisted review, replay and RLS checks
-        run: pnpm exec playwright test tests/e2e/f48-critical.spec.ts --project=chromium
+        run: pnpm exec playwright test tests/e2e/f48-critical.spec.ts --project=chromium || { node scripts/safe-ci-log.mjs /tmp/flashi-ci-functions.log; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

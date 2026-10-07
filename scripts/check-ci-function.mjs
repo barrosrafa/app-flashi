@@ -1,0 +1,10 @@
+import {readFile} from 'node:fs/promises';
+import {createClient} from '@supabase/supabase-js';
+const fixture=JSON.parse(await readFile('tests/.ci-fixture.json','utf8'));
+const api=createClient(fixture.url,fixture.anonKey,{auth:{persistSession:false}});
+const login=await api.auth.signInWithPassword({email:fixture.userA,password:fixture.password});
+if(login.error)throw new Error('CI_CANARY_AUTH_FAILED');
+const result=await fetch(`${fixture.url}/functions/v1/fsrs-review`,{method:'POST',headers:{apikey:fixture.anonKey,authorization:`Bearer ${login.data.session.access_token}`,'content-type':'application/json'},body:'{}'});
+const body=await result.json().catch(()=>({code:'NON_JSON'}));
+console.log(JSON.stringify({stage:'authenticated_edge_canary',status:result.status,code:body.code??null}));
+if(result.status!==400||body.code!=='VALIDATION_ERROR')throw new Error('CI_EDGE_RUNTIME_NOT_READY');
