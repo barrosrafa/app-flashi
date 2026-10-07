@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AppShell, Topbar } from '../../components/AppShell';
 import { cancelDeckExam, completeDeckExam, createDeckExam, listDeckExams, pauseDeckExam, reactivateDeckExam, removeDeckExam, updateDeckExam, type DeckExam, type ExamPriority } from '../../lib/services/exam-service';
 import { listDecks, type Deck } from '../../lib/services/deck-service';
@@ -32,6 +32,7 @@ export default function Exams() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submissionLock = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDeckId, setEditDeckId] = useState('');
@@ -58,7 +59,7 @@ export default function Exams() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // F07 — duplo clique não pode criar duas metas iguais.
-    if (submitting) return;
+    if (submissionLock.current) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const deckId = String(form.get('deck_id') ?? '');
@@ -71,6 +72,7 @@ export default function Exams() {
       return;
     }
 
+    submissionLock.current = true;
     setSubmitting(true);
     setMessage('');
     // F07 — persistência, atualização da lista e limpeza do formulário são
@@ -78,7 +80,7 @@ export default function Exams() {
     const result = await createExamGoal<DeckExam>({
       create: () => createDeckExam(deckId, examName, targetDate, priorityValue),
       onCreated: (created) => {
-        setExams((current) => [created, ...current]);
+        setExams((current) => [created, ...current.filter((item) => item.id !== created.id)]);
         setMessage('Meta criada e salva.');
       },
       resetForm: () => formElement.reset(),
@@ -89,6 +91,7 @@ export default function Exams() {
         ? 'Entre na sua conta para criar uma meta.'
         : 'Não foi possível salvar a meta.');
     }
+    submissionLock.current = false;
     setSubmitting(false);
   }
 
