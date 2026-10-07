@@ -1,5 +1,5 @@
 import { createClient, isSupabaseConfigured, type Tables } from '../supabase/client';
-import type { Database, Json } from '../../src/types/database';
+import type { Database } from '../../src/types/database';
 import { db } from '../db/schema';
 
 export type Deck = Pick<Tables<'decks'>, 'id' | 'user_id' | 'name' | 'description' | 'visibility' | 'parent_deck_id' | 'deleted_at' | 'is_archived'> & {
@@ -11,9 +11,6 @@ export type Deck = Pick<Tables<'decks'>, 'id' | 'user_id' | 'name' | 'descriptio
 export type DeckInsert = Database['public']['Tables']['decks']['Insert'];
 export type DeckVisibility = Database['public']['Enums']['deck_visibility'];
 
-function jsonRecord(value: Json): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
 async function requireUser() {
   if (!isSupabaseConfigured()) throw new Error('SUPABASE_NOT_CONFIGURED');
   const { data, error } = await createClient().auth.getUser();

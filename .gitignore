@@ -10,3 +10,8 @@ coverage
 
 tsconfig.tsbuildinfo
 artifacts
+
+# F48 isolated CI resources and disposable credentials
+ci-database/
+backend-source/
+tests/.ci-fixture.json

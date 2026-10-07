@@ -3,6 +3,7 @@
     "loading": "Cargando…",
     "saving": "Guardando…",
     "save": "Guardar",
+    "skipLink": "Saltar al contenido principal",
     "language": "Idioma",
     "languageSaved": "Idioma actualizado."
   },
@@ -34,6 +35,10 @@
     "more": "Más",
     "closeMenu": "Cerrar menú",
     "moreOptions": "Más opciones",
+    "ariaLabel": "Navegación de Flashi",
+    "advancedMenu": "Más recursos",
+    "advancedMenuDescription": "Abrir recursos avanzados",
+    "createContent": "Crear contenido",
     "newDeck": "Crear mazo",
     "learningGoal": "Meta de estudio"
   },
@@ -164,5 +169,28 @@
     "learningPlanSet": "Definir una meta",
     "estimatedTime": "Estimación basada en tu ritmo reciente",
     "estimateUnavailable": "Aún no hay datos recientes suficientes para estimar el tiempo."
+  },
+  "socratic": {
+    "title": "Sesiones socráticas",
+    "subtitle": "Repasos guiados creados automáticamente cuando una tarjeta necesita remediación.",
+    "sessionTitle": "Sesión socrática",
+    "disabled": "Esta función está desactivada.",
+    "emptyTitle": "No hay sesiones socráticas pendientes",
+    "emptyDescription": "El ciclo comienza automáticamente durante el repaso: cuando se identifica que una tarjeta es difícil de recordar, Flashi crea una sesión para guiar la remediación.",
+    "emptyCycle": "No necesitas iniciar una sesión manualmente. Sigue estudiando y la próxima sesión aparecerá aquí cuando se cree.",
+    "loadError": "No se pudieron cargar las sesiones socráticas.",
+    "cardLabel": "Tarjeta",
+    "statusLabel": "Estado",
+    "statusQueued": "En cola",
+    "statusProcessing": "En curso",
+    "statusCompleted": "Completada",
+    "statusFailed": "Fallida",
+    "resolve": "Resolver y reanudar tarjeta",
+    "resolving": "Finalizando…",
+    "loading": "Cargando sesión…",
+    "invalidSession": "Esta sesión no tiene un identificador válido.",
+    "signIn": "Inicia sesión para abrir esta sesión.",
+    "notFound": "Sesión no encontrada.",
+    "detailError": "No se pudo cargar esta sesión."
   }
 }

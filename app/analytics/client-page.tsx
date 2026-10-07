@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell, Topbar } from '../../components/AppShell';
+import { getOutboxStatus } from '../../lib/db/outbox-queue';
 import { getAnalyticsData, getAnalyticsRange, type AnalyticsData } from '../../lib/services/analytics-service';
 type RangeRow = { stat_date: string; cards_studied: number; time_studied_ms: number };
 function formatDate(date: string) {
@@ -10,6 +11,9 @@ function formatDate(date: string) {
 }
 function minutes(milliseconds: number) { return Math.round(milliseconds / 60000); }
 export default function Analytics() {
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState('');
+  const [pendingReviews, setPendingReviews] = useState(0);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState('');
   const [range, setRange] = useState<7 | 30 | 90>(7);
@@ -17,12 +21,13 @@ export default function Analytics() {
   const [rangeLoading, setRangeLoading] = useState(true);
   const [rangeError, setRangeError] = useState('');
   useEffect(() => {
-    getAnalyticsData().then(setData).catch((reason: unknown) => {
+    getAnalyticsData().then((result) => { setData(result); setUpdatedAt(new Date().toISOString()); }).catch((reason: unknown) => {
       setError(reason instanceof Error && reason.message === 'AUTH_REQUIRED'
         ? 'Entre na sua conta para ver o desempenho real.'
         : 'Não foi possível carregar as métricas. Tente novamente.');
     });
-  }, []);
+    void getOutboxStatus().then((status) => setPendingReviews(status.items.filter((item) => item.table_name === 'review_logs').length)).catch(() => undefined);
+  }, [refreshVersion]);
   useEffect(() => {
     let cancelled = false;
     setRangeLoading(true);
@@ -31,7 +36,7 @@ export default function Analytics() {
       .catch(() => { if (!cancelled) { setRangeRows([]); setRangeError('Não foi possível carregar os dados deste período.'); } })
       .finally(() => { if (!cancelled) setRangeLoading(false); });
     return () => { cancelled = true; };
-  }, [range]);
+  }, [range,refreshVersion]);
   const comparison = data && data.cardsPreviousWeek > 0
     ? Math.round(((data.cardsThisWeek - data.cardsPreviousWeek) / data.cardsPreviousWeek) * 100)
     : null;
@@ -47,6 +52,7 @@ export default function Analytics() {
   const totalCards = activityRows.reduce((sum, row) => sum + row.cards, 0);
   return <AppShell>
     <Topbar title="Desempenho" subtitle="Entenda seu ritmo e acompanhe as revisões registradas." />
+    <div className="notice" role="status">Origem: histórico confirmado em review_logs/daily_statistics. Períodos diários em UTC. {pendingReviews} avaliação(ões) pendentes neste dispositivo, não incluídas nas métricas. {updatedAt && `Atualizado em ${new Date(updatedAt).toLocaleString('pt-BR')}.`} <button type="button" className="link-button" onClick={() => setRefreshVersion((value) => value+1)}>Atualizar métricas</button></div>
     {error && <div className="notice error" role="alert">{error}</div>}
     <div className="grid stats">
       <div className="card"><div className="stat-label">Dias com estudo</div><div className="stat-value accent">{data ? studyDays : '—'}</div><div className="stat-label">nos últimos 7 dias</div></div>
@@ -57,7 +63,7 @@ export default function Analytics() {
     {data && <section className="card analytics-insight" aria-labelledby="weekly-insight-heading"><h2 id="weekly-insight-heading">O que isso significa</h2><p>{weeklyInsight}</p>{accuracyDelta !== null && accuracyDelta !== 0 && <p>Sua precisão {accuracyDelta > 0 ? 'aumentou' : 'diminuiu'} {Math.abs(accuracyDelta)} pontos percentuais em relação à semana anterior.</p>}<Link className="inline-link" href="/study">Ir para uma sessão de estudo →</Link></section>}
     <div className="section-head"><h2 id="activity-heading">Atividade</h2><div className="field analytics-range"><label htmlFor="analytics-range">Período</label><select id="analytics-range" value={range} onChange={(event) => setRange(Number(event.target.value) as 7 | 30 | 90)}><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></div></div>
     {rangeError && <p className="notice error" role="alert">{rangeError}</p>}
-    {rangeLoading ? <p className="card" role="status">Carregando atividade…</p> : activityRows.length === 0 ? <div className="card empty-state"><strong>Nenhuma revisão neste período.</strong><span>Quando você estudar, o histórico diário aparecerá aqui.</span></div> : <>
+    {rangeLoading ? <p className="card" role="status">Carregando atividade…</p> : rangeError ? null : activityRows.length === 0 ? <div className="card empty-state"><strong>Nenhuma revisão neste período.</strong><span>Quando você estudar, o histórico diário aparecerá aqui.</span></div> : <>
       <div className="card analytics-chart-scroll" aria-labelledby="activity-heading"><div className="analytics-chart" aria-hidden="true" style={{ minWidth: `${Math.max(520, activityRows.length * 30)}px` }}>{activityRows.map((day) => <div className="analytics-day" key={day.date}><div className={day.cards === maxCards ? 'analytics-bar peak' : 'analytics-bar'} style={{ height: `${Math.max((day.cards / maxCards) * 150, day.cards ? 8 : 2)}px` }} /><small className="stat-label">{formatDate(day.date)}</small></div>)}</div></div>
       <div className="card analytics-data-table"><div className="stat-label">{totalCards} cartões registrados no período selecionado</div><div className="table-wrap"><table className="table"><caption className="sr-only">Revisões diárias: {range} dias</caption><thead><tr><th scope="col">Dia</th><th scope="col">Cartões revisados</th><th scope="col">Tempo estudado</th></tr></thead><tbody>{activityRows.map((row) => <tr key={row.date}><th scope="row">{formatDate(row.date)}</th><td>{row.cards}</td><td>{row.minutes} min</td></tr>)}</tbody></table></div></div>
     </>}

@@ -1,3 +1,4 @@
+import { pageLimit, pageResult, type PageOptions } from './pagination';
 import { createClient, type Tables } from '../supabase/client';
 import type { Database, Json } from '../../src/types/database';
 import { refreshNoteEmbedding } from './embedding-service';
@@ -118,4 +119,14 @@ export async function archiveCard(cardId: string) {
     .update({ is_archived: true })
     .eq('id', cardId);
   if (error) throw error;
+}
+
+export async function listCardsPage(deckId: string, options: PageOptions = {}) {
+  const limit = pageLimit(options.limit);
+  const { data, error } = await (createClient() as any).rpc('list_deck_cards_page', {
+    p_deck_id: deckId, p_query: options.query?.trim() ?? '', p_limit: limit + 1,
+    p_cursor_time: options.cursor?.time ?? null, p_cursor_id: options.cursor?.id ?? null,
+  });
+  if (error) throw error;
+  return pageResult((data ?? []) as Flashcard[], limit, 'created_at');
 }

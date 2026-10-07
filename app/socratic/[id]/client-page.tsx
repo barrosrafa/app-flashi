@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AppShell, Topbar } from '../../../components/AppShell';
+import { useTranslation } from '../../../contexts/LanguageContext';
 import { isEnabled } from '../../../lib/config/feature-flags';
 import { hasBrowserSession, isUuid } from '../../../lib/supabase/guards';
 import { socraticService } from '../../../lib/services/socratic-service';
@@ -9,25 +10,26 @@ import { SocraticSessionView } from '../../../components/socratic/SocraticSessio
 import type { SocraticSession } from '../../../lib/types/socratic';
 
 export default function SocraticDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useTranslation();
   const [session, setSession] = useState<SocraticSession | null>(null);
-  const [message, setMessage] = useState('Carregando sessão…');
+  const [message, setMessage] = useState(t('socratic.loading'));
 
   useEffect(() => {
     let cancelled = false;
     void params.then(async ({ id }) => {
-      if (!isUuid(id)) { setMessage('Esta sessão não possui um identificador válido.'); return; }
-      if (!(await hasBrowserSession())) { setMessage('Entre na sua conta para abrir esta sessão.'); return; }
+      if (!isUuid(id)) { setMessage(t('socratic.invalidSession')); return; }
+      if (!(await hasBrowserSession())) { setMessage(t('socratic.signIn')); return; }
       try {
         const item = await socraticService.get(id);
-        if (!cancelled) { setSession(item); setMessage(item ? '' : 'Sessão não encontrada.'); }
+        if (!cancelled) { setSession(item); setMessage(item ? '' : t('socratic.notFound')); }
       } catch {
-        if (!cancelled) setMessage('Não foi possível carregar esta sessão.');
+        if (!cancelled) setMessage(t('socratic.detailError'));
       }
     });
     return () => { cancelled = true; };
-  }, [params]);
+  }, [params, t]);
 
-  if (!isEnabled('socratic')) return <AppShell><Topbar title="Sessão socrática" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
+  if (!isEnabled('socratic')) return <AppShell><Topbar title={t('socratic.sessionTitle')} /><div className="card empty-state" role="status">{t('socratic.disabled')}</div></AppShell>;
 
-  return <AppShell><Topbar title="Sessão socrática" />{session ? <SocraticSessionView session={session} /> : <div className="card" role="status">{message}</div>}</AppShell>;
+  return <AppShell><Topbar title={t('socratic.sessionTitle')} />{session ? <SocraticSessionView session={session} /> : <div className="card" role="status" aria-live="polite">{message}</div>}</AppShell>;
 }

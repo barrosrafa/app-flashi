@@ -1,5 +1,6 @@
 import { createClient, isSupabaseConfigured } from '../supabase/client';
 import { processActivation } from './activation-service';
+import type { Tables } from '../supabase/client';
 
 export const learningGoals = ['exam', 'competition', 'language', 'university', 'other'] as const;
 export type LearningGoal = typeof learningGoals[number];
@@ -20,6 +21,9 @@ export type OnboardingState = {
   draft: LearningDraft | null;
   required: boolean;
 };
+
+type PersistedLearningPlan = Pick<Tables<'learning_plans'>, 'goal' | 'target_date' | 'weekly_minutes' | 'updated_at'>;
+type PersistedActivation = Pick<Tables<'activation_flows'>, 'status' | 'activated_at' | 'updated_at'>;
 
 const emptyPreferences: LearningPreferences = {
   goal: null,
@@ -73,6 +77,33 @@ export function isOnboardingRequired(userMetadata: unknown): boolean {
   return userMetadata.flashi_onboarding_required === true && !preferences.completedAt;
 }
 
+/**
+ * F27: auth metadata is a cache for the onboarding form, not the persisted
+ * plan. A plan written by process_activation remains authoritative even when
+ * the subsequent metadata write was unavailable.
+ */
+export function resolveAuthoritativeOnboardingState(input: {
+  metadata: Record<string, unknown>;
+  plan: PersistedLearningPlan | null;
+  activation: PersistedActivation | null;
+}): OnboardingState {
+  const metadataPreferences = decodeLearningPreferences(input.metadata.flashi_product_preferences);
+  const persistedPreferences = input.plan
+    ? decodeLearningPreferences({
+      goal: input.plan.goal,
+      targetDate: input.plan.target_date,
+      weeklyMinutes: input.plan.weekly_minutes,
+      completedAt: input.activation?.activated_at ?? input.plan.updated_at,
+    })
+    : null;
+  const confirmed = Boolean(input.plan && (!input.activation || input.activation.status === 'ACTIVE'));
+  return {
+    preferences: persistedPreferences ?? metadataPreferences,
+    draft: confirmed ? null : decodeLearningDraft(input.metadata.flashi_onboarding_draft),
+    required: confirmed ? false : isOnboardingRequired(input.metadata) || input.activation?.status === 'FAILED',
+  };
+}
+
 export function validateLearningPreferences(input: {
   goal: LearningGoal | null;
   targetDate: string | null;
@@ -106,13 +137,15 @@ async function updateUserMetadata(updates: Record<string, unknown>) {
 }
 
 export async function getOnboardingState(): Promise<OnboardingState> {
-  const { user } = await requireUser();
+  const { supabase, user } = await requireUser();
   const metadata = user.user_metadata ?? {};
-  return {
-    preferences: decodeLearningPreferences(metadata.flashi_product_preferences),
-    draft: decodeLearningDraft(metadata.flashi_onboarding_draft),
-    required: isOnboardingRequired(metadata),
-  };
+  const [{ data: plan, error: planError }, { data: activation, error: activationError }] = await Promise.all([
+    supabase.from('learning_plans').select('goal,target_date,weekly_minutes,updated_at').eq('user_id', user.id).maybeSingle(),
+    supabase.from('activation_flows').select('status,activated_at,updated_at').eq('user_id', user.id).maybeSingle(),
+  ]);
+  if (planError) throw planError;
+  if (activationError) throw activationError;
+  return resolveAuthoritativeOnboardingState({ metadata, plan, activation });
 }
 
 export async function saveOnboardingDraft(input: {
@@ -144,11 +177,17 @@ export async function saveLearningPreferences(input: {
     target_date: input.targetDate,
     weekly_minutes: input.weeklyMinutes,
   });
-  await updateUserMetadata({
-    flashi_onboarding_required: false,
-    flashi_onboarding_draft: null,
-    flashi_product_preferences: preferences,
-  });
+  try {
+    await updateUserMetadata({
+      flashi_onboarding_required: false,
+      flashi_onboarding_draft: null,
+      flashi_product_preferences: preferences,
+    });
+  } catch {
+    // F27: processActivation already committed learning_plans and activation.
+    // Metadata is a convenience cache; its failure must not turn success into
+    // an error or prevent the user from retrying a genuinely failed request.
+  }
   return preferences;
 }
 

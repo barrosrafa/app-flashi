@@ -23,7 +23,7 @@ const ENV_KEYS: Record<FeatureFlag, string> = {
  * As variáveis são mantidas no contrato para compatibilidade, mas não podem
  * remover a UI nem esconder uma rota do usuário final.
  */
-export function isFeatureEnabled(_flag: FeatureFlag): boolean {
+export function isFeatureEnabled(_flag: FeatureFlag): boolean { void _flag;
   return true;
 }
 

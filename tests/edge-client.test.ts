@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, EdgeTimeoutError, RateLimitError, UnavailableError } from '../lib/services/http/errors';
+import { AuthRequiredError, EdgeTimeoutError, UnavailableError } from '../lib/services/http/errors';
 const invoke = vi.fn(); const getSession = vi.fn();
 vi.mock('../lib/supabase/client', () => ({ createClient: () => ({ auth: { getSession }, functions: { invoke } }) }));
 const { invokeEdge } = await import('../lib/services/http/edge-client');

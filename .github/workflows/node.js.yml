@@ -1,0 +1,55 @@
+name: Flashi quality and critical E2E
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  quality-and-critical-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: barrosrafa/Flashi
+          ref: 33c49f049f095248a9978a0e091114722c7387cf
+          path: backend-source
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck && pnpm lint && pnpm test
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.45.5
+      - name: Prepare isolated database and functions
+        run: |
+          mkdir -p ci-database
+          supabase init --workdir ci-database
+          node scripts/prepare-ci-db.mjs
+          supabase start --workdir ci-database > /dev/null 2>&1
+          supabase db reset --workdir ci-database
+          umask 077
+          supabase status --workdir ci-database -o env > /tmp/flashi-ci-env
+          node scripts/create-ci-fixture.mjs
+          supabase functions serve --workdir ci-database > /tmp/flashi-ci-functions.log 2>&1 &
+      - name: Build actual application and browser
+        run: pnpm build && pnpm exec playwright install --with-deps chromium
+      - name: Mandatory login, deck/card, persisted review, replay and RLS checks
+        run: pnpm exec playwright test tests/e2e/f48-critical.spec.ts --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: critical-e2e-report
+          path: playwright-report
+          if-no-files-found: error
+      - name: Stop isolated database
+        if: always()
+        run: supabase stop --workdir ci-database --no-backup

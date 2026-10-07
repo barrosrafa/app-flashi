@@ -680,3 +680,59 @@ a.brand { min-width: 44px; min-height: 44px; display: inline-flex; align-items: 
   .learning-plan-summary .btn { width: 100%; }
   .onboarding-brand-row { margin-bottom: 18px; }
 }
+
+/* F21 — one accessible contract for every field control in both themes. */
+.field :is(input, select, textarea) {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+.field textarea { min-height: 108px; resize: vertical; }
+.field input[type="file"] { padding: 8px 10px; }
+.field :is(input, select, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
+.field :is(input, select, textarea):hover:not(:disabled) { border-color: var(--primary); }
+.field :is(input, select, textarea):focus-visible {
+  border-color: var(--primary);
+  outline: 3px solid color-mix(in srgb, var(--focus) 34%, transparent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.field :is(input, select, textarea):disabled,
+.field :is(input, select, textarea)[aria-disabled="true"] {
+  border-color: var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  opacity: .78;
+}
+.field.has-error :is(input, select, textarea),
+.field :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger-soft) 45%, var(--surface));
+}
+.field.has-error :is(input, select, textarea):focus-visible,
+.field :is(input, select, textarea)[aria-invalid="true"]:focus-visible {
+  outline-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+.field-hint, .field-error { display: block; line-height: 1.45; }
+.field-error, .error-text { color: var(--danger); font-weight: 600; }
+
+/* F45 — primary destinations stay visible; secondary resources remain one keyboard-accessible disclosure away. */
+.nav-advanced { margin-top: 2px; border-top: 1px solid var(--border); padding-top: 10px; }
+.nav-advanced summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; border-radius: 10px; color: var(--text-secondary); font-size: 12px; font-weight: 700; cursor: pointer; list-style: none; }
+.nav-advanced summary::-webkit-details-marker { display: none; }
+.nav-advanced summary:hover, .nav-advanced[open] summary { background: var(--surface-active); color: var(--text-primary); }
+.nav-advanced summary:focus-visible { outline-offset: 2px; }
+.nav-advanced-chevron { color: var(--primary); font-size: 18px; line-height: 1; transition: transform 150ms ease; }
+.nav-advanced[open] .nav-advanced-chevron { transform: rotate(180deg); }
+.nav-advanced-content { display: grid; gap: 2px; margin-top: 8px; padding-left: 4px; }
+.nav-advanced-content .nav-group { margin-bottom: 12px; }
+.nav-advanced-content .nav-group h2 { margin-left: 8px; }
+.socratic-empty { max-width: 720px; margin-inline: auto; }
+.socratic-empty p { max-width: 650px; margin: 0; line-height: 1.55; }

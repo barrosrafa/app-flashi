@@ -1,7 +1,87 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import { AppShell, Topbar } from '../../../components/AppShell';
 import { isEnabled } from '../../../lib/config/feature-flags';
-import { mcpClient, type McpTool } from '../../../lib/services/mcp-client';
+import { McpExternalClient, mcpClient, type McpTool } from '../../../lib/services/mcp-client';
 import { listMcpAudit, type McpAudit } from '../../../lib/services/mcp-audit-service';
-export default function McpToolsPage() { const [tools] = useState<McpTool[]>(() => mcpClient.listTools()); const [audit, setAudit] = useState<McpAudit[]>([]); const [selected, setSelected] = useState('search_notes'); const [query, setQuery] = useState(''); const [deckId, setDeckId] = useState(''); const [front, setFront] = useState(''); const [back, setBack] = useState(''); const [limit, setLimit] = useState('10'); const [result, setResult] = useState(''); const [endpoint, setEndpoint] = useState(''); const [token, setToken] = useState(''); const [busy, setBusy] = useState(false); useEffect(() => { void listMcpAudit().then(setAudit).catch(() => undefined); }, []); if (!isEnabled('mcp')) return <AppShell><Topbar title="Ferramentas MCP" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; async function testConnection() { setBusy(true); setResult(''); try { const value = await mcpClient.callTool('search_notes', { query: 'ping', limit: 1, mode: 'lexical' }); setResult(JSON.stringify({ endpoint: endpoint || 'backend configurado', tokenConfigured: Boolean(token), result: value }, null, 2)); setAudit(await listMcpAudit()); } catch (error) { setResult(JSON.stringify({ error: error instanceof Error ? error.message : 'MCP_ERROR' }, null, 2)); } finally { setBusy(false); } } async function call() { setBusy(true); setResult(''); try { const value = await mcpClient.callTool(selected, selected === 'search_notes' ? { query, limit: Number(limit), mode: 'lexical' } : { deck_id: deckId, fields: { Front: front, Back: back }, card_definitions: [{ card_kind: 'basic', front, back }] }); setResult(JSON.stringify(value, null, 2)); setAudit(await listMcpAudit()); } catch (error) { setResult(JSON.stringify({ error: error instanceof Error ? error.message : 'MCP_ERROR' }, null, 2)); } finally { setBusy(false); } } return <AppShell><Topbar title="Ferramentas MCP" subtitle="Cliente JSON-RPC para as ferramentas autorizadas pelo backend." /><section className="card form"><label>Endpoint MCP<input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="Opcional; não persistido" /></label><label>Chave/Token<input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Opcional; não persistido" /></label><button className="btn secondary" type="button" onClick={() => void testConnection()} disabled={busy}>Testar conexão</button><label>Ferramenta<select value={selected} onChange={(e) => setSelected(e.target.value)}>{tools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>{selected === 'search_notes' && <><label>Consulta<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Termo de pesquisa" /></label><label>Limite<input type="number" min="1" max="100" value={limit} onChange={(e) => setLimit(e.target.value)} /></label></>}{selected === 'create_note' && <><label>Deck ID<input value={deckId} onChange={(e) => setDeckId(e.target.value)} /></label><label>Frente<input value={front} onChange={(e) => setFront(e.target.value)} /></label><label>Verso<textarea value={back} onChange={(e) => setBack(e.target.value)} /></label></>}<button className="btn" type="button" onClick={() => void call()} disabled={busy || (selected === 'search_notes' ? query.trim().length < 1 : !deckId || !front.trim() || !back.trim())}>{busy ? 'A executar…' : 'Executar ferramenta'}</button><pre aria-live="polite">{result}</pre></section><section className="card"><div className="section-head"><div><h2>Auditoria MCP</h2><p className="subtitle">Chamadas recentes registradas pelo backend para esta conta.</p></div><button className="btn ghost" type="button" onClick={() => void listMcpAudit().then(setAudit)}>Atualizar</button></div>{!audit.length ? <p className="muted">Nenhuma chamada registrada.</p> : <div className="table-wrap"><table className="table"><thead><tr><th>Ferramenta</th><th>Resultados</th><th>Data</th><th>Request</th></tr></thead><tbody>{audit.map((item) => <tr key={item.id}><td>{item.tool_name}</td><td>{item.result_count ?? '—'}</td><td>{new Date(item.created_at).toLocaleString('pt-BR')}</td><td>{item.request_id ?? '—'}</td></tr>)}</tbody></table></div>}</section></AppShell>; }
+
+function safeMcpMessage(error: unknown) {
+  return error instanceof Error && error.message.startsWith('MCP_') ? error.message : 'MCP_EXTERNAL_ERROR';
+}
+
+export default function McpToolsPage() {
+  const [internalTools] = useState<McpTool[]>(() => mcpClient.listTools());
+  const [externalTools, setExternalTools] = useState<McpTool[]>([]);
+  const [audit, setAudit] = useState<McpAudit[]>([]);
+  const [selected, setSelected] = useState('search_notes');
+  const [query, setQuery] = useState('');
+  const [deckId, setDeckId] = useState('');
+  const [front, setFront] = useState('');
+  const [back, setBack] = useState('');
+  const [limit, setLimit] = useState('10');
+  const [result, setResult] = useState('');
+  const [endpoint, setEndpoint] = useState('');
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [externalStatus, setExternalStatus] = useState('');
+
+  useEffect(() => { void listMcpAudit().then(setAudit).catch(() => undefined); }, []);
+  if (!isEnabled('mcp')) return <AppShell><Topbar title="Ferramentas MCP" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
+
+  async function connectExternal() {
+    setBusy(true);
+    setResult('');
+    setExternalStatus('');
+    try {
+      const client = new McpExternalClient(endpoint, token);
+      const tools = await client.listTools();
+      setExternalTools(tools);
+      setExternalStatus(`Handshake concluído; ${tools.length} ferramenta(s) recebida(s) por tools/list.`);
+      setResult(JSON.stringify({ endpointConfigured: true, tokenConfigured: true, toolCount: tools.length, tools: tools.map((tool) => tool.name) }, null, 2));
+    } catch (error) {
+      setExternalTools([]);
+      setExternalStatus(safeMcpMessage(error));
+      setResult(JSON.stringify({ error: safeMcpMessage(error) }, null, 2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function callInternal() {
+    setBusy(true);
+    setResult('');
+    try {
+      const value = await mcpClient.callTool(selected, selected === 'search_notes' ? { query, limit: Number(limit), mode: 'lexical' } : { deck_id: deckId, fields: { Front: front, Back: back }, card_definitions: [{ card_kind: 'basic', front, back }] });
+      setResult(JSON.stringify(value, null, 2));
+      setAudit(await listMcpAudit());
+    } catch (error) {
+      setResult(JSON.stringify({ error: error instanceof Error ? error.message : 'MCP_ERROR' }, null, 2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <AppShell>
+    <Topbar title="Ferramentas MCP" subtitle="Ferramentas internas Flashi e conexão separada com um servidor MCP externo." />
+    <section className="card form">
+      <h2>Servidor MCP externo</h2>
+      <p className="subtitle">A conexão executa initialize, notifications/initialized e tools/list de verdade. Endpoint e token ficam apenas nesta sessão.</p>
+      <label>Endpoint HTTPS<input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://mcp.exemplo.com/mcp" autoComplete="off" /></label>
+      <label>Token (não persistido)<input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token do servidor externo" autoComplete="new-password" /></label>
+      <button className="btn secondary" type="button" onClick={() => void connectExternal()} disabled={busy || !endpoint.trim() || !token.trim()}>{busy ? 'Conectando…' : 'Conectar e listar tools'}</button>
+      {externalStatus && <p className="notice" role="status">{externalStatus}</p>}
+      {externalTools.length > 0 && <div><h3>Tools anunciadas pelo servidor externo</h3><ul>{externalTools.map((tool) => <li key={tool.name}><strong>{tool.name}</strong>{tool.description ? ` — ${tool.description}` : ''}</li>)}</ul></div>}
+    </section>
+    <section className="card form">
+      <h2>Ferramentas internas Flashi</h2>
+      <p className="subtitle">Estas ferramentas usam a sessão Flashi e não são o servidor MCP externo acima.</p>
+      <label>Ferramenta<select value={selected} onChange={(e) => setSelected(e.target.value)}>{internalTools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>
+      {selected === 'search_notes' && <><label>Consulta<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Termo de pesquisa" /></label><label>Limite<input type="number" min="1" max="100" value={limit} onChange={(e) => setLimit(e.target.value)} /></label></>}
+      {selected === 'create_note' && <><label>Deck ID<input value={deckId} onChange={(e) => setDeckId(e.target.value)} /></label><label>Frente<input value={front} onChange={(e) => setFront(e.target.value)} /></label><label>Verso<textarea value={back} onChange={(e) => setBack(e.target.value)} /></label></>}
+      <button className="btn" type="button" onClick={() => void callInternal()} disabled={busy || (selected === 'search_notes' ? query.trim().length < 1 : !deckId || !front.trim() || !back.trim())}>{busy ? 'A executar…' : 'Executar ferramenta interna'}</button>
+      <pre aria-live="polite">{result}</pre>
+    </section>
+    <section className="card"><div className="section-head"><div><h2>Auditoria MCP interna</h2><p className="subtitle">Chamadas recentes registradas pelo backend para esta conta; token e payload não são registrados.</p></div><button className="btn ghost" type="button" onClick={() => void listMcpAudit().then(setAudit)}>Atualizar</button></div>{!audit.length ? <p className="muted">Nenhuma chamada registrada.</p> : <div className="table-wrap"><table className="table"><thead><tr><th>Ferramenta</th><th>Resultados</th><th>Data</th><th>Request</th></tr></thead><tbody>{audit.map((item) => <tr key={item.id}><td>{item.tool_name}</td><td>{item.result_count ?? '—'}</td><td>{new Date(item.created_at).toLocaleString('pt-BR')}</td><td>{item.request_id ?? '—'}</td></tr>)}</tbody></table></div>}</section>
+  </AppShell>;
+}

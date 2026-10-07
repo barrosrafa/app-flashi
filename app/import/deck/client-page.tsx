@@ -8,85 +8,122 @@ import { listDecks, type Deck } from '../../../lib/services/deck-service';
 
 const formats: ImportFormat[] = ['csv', 'markdown', 'quizlet', 'remnote'];
 
+function importErrorMessage(kind: 'file' | 'url', reason: unknown): string {
+  const code = reason instanceof Error ? reason.message : '';
+  if (code.includes('DECK_REQUIRED')) return 'Escolha um deck de destino.';
+  if (code.includes('AUTH_REQUIRED')) return 'Entre na sua conta para importar conteúdo.';
+  if (kind === 'url') {
+    if (code.includes('URL_IMPORT_INVALID')) return 'Insira uma URL completa, por exemplo: https://exemplo.com/conteudo.csv.';
+    if (code.includes('URL_IMPORT_PROTOCOL')) return 'Use um endereço HTTPS (começando por https://).';
+    if (code.includes('URL_IMPORT_CREDENTIALS')) return 'Remova o usuário e a senha do endereço.';
+    if (code.includes('URL_IMPORT_REDIRECT')) return 'O endereço redirecionou para um destino inválido. Confira o link e tente novamente.';
+    if (code.includes('URL_IMPORT_SSRF')) return 'Este endereço não pode ser acessado por segurança. Use uma URL HTTPS pública.';
+    const httpStatus = code.match(/URL_IMPORT_HTTP_(\d{3})/)?.[1];
+    if (httpStatus) return `A fonte respondeu com HTTP ${httpStatus}. Confira o endereço e tente novamente.`;
+    return 'Não foi possível baixar este endereço. Confira o link e tente novamente.';
+  }
+  if (code.includes('IMPORT_EMPTY')) return 'Escolha um arquivo que não esteja vazio.';
+  if (code.includes('IMPORT_TOO_LARGE')) return 'O arquivo deve ter no máximo 15 MiB.';
+  if (code.includes('IMPORT_EXTENSION_INVALID')) return 'Escolha um arquivo compatível com o formato selecionado.';
+  return 'Não foi possível importar o arquivo. Confira o formato e tente novamente.';
+}
+
+function deckOptions(decks: Deck[]) {
+  return decks.length
+    ? decks.map((deck) => <option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>)
+    : <option value="">Nenhum deck disponível</option>;
+}
+
 export default function ImportDeckPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
-  const [deckId, setDeckId] = useState('');
-  const [format, setFormat] = useState<ImportFormat>('csv');
+  const [fileDeckId, setFileDeckId] = useState('');
+  const [urlDeckId, setUrlDeckId] = useState('');
+  const [fileFormat, setFileFormat] = useState<ImportFormat>('csv');
+  const [urlFormat, setUrlFormat] = useState<ImportFormat>('csv');
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
-  const [message, setMessage] = useState('');
-  const [resultDeckId, setResultDeckId] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [fileMessage, setFileMessage] = useState('');
+  const [urlMessage, setUrlMessage] = useState('');
+  const [fileResultDeckId, setFileResultDeckId] = useState('');
+  const [urlResultDeckId, setUrlResultDeckId] = useState('');
+  const [fileBusy, setFileBusy] = useState(false);
+  const [urlBusy, setUrlBusy] = useState(false);
 
   useEffect(() => {
     listDecks().then((rows) => {
       setDecks(rows);
-      setDeckId(rows[0]?.id ?? '');
-    }).catch((reason: unknown) => setMessage(
-      reason instanceof Error && reason.message === 'SUPABASE_NOT_CONFIGURED'
+      const firstDeckId = rows[0]?.id ?? '';
+      setFileDeckId(firstDeckId);
+      setUrlDeckId(firstDeckId);
+    }).catch((reason: unknown) => {
+      const message = reason instanceof Error && reason.message === 'SUPABASE_NOT_CONFIGURED'
         ? 'Configure a conexão do Supabase para listar seus decks.'
-        : 'Entre na sua conta para importar decks.',
-    ));
+        : 'Entre na sua conta para importar conteúdo.';
+      setFileMessage(message);
+      setUrlMessage(message);
+    });
   }, []);
 
   async function importFile() {
-    if (!file || !deckId) return;
-    setBusy(true);
-    setMessage('Enviando lote para materialização…');
-    setResultDeckId('');
+    if (!file || !fileDeckId || fileBusy) return;
+    setFileBusy(true);
+    setFileMessage('Importando o arquivo…');
+    setFileResultDeckId('');
     try {
-      const result = await importDeckService.fromFile({ file, deckId, format });
-      setMessage(`${result.notes_count} notas e ${result.cards_count} cards importados.`);
-      setResultDeckId(deckId);
+      const result = await importDeckService.fromFile({ file, deckId: fileDeckId, format: fileFormat });
+      setFileMessage(`${result.notes_count} notas e ${result.cards_count} cartões importados.`);
+      setFileResultDeckId(fileDeckId);
       setFile(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível importar o arquivo.');
+    } catch (reason) {
+      setFileMessage(importErrorMessage('file', reason));
     } finally {
-      setBusy(false);
+      setFileBusy(false);
     }
   }
 
   async function importUrl() {
-    if (!url || !deckId) return;
-    setBusy(true);
-    setMessage('Baixando URL e validando o conteúdo…');
-    setResultDeckId('');
+    if (!url || !urlDeckId || urlBusy) return;
+    setUrlBusy(true);
+    setUrlMessage('Baixando o conteúdo…');
+    setUrlResultDeckId('');
     try {
-      const result = await importDeckService.fromUrl({ url, deckId, format });
-      setMessage(`${result.notes_count} notas e ${result.cards_count} cards importados.`);
-      setResultDeckId(deckId);
+      const result = await importDeckService.fromUrl({ url, deckId: urlDeckId, format: urlFormat });
+      setUrlMessage(`${result.notes_count} notas e ${result.cards_count} cartões importados.`);
+      setUrlResultDeckId(urlDeckId);
       setUrl('');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível importar a URL.');
+    } catch (reason) {
+      setUrlMessage(importErrorMessage('url', reason));
     } finally {
-      setBusy(false);
+      setUrlBusy(false);
     }
   }
 
   return (
     <AppShell>
-      <Topbar title="Importar deck" subtitle="Traga conteúdo de CSV, Markdown, Quizlet, RemNote ou URL; o backend valida e materializa cada lote." />
-      {message && <div className="notice" role="status">{message}</div>}
-      {resultDeckId && <a className="link-button" href={`/decks/${resultDeckId}/cards`}>Ver cartões importados no deck</a>}
+      <Topbar title="Importar deck" subtitle="Traga conteúdo de arquivo ou URL para o deck escolhido." />
       <div className="grid tool-grid">
         <section className="card tool-card">
-          <div className="eyebrow">Arquivo</div><h2>Importar pacote</h2>
-          <p className="subtitle">Limite de 15 MiB. O arquivo fica no bucket privado do usuário e é removido se o processamento falhar.</p>
+          <div className="eyebrow">Arquivo</div><h2>Importar arquivo</h2>
+          <p className="subtitle">CSV, Markdown, Quizlet ou RemNote, com limite de 15 MiB.</p>
           <div className="form">
-            <div className="field"><label htmlFor="import-deck">Deck de destino</label><select id="import-deck" value={deckId} onChange={(event) => setDeckId(event.target.value)} disabled={!decks.length}>{decks.length ? decks.map((deck) => <option key={deck.id} value={deck.id}>{deck.name}</option>) : <option value="">Nenhum deck disponível</option>}</select></div>
-            <div className="field"><label htmlFor="import-format">Formato</label><select id="import-format" value={format} onChange={(event) => setFormat(event.target.value as ImportFormat)}>{formats.map((item) => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></div>
-            <div className="field"><label htmlFor="import-file">Arquivo</label><input id="import-file" type="file" accept=".csv,.md,.markdown,.txt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div>
-            <button className="btn" type="button" onClick={() => void importFile()} disabled={!file || !deckId || busy}>{busy ? 'Importando…' : 'Importar arquivo'}</button>
+            <div className="field"><label htmlFor="import-deck">Deck de destino</label><select id="import-deck" value={fileDeckId} onChange={(event) => setFileDeckId(event.target.value)} disabled={!decks.length || fileBusy}>{deckOptions(decks)}</select></div>
+            <div className="field"><label htmlFor="import-format">Formato</label><select id="import-format" value={fileFormat} onChange={(event) => setFileFormat(event.target.value as ImportFormat)} disabled={fileBusy}>{formats.map((item) => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></div>
+            <div className="field"><label htmlFor="import-file">Arquivo</label><input id="import-file" type="file" accept=".csv,.md,.markdown,.txt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={fileBusy} /></div>
+            <button className="btn" type="button" onClick={() => void importFile()} disabled={!file || !fileDeckId || fileBusy}>{fileBusy ? 'Importando arquivo…' : 'Importar arquivo'}</button>
+            {fileMessage && <p className="notice" role="status">{fileMessage}</p>}
+            {fileResultDeckId && <a className="link-button" href={`/decks/${fileResultDeckId}/cards`}>Ver cartões importados no deck</a>}
           </div>
         </section>
         <section className="card tool-card">
           <div className="eyebrow">URL</div><h2>Importar por URL</h2>
-          <p className="subtitle">O backend baixa a URL HTTPS diretamente, evitando CORS e limitando o tamanho e os destinos permitidos.</p>
+          <p className="subtitle">Use uma URL HTTPS pública que contenha o conteúdo do deck.</p>
           <div className="form">
-            <div className="field"><label htmlFor="url-deck">Deck de destino</label><select id="url-deck" value={deckId} onChange={(event) => setDeckId(event.target.value)} disabled={!decks.length}>{decks.length ? decks.map((deck) => <option key={deck.id} value={deck.id}>{deck.name}</option>) : <option value="">Nenhum deck disponível</option>}</select></div>
-            <div className="field"><label htmlFor="url-format">Formato</label><select id="url-format" value={format} onChange={(event) => setFormat(event.target.value as ImportFormat)}>{formats.map((item) => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></div>
-            <div className="field"><label htmlFor="source-url">URL HTTPS</label><input id="source-url" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://exemplo.com/conteudo.csv" /></div>
-            <button className="btn secondary" type="button" onClick={() => void importUrl()} disabled={!url || !deckId || busy}>{busy ? 'Importando…' : 'Importar URL'}</button>
+            <div className="field"><label htmlFor="url-deck">Deck de destino</label><select id="url-deck" value={urlDeckId} onChange={(event) => setUrlDeckId(event.target.value)} disabled={!decks.length || urlBusy}>{deckOptions(decks)}</select></div>
+            <div className="field"><label htmlFor="url-format">Formato</label><select id="url-format" value={urlFormat} onChange={(event) => setUrlFormat(event.target.value as ImportFormat)} disabled={urlBusy}>{formats.map((item) => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></div>
+            <div className="field"><label htmlFor="source-url">URL HTTPS</label><input id="source-url" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://exemplo.com/conteudo.csv" disabled={urlBusy} /></div>
+            <button className="btn secondary" type="button" onClick={() => void importUrl()} disabled={!url || !urlDeckId || urlBusy}>{urlBusy ? 'Importando URL…' : 'Importar URL'}</button>
+            {urlMessage && <p className="notice" role="status">{urlMessage}</p>}
+            {urlResultDeckId && <a className="link-button" href={`/decks/${urlResultDeckId}/cards`}>Ver cartões importados no deck</a>}
           </div>
         </section>
       </div>

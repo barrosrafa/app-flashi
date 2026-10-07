@@ -10,7 +10,13 @@ function importErrorMessage(reason: unknown) {
   const code = reason instanceof Error ? reason.message : '';
   if (code.includes('URL_IMPORT_INVALID')) return 'Insira uma URL completa, por exemplo: https://exemplo.com/conteudo.csv.';
   if (code.includes('URL_IMPORT_PROTOCOL')) return 'Use um endereço HTTPS (começando por https://) para importar com segurança.';
-  return reason instanceof Error ? reason.message : 'Falha na importação. Tente novamente.';
+  if (code.includes('URL_IMPORT_CREDENTIALS')) return 'Remova o usuário e a senha do endereço e tente novamente.';
+  if (code.includes('URL_IMPORT_REDIRECT')) return 'O endereço redirecionou para um destino inválido ou excedeu o limite de redirecionamentos. Confira o link e tente novamente.';
+  if (code.includes('URL_IMPORT_SSRF')) return 'Este endereço não pode ser acessado por segurança. Use uma URL HTTPS pública.';
+  const httpStatus = code.match(/URL_IMPORT_HTTP_(\d{3})/)?.[1];
+  if (httpStatus) return `A fonte respondeu com HTTP ${httpStatus}. Confira o endereço e tente novamente.`;
+  if (code.includes('DECK_REQUIRED')) return 'Escolha um deck de destino antes de importar.';
+  return 'Não foi possível baixar este endereço. Confira o link e tente novamente.';
 }
 
 export default function ImportUrlPage() {
@@ -40,7 +46,7 @@ export default function ImportUrlPage() {
 
   return (
     <AppShell>
-      <Topbar title="Importar por URL" subtitle="O backend baixa a fonte HTTPS com limites e validação do destino, e materializa o lote no deck." />
+      <Topbar title="Importar por URL" subtitle="Cole um endereço HTTPS público para trazer o conteúdo ao seu deck." />
       <section className="card form">
         <label htmlFor="import-url">URL HTTPS<input id="import-url" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /></label>
         <label htmlFor="import-url-deck">Deck ID<input id="import-url-deck" value={deckId} onChange={(event) => setDeckId(event.target.value)} /></label>

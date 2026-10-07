@@ -1,20 +1,9 @@
-import { defineConfig, devices } from '@playwright/test';
-
+import { defineConfig,devices } from '@playwright/test';
+const baseURL=process.env.E2E_BASE_URL??'http://localhost:3000';
 export default defineConfig({
-  testDir: './tests/e2e',
-  timeout: 30_000,
-  fullyParallel: true,
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
-  use: {
-    baseURL: 'http://localhost:3000',
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-  },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+ testDir:'./tests/e2e',timeout:45000,fullyParallel:false,workers:1,
+ reporter:[['list'],['html',{outputFolder:'playwright-report',open:'never'}]],
+ use:{baseURL,trace:'off',screenshot:'only-on-failure'},
+ projects:[{name:'chromium',use:{...devices['Desktop Chrome']}}],
+ webServer:process.env.E2E_BASE_URL?undefined:{command:process.env.CI?'pnpm start':'pnpm dev',url:baseURL,reuseExistingServer:!process.env.CI,timeout:120000},
 });

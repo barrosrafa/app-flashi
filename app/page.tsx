@@ -31,7 +31,7 @@ const steps = [
   { number: '03', title: 'Revise no seu ritmo', text: 'Abra sua fila de estudo e acompanhe o que já avançou.' },
 ];
 export default function Home() {
-  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} /><main className="landing-page">
+  return <><script data-user-content="" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} /><main className="landing-page">
     <header className="landing-header">
       <Link href="/" className="brand" aria-label="Flashi, página inicial">flash<span>i</span></Link>
       <nav aria-label="Navegação pública"><Link href="#como-funciona">Como funciona</Link><Link href="#para-quem">Para quem</Link><Link href="/login">Entrar</Link><Link className="btn landing-header-cta" href="/register">Criar conta</Link></nav>

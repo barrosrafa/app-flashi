@@ -1,7 +1,9 @@
 'use client';
+/* eslint-disable @next/next/no-img-element -- Private signed media must not be proxied/cached by an image optimizer; occlusion uses exact image geometry. */
+
 
 import { useRef, useState, type PointerEvent } from 'react';
-import type { OcclusionMask } from '../lib/services/occlusion-service';
+import { normalizeMask, type OcclusionMask } from '../lib/services/occlusion-service';
 
 type Point = { x: number; y: number };
 type DragMode = 'create' | 'move' | 'resize';
@@ -88,7 +90,7 @@ export function OcclusionEditor({
     const original = origin.current;
     const dx = position.x - start.current.x;
     const dy = position.y - start.current.y;
-    const next = mode.current === 'resize'
+    const next = normalizeMask(mode.current === 'resize'
       ? {
           ...original,
           w: clamp(original.w + dx, 1, 100 - original.x),
@@ -98,7 +100,7 @@ export function OcclusionEditor({
           ...original,
           x: clamp(original.x + dx, 0, 100 - original.w),
           y: clamp(original.y + dy, 0, 100 - original.h),
-        };
+        });
     onChange(value.map((mask, index) => index === selected ? next : mask));
     start.current = position;
     origin.current = next;
@@ -106,7 +108,7 @@ export function OcclusionEditor({
 
   function finishPointer() {
     if (draft && draft.w >= 1 && draft.h >= 1) {
-      onChange([...value, { ...draft, cloze_ordinal: value.length + 1 }]);
+      onChange([...value, normalizeMask({ ...draft, cloze_ordinal: value.length + 1 })]);
       setSelected(value.length);
     }
     start.current = null;
@@ -123,7 +125,7 @@ export function OcclusionEditor({
       h: 20,
       cloze_ordinal: value.length + 1,
     };
-    onChange([...value, region]);
+    onChange([...value, normalizeMask(region)]);
     setSelected(value.length);
   }
 
@@ -135,8 +137,8 @@ export function OcclusionEditor({
     const w = clamp(patch.w ?? current.w, 1, 100 - x);
     const h = clamp(patch.h ?? current.h, 1, 100 - y);
     onChange(value.map((mask, itemIndex) => itemIndex === index
-      ? { ...mask, x, y, w, h }
-      : mask));
+      ? normalizeMask({ ...mask, x, y, w, h })
+      : normalizeMask(mask)));
   }
 
   function deleteRegion(index: number) {
@@ -147,13 +149,13 @@ export function OcclusionEditor({
     setSelected(next.length ? Math.min(index, next.length - 1) : null);
   }
 
-  const visibleMasks = [...value, ...(draft ? [draft] : [])];
-  const selectedMask = selected === null ? undefined : value[selected];
+  const visibleMasks = [...value.map((mask) => normalizeMask(mask)), ...(draft ? [normalizeMask(draft)] : [])];
+  const selectedMask = selected === null ? undefined : normalizeMask(value[selected]);
 
   return (
     <section className="occlusion-editor" aria-label="Editor de regiões de oclusão">
       <p className="occlusion-editor__help" id="occlusion-editor-help">
-        Arraste sobre a imagem para criar uma região. Também é possível adicionar regiões e editar posição e tamanho pelos campos abaixo.
+        Arraste sobre a imagem para criar, mover ou redimensionar uma região. Os valores abaixo são percentuais reais: 30 significa 30%.
       </p>
       <div
         ref={canvasRef}
@@ -198,7 +200,7 @@ export function OcclusionEditor({
               >
                 Caixa {index + 1}
               </button>
-              <span className="status-text">{Math.round(mask.x)}%, {Math.round(mask.y)}% · {Math.round(mask.w)} × {Math.round(mask.h)}%</span>
+              <span className="status-text">{mask.x}%, {mask.y}% · {mask.w} × {mask.h}%</span>
               <button className="link-button" type="button" onClick={() => deleteRegion(index)}>
                 Excluir caixa {index + 1}
               </button>

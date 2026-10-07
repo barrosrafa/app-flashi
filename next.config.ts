@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://fchpvgfjjxjpxfmtsrnc.supabase.co';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_APP_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_APP_COMMIT ?? 'local' },
   // F01 — Edge Functions are proxied through the application origin so delivery
   // never depends on per-function CORS configuration. Companion client change:
   // lib/supabase/client.ts (withSameOriginEdgeProxy).

@@ -3,6 +3,7 @@
     "loading": "Loading…",
     "saving": "Saving…",
     "save": "Save",
+    "skipLink": "Skip to main content",
     "language": "Language",
     "languageSaved": "Language updated."
   },
@@ -34,6 +35,10 @@
     "more": "More",
     "closeMenu": "Close menu",
     "moreOptions": "More options",
+    "ariaLabel": "Flashi navigation",
+    "advancedMenu": "More resources",
+    "advancedMenuDescription": "Open advanced resources",
+    "createContent": "Create content",
     "newDeck": "Create a deck",
     "learningGoal": "Study goal"
   },
@@ -164,5 +169,28 @@
     "learningPlanSet": "Set a goal",
     "estimatedTime": "Estimate based on your recent pace",
     "estimateUnavailable": "There is not enough recent data to estimate study time."
+  },
+  "socratic": {
+    "title": "Socratic sessions",
+    "subtitle": "Guided reviews created automatically when a card needs remediation.",
+    "sessionTitle": "Socratic session",
+    "disabled": "This feature is disabled.",
+    "emptyTitle": "No pending Socratic sessions",
+    "emptyDescription": "The cycle starts automatically during review: when a card is identified as difficult to recall, Flashi creates a session to guide remediation.",
+    "emptyCycle": "You do not need to start a session manually. Keep studying and the next session will appear here when it is created.",
+    "loadError": "Could not load Socratic sessions.",
+    "cardLabel": "Card",
+    "statusLabel": "Status",
+    "statusQueued": "Queued",
+    "statusProcessing": "In progress",
+    "statusCompleted": "Completed",
+    "statusFailed": "Failed",
+    "resolve": "Resolve and resume card",
+    "resolving": "Completing…",
+    "loading": "Loading session…",
+    "invalidSession": "This session does not have a valid identifier.",
+    "signIn": "Sign in to open this session.",
+    "notFound": "Session not found.",
+    "detailError": "Could not load this session."
   }
 }

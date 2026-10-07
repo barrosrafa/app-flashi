@@ -3,6 +3,7 @@
     "loading": "A carregar…",
     "saving": "A guardar…",
     "save": "Guardar",
+    "skipLink": "Pular para o conteúdo principal",
     "language": "Idioma",
     "languageSaved": "Idioma atualizado."
   },
@@ -34,6 +35,10 @@
     "more": "Mais",
     "closeMenu": "Fechar menu",
     "moreOptions": "Mais opções",
+    "ariaLabel": "Navegação do Flashi",
+    "advancedMenu": "Mais recursos",
+    "advancedMenuDescription": "Abrir recursos avançados",
+    "createContent": "Criar conteúdo",
     "newDeck": "Criar deck",
     "learningGoal": "Meta de estudo"
   },
@@ -164,5 +169,28 @@
     "learningPlanSet": "Definir uma meta",
     "estimatedTime": "Estimativa baseada no seu ritmo recente",
     "estimateUnavailable": "O tempo ainda não pode ser estimado com seus dados recentes."
+  },
+  "socratic": {
+    "title": "Sessões socráticas",
+    "subtitle": "Revisões guiadas criadas automaticamente quando um card precisa de remediação.",
+    "sessionTitle": "Sessão socrática",
+    "disabled": "Esta funcionalidade está desativada.",
+    "emptyTitle": "Nenhuma sessão socrática pendente",
+    "emptyDescription": "O ciclo começa automaticamente durante a revisão: quando um card é identificado como difícil de recuperar, o Flashi cria uma sessão para orientar a remediação.",
+    "emptyCycle": "Não é necessário iniciar uma sessão manualmente. Continue estudando e a próxima sessão aparecerá aqui quando for criada.",
+    "loadError": "Não foi possível carregar as sessões socráticas.",
+    "cardLabel": "Card",
+    "statusLabel": "Status",
+    "statusQueued": "Na fila",
+    "statusProcessing": "Em andamento",
+    "statusCompleted": "Concluída",
+    "statusFailed": "Falhou",
+    "resolve": "Resolver e retomar card",
+    "resolving": "Concluindo…",
+    "loading": "Carregando sessão…",
+    "invalidSession": "Esta sessão não possui um identificador válido.",
+    "signIn": "Entre na sua conta para abrir esta sessão.",
+    "notFound": "Sessão não encontrada.",
+    "detailError": "Não foi possível carregar esta sessão."
   }
 }

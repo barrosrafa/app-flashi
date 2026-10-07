@@ -37,7 +37,7 @@ export default function AiIngestPage() {
         sourceType: 'raw_text_block',
         content: String(form.get('content')).trim(),
       });
-      setMessage(`Job ${result.job_id ?? 'criado'} enviado à fila. Quando o worker concluir, as notas e os cartões serão gravados no deck escolhido.`);
+      setMessage(`Job ${result.job_id ?? 'criado'} enviado à fila. Após a geração, revise as sugestões abaixo e selecione quais publicar. Nenhum cartão será gravado sem sua ação.`);
       formElement.reset();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível criar o job.');
@@ -48,10 +48,10 @@ export default function AiIngestPage() {
 
   return (
     <AppShell>
-      <Topbar title="Ingestão por IA" subtitle="Gere notas e cartões a partir de texto; após o processamento, o worker grava o lote diretamente no deck escolhido." />
+      <Topbar title="Ingestão por IA" subtitle="Envie uma fonte, aguarde sugestões, revise e selecione o que deseja publicar." />
       <section className="card">
         <form className="form" onSubmit={submit}>
-          <div className="field"><label htmlFor="deck">Deck de destino</label><select id="deck" name="deck_id" required disabled={!decks.length}>{decks.length ? decks.map((deck) => <option key={deck.id} value={deck.id}>{deck.name}</option>) : <option value="">Nenhum deck disponível</option>}</select></div>
+          <div className="field"><label htmlFor="deck">Deck de destino</label><select id="deck" name="deck_id" required disabled={!decks.length}>{decks.length ? decks.map((deck) => <option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>) : <option value="">Nenhum deck disponível</option>}</select></div>
           <div className="field"><label htmlFor="content">Texto-fonte</label><textarea id="content" name="content" maxLength={2000} required placeholder="Cole até 2.000 caracteres…" /></div>
           <button className="btn" disabled={busy || !decks.length}>{busy ? 'Enviando…' : 'Gerar sugestões'}</button>
         </form>

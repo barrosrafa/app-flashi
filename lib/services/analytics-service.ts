@@ -35,9 +35,9 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 
   const now = new Date();
   const currentWeekStart = new Date(now);
-  currentWeekStart.setDate(now.getDate() - 6);
+  currentWeekStart.setUTCDate(now.getUTCDate() - 6);
   const previousWeekStart = new Date(now);
-  previousWeekStart.setDate(now.getDate() - 13);
+  previousWeekStart.setUTCDate(now.getUTCDate() - 13);
   const startDate = dateOnly(previousWeekStart);
 
   const [{ data: statistics, error: statisticsError }, { data: reviews, error: reviewsError }] = await Promise.all([
@@ -46,6 +46,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       .select('stat_date,cards_studied,time_studied_ms,correct_count,incorrect_count')
       .eq('user_id', user.id)
       .gte('stat_date', startDate)
+      .lte('stat_date', dateOnly(now))
       .order('stat_date', { ascending: true })
       .limit(14),
     supabase
@@ -53,6 +54,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       .select('reviewed_at,rating,time_spent_ms')
       .eq('user_id', user.id)
       .gte('reviewed_at', `${startDate}T00:00:00.000Z`)
+      .lt('reviewed_at', rangeDateBounds(14,now).until)
       .order('reviewed_at', { ascending: true })
       .limit(5000),
   ]);
@@ -80,7 +82,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 
   const days: AnalyticsDay[] = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(currentWeekStart);
-    date.setDate(currentWeekStart.getDate() + index);
+    date.setUTCDate(currentWeekStart.getUTCDate() + index);
     const key = dateOnly(date);
     const row = currentStatistics.find((item) => item.stat_date === key);
     return {
@@ -108,8 +110,8 @@ export async function getAnalyticsRange(days: 7 | 30 | 90) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('AUTH_REQUIRED');
-  const since = new Date(); since.setDate(since.getDate() - days + 1);
-  const { data, error } = await supabase.from('daily_statistics').select('stat_date,cards_studied,time_studied_ms,correct_count,incorrect_count').eq('user_id', user.id).gte('stat_date', dateOnly(since)).order('stat_date');
+  const bounds = rangeDateBounds(days);
+  const { data, error } = await supabase.from('daily_statistics').select('stat_date,cards_studied,time_studied_ms,correct_count,incorrect_count').eq('user_id', user.id).gte('stat_date', bounds.startDate).lte('stat_date',bounds.endDate).order('stat_date').limit(days);
   if (error) throw error;
   return data ?? [];
 }
@@ -118,10 +120,18 @@ export async function getRetentionByDeck(deckId: string, days = 30) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('AUTH_REQUIRED');
-  const since = new Date(); since.setDate(since.getDate() - days + 1);
-  const { data, error } = await supabase.from('review_logs').select('reviewed_at,rating,card_id').eq('user_id', user.id).gte('reviewed_at', since.toISOString()).in('card_id', (await supabase.from('cards').select('id').eq('deck_id', deckId)).data?.map((row) => row.id) ?? []);
+  const bounds = rangeDateBounds(days);
+  const { data, error } = await supabase.from('review_logs').select('reviewed_at,rating,card_id').eq('user_id', user.id).gte('reviewed_at', bounds.since).lt('reviewed_at',bounds.until).in('card_id', (await supabase.from('cards').select('id').eq('deck_id', deckId)).data?.map((row) => row.id) ?? []);
   if (error) throw error;
   const grouped = new Map<string, { total: number; correct: number }>();
   for (const row of data ?? []) { const date = row.reviewed_at.slice(0, 10); const item = grouped.get(date) ?? { total: 0, correct: 0 }; item.total += 1; if (row.rating !== 'again') item.correct += 1; grouped.set(date, item); }
   return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, retention: value.total ? Math.round(value.correct / value.total * 100) : 0 }));
+}
+
+/** Backend daily_statistics uses UTC dates; this rule is explicit in the UI. */
+export function rangeDateBounds(days: number, now = new Date()) {
+  const end = new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()));
+  const start = new Date(end); start.setUTCDate(start.getUTCDate()-days+1);
+  const until = new Date(end); until.setUTCDate(until.getUTCDate()+1);
+  return { startDate:dateOnly(start),endDate:dateOnly(end),since:start.toISOString(),until:until.toISOString() };
 }

@@ -28,7 +28,17 @@ export function mergeNoteFields(original: NoteFields, drafts: Record<string, str
   for (const [name, draft] of Object.entries(drafts)) {
     if (!(name in next)) { next[name] = draft; continue; }
     if (displayFieldValue(next[name]) === draft) continue;
-    next[name] = draft;
+    const previous = next[name];
+    if (typeof previous === 'string') { next[name] = draft; continue; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(draft); }
+    catch { throw new Error(`O campo ${name} deve conter JSON válido para preservar seu tipo.`); }
+    const sameType = previous === null ? parsed === null
+      : Array.isArray(previous) ? Array.isArray(parsed)
+      : typeof previous === 'object' ? parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      : typeof parsed === typeof previous;
+    if (!sameType) throw new Error(`O campo ${name} deve preservar o tipo ${Array.isArray(previous) ? 'lista' : typeof previous}.`);
+    next[name] = parsed;
   }
   return next;
 }

@@ -21,6 +21,33 @@ function validateFile(file: File, format: ImportFormat) {
   if (!EXTENSIONS[format].some((extension) => lower.endsWith(extension))) throw new Error('IMPORT_EXTENSION_INVALID');
 }
 
+function errorDetails(reason: unknown): string {
+  if (!reason || typeof reason !== 'object') return reason instanceof Error ? reason.message : '';
+  const candidate = reason as { message?: unknown; payload?: unknown; status?: unknown };
+  let payload: { error?: unknown; code?: unknown } | undefined;
+  if (candidate.payload && typeof candidate.payload === 'object') {
+    payload = candidate.payload as { error?: unknown; code?: unknown };
+  } else if (typeof candidate.payload === 'string') {
+    try { payload = JSON.parse(candidate.payload) as { error?: unknown; code?: unknown }; } catch { /* mensagem Edge ainda é suficiente */ }
+  }
+  return [candidate.message, payload?.error, payload?.code, candidate.status]
+    .filter((value): value is string | number => typeof value === 'string' || typeof value === 'number')
+    .join(' ')
+    .toLowerCase();
+}
+
+export function urlImportErrorCode(reason: unknown): string {
+  const details = errorDetails(reason);
+  if (details.includes('redirect')) return 'URL_IMPORT_REDIRECT';
+  if (details.includes('credentials')) return 'URL_IMPORT_CREDENTIALS';
+  if (details.includes('https') || details.includes('protocol')) return 'URL_IMPORT_PROTOCOL';
+  if (details.includes('host') || details.includes('public addresses') || details.includes('localhost') || details.includes('private')) return 'URL_IMPORT_SSRF';
+  const httpStatus = details.match(/(?:returned http|http)\s+(\d{3})/i)?.[1];
+  if (httpStatus) return `URL_IMPORT_HTTP_${httpStatus}`;
+  if (details.includes('invalid') || details.includes('url')) return 'URL_IMPORT_INVALID';
+  return 'URL_IMPORT_FAILED';
+}
+
 export const importDeckService = {
   async fromFile(opts: { file: File; deckId: string; format: ImportFormat; deckName?: string }) {
     if (!opts.deckId) throw new Error('DECK_REQUIRED');
@@ -46,9 +73,10 @@ export const importDeckService = {
   },
   async fromUrl(opts: { url: string; deckId: string; format: ImportFormat }) {
     if (!opts.deckId) throw new Error('DECK_REQUIRED');
-    if (opts.url.length > 2048) throw new Error('URL_IMPORT_INVALID');
+    const rawUrl = opts.url.trim();
+    if (!rawUrl || rawUrl.length > 2048) throw new Error('URL_IMPORT_INVALID');
     let parsed: URL;
-    try { parsed = new URL(opts.url); } catch { throw new Error('URL_IMPORT_INVALID'); }
+    try { parsed = new URL(rawUrl); } catch { throw new Error('URL_IMPORT_INVALID'); }
     if (parsed.protocol !== 'https:') throw new Error('URL_IMPORT_PROTOCOL');
     if (parsed.username || parsed.password) throw new Error('URL_IMPORT_CREDENTIALS');
     try {
@@ -57,7 +85,7 @@ export const importDeckService = {
         timeoutMs: 60_000,
       });
     } catch (error) {
-      throw new Error(error instanceof Error ? `URL_IMPORT_FAILED: ${error.message}` : 'URL_IMPORT_FAILED');
+      throw new Error(urlImportErrorCode(error));
     }
   },
 };

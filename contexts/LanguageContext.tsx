@@ -45,7 +45,7 @@ const translatedAttributes = new WeakMap<Element, Map<string, TranslatedValue>>(
 
 function translateTextNode(text: Text, locale: SupportedLocale) {
   const parent = text.parentElement;
-  if (!parent || parent.closest('script, style, noscript, [contenteditable="true"]')) return;
+  if (!parent || parent.closest('script, style, noscript,input,textarea,[contenteditable="true"],[translate="no"],[data-no-translate],[data-user-content]')) return;
   const current = text.nodeValue ?? '';
   if (!current.trim()) return;
   const previous = translatedTexts.get(text);
@@ -56,6 +56,7 @@ function translateTextNode(text: Text, locale: SupportedLocale) {
 }
 
 function translateAttribute(element: Element, name: string, locale: SupportedLocale) {
+  if(element.closest('[translate="no"],[data-no-translate],[data-user-content]'))return;
   const current = element.getAttribute(name);
   if (!current) return;
   const attributes = translatedAttributes.get(element) ?? new Map<string, TranslatedValue>();
@@ -168,7 +169,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     try {
       await persistLocale(nextLocale);
     } catch (error) {
-      console.error('Não foi possível persistir o idioma no Supabase:', error);
+      void error; // Preference failure never logs user/backend payloads.
     }
   }, [applyLocale, locale]);
 

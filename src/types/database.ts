@@ -270,6 +270,7 @@ export type Database = {
       }
       card_media: {
         Row: {
+          asset_id: string | null
           card_id: string
           created_at: string
           field_name: string | null
@@ -286,6 +287,7 @@ export type Database = {
           usn: number
         }
         Insert: {
+          asset_id?: string | null
           card_id: string
           created_at?: string
           field_name?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           usn?: number
         }
         Update: {
+          asset_id?: string | null
           card_id?: string
           created_at?: string
           field_name?: string | null
@@ -323,6 +326,69 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_occlusion_assets: {
+        Row: {
+          associated_at: string | null
+          created_at: string
+          deck_id: string
+          file_size_bytes: number
+          id: string
+          last_request_id: string | null
+          masks: Json
+          mime_type: string
+          note_id: string
+          status: string
+          storage_bucket: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          associated_at?: string | null
+          created_at?: string
+          deck_id: string
+          file_size_bytes: number
+          id: string
+          last_request_id?: string | null
+          masks?: Json
+          mime_type: string
+          note_id: string
+          status?: string
+          storage_bucket?: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          associated_at?: string | null
+          created_at?: string
+          deck_id?: string
+          file_size_bytes?: number
+          id?: string
+          last_request_id?: string | null
+          masks?: Json
+          mime_type?: string
+          note_id?: string
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_occlusion_assets_deck_id_fkey"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_occlusion_assets_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
             referencedColumns: ["id"]
           },
         ]
@@ -539,6 +605,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      deck_collaboration_invites: {
+        Row: {
+          created_at: string
+          deck_id: string
+          display_name: string | null
+          email_normalized: string
+          expires_at: string
+          id: string
+          invite_context: string | null
+          inviter_id: string
+          role: Database["public"]["Enums"]["collaborator_role"]
+          token_hash: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          deck_id: string
+          display_name?: string | null
+          email_normalized: string
+          expires_at?: string
+          id?: string
+          invite_context?: string | null
+          inviter_id: string
+          role?: Database["public"]["Enums"]["collaborator_role"]
+          token_hash: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          deck_id?: string
+          display_name?: string | null
+          email_normalized?: string
+          expires_at?: string
+          id?: string
+          invite_context?: string | null
+          inviter_id?: string
+          role?: Database["public"]["Enums"]["collaborator_role"]
+          token_hash?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
       }
       deck_exams: {
         Row: {
@@ -1526,6 +1637,7 @@ export type Database = {
     }
     Functions: {
       process_activation: { Args: { p_idempotency_key: string; p_fingerprint: string; p_request_id?: string; p_goal?: string; p_target_date?: string; p_weekly_minutes?: number }; Returns: Json }
+      update_deck_exam: { Args: { p_exam_id: string; p_exam_name?: string; p_deck_id?: string; p_target_date?: string; p_priority_level?: Database['public']['Enums']['exam_priority_level']; p_status?: string }; Returns: Tables<'deck_exams'> }
       consume_user_quota: { Args: { p_user_id: string; p_service: string; p_cost_units: number }; Returns: boolean }
       add_user_xp: {
         Args: { p_user_id: string; p_xp_amount: number }
@@ -1646,11 +1758,49 @@ export type Database = {
         Returns: string
       }
       create_image_occlusion_note: {
-        Args: { p_boxes: Json; p_note_id: string }
+        Args: {
+          p_asset_id: string
+          p_boxes: Json
+          p_deck_id: string
+          p_note_id: string
+          p_request_id: string
+        }
         Returns: {
+          asset_id: string
           card_id: string
           cloze_ordinal: number
+          code: string
+          deck_id: string
+          note_id: string
+          request_id: string
+          status: string
         }[]
+      }
+      list_staged_image_occlusion_assets: {
+        Args: { p_limit?: number }
+        Returns: {
+          asset_id: string
+          created_at: string
+          deck_id: string
+          file_size_bytes: number
+          mime_type: string
+          note_id: string
+          status: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
+      stage_image_occlusion_asset: {
+        Args: {
+          p_asset_id: string
+          p_deck_id: string
+          p_file_size_bytes: number
+          p_mime_type: string
+          p_note_id: string
+          p_storage_bucket: string
+          p_storage_path: string
+        }
+        Returns: Database["public"]["Tables"]["image_occlusion_assets"]["Row"]
       }
       enqueue_fsrs_optimization: { Args: never; Returns: string }
       fail_fsrs_optimization_job: {
@@ -1769,6 +1919,28 @@ export type Database = {
         Returns: {
           cards_count: number
           notes_count: number
+        }[]
+      }
+      create_deck_collaboration_invite: {
+        Args: {
+          p_context?: string
+          p_deck_id: string
+          p_display_name?: string
+          p_email: string
+          p_role?: Database["public"]["Enums"]["collaborator_role"]
+        }
+        Returns: {
+          delivery_status: string
+          expires_at: string
+          invite_id: string
+          invite_token: string
+        }[]
+      }
+      accept_deck_collaboration_invite: {
+        Args: { p_invite_token: string }
+        Returns: {
+          deck_id: string
+          role: Database["public"]["Enums"]["collaborator_role"]
         }[]
       }
       mcp_create_note: {

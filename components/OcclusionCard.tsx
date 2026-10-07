@@ -1,4 +1,6 @@
 'use client';
+/* eslint-disable @next/next/no-img-element -- Private signed media must not be proxied/cached by an image optimizer; occlusion uses exact image geometry. */
+
 
 import { useState } from 'react';
 import type { OcclusionMask } from '../lib/services/occlusion-service';

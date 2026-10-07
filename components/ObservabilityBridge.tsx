@@ -1,4 +1,6 @@
 'use client';
+import { bindLocalUserNamespace,unbindLocalUserNamespace } from '../lib/db/local-user-scope';
+import { track } from '../lib/observability/posthog';
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
@@ -8,7 +10,7 @@ import { capture, identifyUser, normalizeErrorCode, resetAnalytics, setUser, cap
 function safeTarget(element: Element): string {
   const candidate = element.closest('button, a, [role="button"], input[type="submit"]');
   if (!candidate) return 'unknown';
-  const labelled = candidate.getAttribute('aria-label') || candidate.getAttribute('name') || candidate.textContent || candidate.getAttribute('href') || candidate.tagName;
+  const labelled = candidate.getAttribute('data-telemetry') || candidate.getAttribute('name') || candidate.id || candidate.tagName;
   return labelled.replace(/\s+/g, ' ').trim().slice(0, 80) || candidate.tagName;
 }
 
@@ -16,6 +18,7 @@ export function ObservabilityBridge() {
   const pathname = usePathname();
 
   useEffect(() => {
+    track('app_loaded',{route:pathname||'/'});
     capture('page_viewed', { route: pathname || '/' });
   }, [pathname]);
 
@@ -51,11 +54,11 @@ export function ObservabilityBridge() {
     if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     let mounted = true;
-    const identify = (userId: string) => { identifyUser(userId, { app: 'flashi', locale: navigator.language }); setUser(userId); };
+    const identify = (userId: string) => { void bindLocalUserNamespace(userId); identifyUser(userId, { app: 'flashi', locale: navigator.language }); setUser(userId); };
     void supabase.auth.getUser().then(({ data }) => { if (mounted && data.user) identify(data.user.id); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) identify(session.user.id);
-      if (event === 'SIGNED_OUT') { resetAnalytics(); setUser(null); }
+      if (event === 'SIGNED_OUT') { resetAnalytics(); setUser(null); void unbindLocalUserNamespace(); }
     });
     return () => { mounted = false; subscription.unsubscribe(); };
   }, []);

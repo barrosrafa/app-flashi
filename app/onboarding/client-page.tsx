@@ -184,7 +184,7 @@ export default function OnboardingClientPage() {
           <div className="field"><label htmlFor="weekly-minutes">{t('onboarding.weeklyCapacity')}</label><input id="weekly-minutes" type="number" inputMode="numeric" min="15" max="10080" step="15" value={weeklyMinutes} onChange={(event) => setWeeklyMinutes(event.target.value)} aria-describedby="weekly-minutes-help" placeholder={t('onboarding.capacityPlaceholder')} /><span className="status-text" id="weekly-minutes-help">{t('onboarding.weeklyCapacityHelp')}</span></div>
           <div className="notice onboarding-honesty">{t('onboarding.estimateNote')}</div>
           {error && <p className="notice error" role="alert">{error}</p>}
-          <div className="section-head-actions"><button className="btn ghost" type="button" disabled={saving} onClick={() => void backToGoal()}>{t('onboarding.back')}</button><button className="btn" type="submit" disabled={saving}>{saving ? t('onboarding.saving') : t('onboarding.finish')}</button></div>
+          <div className="section-head-actions"><button className="btn ghost" type="button" disabled={saving} onClick={() => void backToGoal()}><span data-user-content="">{t('onboarding.back')}</span></button><button className="btn" type="submit" disabled={saving}>{saving ? t('onboarding.saving') : t('onboarding.finish')}</button></div>
         </form>}
       </>}
       <p className="onboarding-footnote">{t('onboarding.editLater')}</p>

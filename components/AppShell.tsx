@@ -6,11 +6,12 @@ import { useTranslation, type TranslationKey } from '../contexts/LanguageContext
 import { SyncStatusPanel } from './SyncStatusPanel';
 
 type IconName = 'home' | 'layers' | 'play' | 'calendar' | 'chart' | 'tool' | 'upload' | 'spark' | 'trophy' | 'user' | 'search' | 'more';
-type NavItem = { href: string; label: TranslationKey; icon: IconName };
+type NavItem = { href: string; label: TranslationKey; icon: IconName; exact?: boolean };
 const primary: NavItem[] = [
   { href: '/dashboard', label: 'nav.overview', icon: 'home' },
   { href: '/study', label: 'nav.study', icon: 'play' },
   { href: '/decks', label: 'nav.decks', icon: 'layers' },
+  { href: '/decks/new', label: 'nav.createContent', icon: 'spark', exact: true },
 ];
 const groups: Array<{ title: TranslationKey; items: NavItem[] }> = [
   { title: 'nav.groupTrack', items: [
@@ -18,7 +19,6 @@ const groups: Array<{ title: TranslationKey; items: NavItem[] }> = [
     { href: '/exams', label: 'nav.exams', icon: 'calendar' },
   ] },
   { title: 'nav.groupCreate', items: [
-    { href: '/decks/new', label: 'nav.newDeck', icon: 'layers' },
     { href: '/search', label: 'nav.search', icon: 'search' },
     { href: '/import/deck', label: 'nav.imports', icon: 'upload' },
     { href: '/tools', label: 'nav.tools', icon: 'tool' },
@@ -51,13 +51,14 @@ function Icon({ name }: { name: IconName }) {
   };
   return <svg aria-hidden="true" className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
-function isActive(pathname: string, href: string) {
+function isActive(pathname: string, href: string, exact = false) {
+  if (exact) return pathname === href;
   if (href === '/profile') return pathname === href;
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 }
 function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: string; onNavigate?: () => void }) {
   const { t } = useTranslation();
-  const active = isActive(pathname, item.href);
+  const active = isActive(pathname, item.href, item.exact);
   return <Link className={active ? 'active' : ''} href={item.href} onClick={onNavigate} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></Link>;
 }
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -67,7 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const moreOpen = openMenuPath === pathname;
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const previousPath = useRef(pathname);
-  const primaryMobile: NavItem[] = [...primary, { href: '/search', label: 'nav.search', icon: 'search' }];
+  const primaryMobile: NavItem[] = primary;
   const isPrimaryRoute = primaryMobile.some(({ href }) => isActive(pathname, href));
   useEffect(() => {
     const routeChanged = previousPath.current !== pathname;
@@ -85,28 +86,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [moreOpen]);
   return <div className="app">
-    <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
-    <aside className="sidebar" aria-label="Flashi">
-      <Link className="brand" href="/dashboard" aria-label="Flashi, ir para Hoje">flash<span>i</span></Link>
-      <nav className="desktop-nav" aria-label="Áreas do Flashi">
+    <a className="skip-link" href="#main-content">{t('common.skipLink')}</a>
+    <aside className="sidebar" aria-label={t('nav.ariaLabel')}>
+      <Link className="brand" href="/dashboard" aria-label={t('onboarding.brandAria')}>flash<span>i</span></Link>
+      <nav className="desktop-nav" aria-label={t('nav.ariaLabel')}>
         <section className="nav-group"><h2>{t('nav.groupPrimary')}</h2>{primary.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}</section>
-        {groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}</section>)}
+        <details className="nav-advanced">
+          <summary aria-label={t('nav.advancedMenuDescription')}><span>{t('nav.advancedMenu')}</span><span className="nav-advanced-chevron" aria-hidden="true">⌄</span></summary>
+          <div className="nav-advanced-content">{groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}</section>)}</div>
+        </details>
       </nav>
       <div className="sidebar-bottom" aria-label={t('nav.localMode')}><SyncStatusPanel /></div>
     </aside>
     <main className="main" id="main-content" tabIndex={-1}>{children}</main>
-    <nav className="mobile-nav" aria-label="Navegação principal">
+    <nav className="mobile-nav" aria-label={t('nav.ariaLabel')}>
       {primaryMobile.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}
       <button ref={moreButtonRef} type="button" className={!isPrimaryRoute ? 'active' : ''} aria-label={t('nav.moreOptions')} aria-expanded={moreOpen} aria-controls={moreOpen ? 'mobile-more-menu' : undefined} onClick={() => setOpenMenuPath((openPath) => openPath === pathname ? null : pathname)}><Icon name="more" /><span>{t('nav.more')}</span></button>
     </nav>
     {moreOpen && <nav className="mobile-more-menu" id="mobile-more-menu" aria-label={t('nav.moreOptions')}>
       <button className="mobile-more-close" type="button" onClick={() => { setOpenMenuPath(null); window.requestAnimationFrame(() => moreButtonRef.current?.focus()); }}>{t('nav.closeMenu')}</button>
-      {groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.filter((item) => item.href !== '/search').map((item) => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpenMenuPath(null)} />)}</section>)}
+      {groups.map((group) => <section className="nav-group" key={group.title}><h2>{t(group.title)}</h2>{group.items.map((item) => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpenMenuPath(null)} />)}</section>)}
       <div className="mobile-sync-status"><SyncStatusPanel /></div>
     </nav>}
   </div>;
 }
-export function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
+export function Topbar({ title, subtitle,titleIsUserContent=false }: { title: string; subtitle?: string;titleIsUserContent?:boolean }) {
   const { t } = useTranslation();
-  return <header className="topbar"><div><div className="eyebrow">{t('topbar.eyebrow')}</div><h1 className="title">{title}</h1>{subtitle && <p className="subtitle">{subtitle}</p>}</div><Link className="avatar" href="/profile" aria-label={t('topbar.profileAria')}><Icon name="user" /></Link></header>;
+  return <header className="topbar"><div><div className="eyebrow">{t('topbar.eyebrow')}</div><h1 className="title" data-user-content={titleIsUserContent?'':undefined}>{title}</h1>{subtitle && <p className="subtitle">{subtitle}</p>}</div><Link className="avatar" href="/profile" aria-label={t('topbar.profileAria')}><Icon name="user" /></Link></header>;
 }
