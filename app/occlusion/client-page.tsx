@@ -1,6 +1,11 @@
 'use client';
-import { useState } from 'react';
-import { AppShell, Topbar } from '../../components/AppShell';
-import { isFeatureEnabled } from '../../lib/feature-flags';
-import { createImageOcclusionNote, type OcclusionMask } from '../../lib/services/occlusion-service';
-export default function OcclusionPage() { const [noteId, setNoteId] = useState(''); const [boxes, setBoxes] = useState<OcclusionMask[]>([]); const [message, setMessage] = useState(''); if (!isFeatureEnabled('occlusion')) return <AppShell><Topbar title="Oclusão de imagem" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>; function add() { setBoxes((current) => [...current, { x: 10, y: 10, w: 30, h: 20 }]); } async function save() { try { await createImageOcclusionNote(noteId, boxes); setMessage('Oclusão enfileirada para sincronização.'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível criar a oclusão.'); } } return <AppShell><Topbar title="Oclusão de imagem" subtitle="As caixas são guardadas em percentuais para funcionar em qualquer viewport." /><section className="card"><div className="field"><label htmlFor="note">ID da nota</label><input id="note" value={noteId} onChange={(e) => setNoteId(e.target.value)} /></div><button className="btn secondary" onClick={add}>Adicionar região</button><p>{boxes.length} região(ões) definida(s).</p><button className="btn" onClick={() => void save()} disabled={!noteId || !boxes.length}>Criar cartões Cloze</button><p className="status-text" role="status">{message}</p></section></AppShell>; }
+import Link from 'next/link';
+import {useEffect,useState} from 'react';
+import {AppShell,Topbar} from '../../components/AppShell';
+import {isEnabled} from '../../lib/config/feature-flags';
+import {listDecks,type Deck} from '../../lib/services/deck-service';
+export default function OcclusionPage(){
+ const [decks,setDecks]=useState<Deck[]>([]);const [deckId,setDeckId]=useState('');const [loading,setLoading]=useState(true);const [error,setError]=useState('');
+ useEffect(()=>{void listDecks().then(setDecks).catch(()=>setError('Não foi possível carregar seus decks. Tente novamente.')).finally(()=>setLoading(false));},[]);
+ return <AppShell><Topbar title="Oclusão de imagem" subtitle="Escolha o deck, selecione uma nota e desenhe regiões visíveis sobre a imagem."/>{!isEnabled('occlusion')?<div className="card empty-state">Esta funcionalidade está desativada.</div>:<section className="card form">{loading?<p role="status">Carregando decks…</p>:<><label htmlFor="occlusion-deck">Deck de destino</label><select id="occlusion-deck" value={deckId} onChange={e=>setDeckId(e.target.value)}><option value="">Selecione um deck</option>{decks.map(deck=><option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>)}</select>{decks.length===0&&!error&&<p>Crie um deck antes de preparar a oclusão. <Link href="/decks/new">Criar deck</Link></p>}{deckId&&<Link className="btn" href={`/decks/${deckId}/occlusion/new`}>Abrir editor visual</Link>}<p className="muted">As coordenadas e tamanhos são percentuais: 30 significa 30%. O upload é associado à nota e aos cartões após a confirmação.</p></>}{error&&<p role="alert">{error}</p>}</section>}</AppShell>;
+}
