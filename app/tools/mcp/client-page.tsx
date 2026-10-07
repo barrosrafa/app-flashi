@@ -5,6 +5,7 @@ import { AppShell, Topbar } from '../../../components/AppShell';
 import { isEnabled } from '../../../lib/config/feature-flags';
 import { McpExternalClient, mcpClient, type McpTool } from '../../../lib/services/mcp-client';
 import { listMcpAudit, type McpAudit } from '../../../lib/services/mcp-audit-service';
+import { listDecks, type Deck } from '../../../lib/services/deck-service';
 
 function safeMcpMessage(error: unknown) {
   return error instanceof Error && error.message.startsWith('MCP_') ? error.message : 'MCP_EXTERNAL_ERROR';
@@ -17,6 +18,7 @@ export default function McpToolsPage() {
   const [selected, setSelected] = useState('search_notes');
   const [query, setQuery] = useState('');
   const [deckId, setDeckId] = useState('');
+  const [decks, setDecks] = useState<Deck[]>([]);
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [limit, setLimit] = useState('10');
@@ -26,7 +28,7 @@ export default function McpToolsPage() {
   const [busy, setBusy] = useState(false);
   const [externalStatus, setExternalStatus] = useState('');
 
-  useEffect(() => { void listMcpAudit().then(setAudit).catch(() => undefined); }, []);
+  useEffect(() => { void listMcpAudit().then(setAudit).catch(() => undefined); void listDecks().then(setDecks).catch(() => undefined); }, []);
   if (!isEnabled('mcp')) return <AppShell><Topbar title="Ferramentas MCP" /><div className="card empty-state">Esta funcionalidade está desativada.</div></AppShell>;
 
   async function connectExternal() {
@@ -78,7 +80,7 @@ export default function McpToolsPage() {
       <p className="subtitle">Estas ferramentas usam a sessão Flashi e não são o servidor MCP externo acima.</p>
       <label>Ferramenta<select value={selected} onChange={(e) => setSelected(e.target.value)}>{internalTools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>
       {selected === 'search_notes' && <><label>Consulta<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Termo de pesquisa" /></label><label>Limite<input type="number" min="1" max="100" value={limit} onChange={(e) => setLimit(e.target.value)} /></label></>}
-      {selected === 'create_note' && <><label>Deck ID<input value={deckId} onChange={(e) => setDeckId(e.target.value)} /></label><label>Frente<input value={front} onChange={(e) => setFront(e.target.value)} /></label><label>Verso<textarea value={back} onChange={(e) => setBack(e.target.value)} /></label></>}
+      {selected === 'create_note' && <><label>Deck de destino<select value={deckId} onChange={(e) => setDeckId(e.target.value)}><option value="">Selecione um deck</option>{decks.map((deck)=><option data-user-content="" key={deck.id} value={deck.id}>{deck.name}</option>)}</select></label><label>Frente<input value={front} onChange={(e) => setFront(e.target.value)} /></label><label>Verso<textarea value={back} onChange={(e) => setBack(e.target.value)} /></label></>}
       <button className="btn" type="button" onClick={() => void callInternal()} disabled={busy || (selected === 'search_notes' ? query.trim().length < 1 : !deckId || !front.trim() || !back.trim())}>{busy ? 'A executar…' : 'Executar ferramenta interna'}</button>
       <pre aria-live="polite">{result}</pre>
     </section>
