@@ -10,6 +10,8 @@ jobs:
   quality-and-critical-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SITE_URL: https://app-flashi.vercel.app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
