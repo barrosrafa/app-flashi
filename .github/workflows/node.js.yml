@@ -41,7 +41,7 @@ jobs:
           mkdir -p ci-database
           supabase init --workdir ci-database
           node scripts/prepare-ci-db.mjs
-          supabase start --workdir ci-database > /dev/null 2>&1
+          supabase start --workdir ci-database > /tmp/flashi-ci-start.log 2>&1 || { node scripts/safe-ci-log.mjs /tmp/flashi-ci-start.log; exit 1; }
           supabase db reset --workdir ci-database
           umask 077
           supabase status --workdir ci-database -o env > /tmp/flashi-ci-env
