@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { shouldRedirectToOnboarding } from './lib/onboarding-gate';
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -27,8 +28,22 @@ export async function proxy(request: NextRequest) {
   const protectedRoute = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const publicDemo = pathname === '/study/demo';
   const metadata = data.user?.user_metadata;
-  const onboardingComplete = Boolean(metadata?.flashi_product_preferences?.completedAt);
-  if (data.user && protectedRoute && !publicDemo && pathname !== '/onboarding' && metadata?.flashi_onboarding_required === true && !onboardingComplete) {
+  const shouldCheckPersistedActivation = Boolean(
+    data.user && protectedRoute && !publicDemo && pathname !== '/onboarding'
+      && shouldRedirectToOnboarding(metadata, false, 'UNKNOWN'),
+  );
+  let hasPersistedPlan = false;
+  let activationStatus: string | null = 'UNKNOWN';
+  if (data.user && shouldCheckPersistedActivation) {
+    const [{ data: plan, error: planError }, { data: activation, error: activationError }] = await Promise.all([
+      supabase.from('learning_plans').select('id').eq('user_id', data.user.id).maybeSingle(),
+      supabase.from('activation_flows').select('status').eq('user_id', data.user.id).maybeSingle(),
+    ]);
+    hasPersistedPlan = !planError && Boolean(plan);
+    activationStatus = activationError ? 'UNKNOWN' : activation?.status ?? null;
+  }
+  if (data.user && protectedRoute && !publicDemo && pathname !== '/onboarding'
+      && shouldRedirectToOnboarding(metadata, hasPersistedPlan, activationStatus)) {
     const redirect = NextResponse.redirect(new URL('/onboarding', request.url));
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
