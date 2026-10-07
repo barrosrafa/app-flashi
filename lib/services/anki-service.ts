@@ -3,6 +3,7 @@ import { invokeEdge } from './http/edge-client';
 
 const BUCKET = 'anki-transfers';
 const MAX = 50 * 1024 * 1024;
+const IMPORT_TIMEOUT_MS = 300_000;
 
 export type ImportResult = {
   job_id: string;
@@ -48,7 +49,7 @@ export const ankiService = {
     onProgress?.(0.5);
     const result = await invokeEdge<ImportResult>('anki-transfer', {
       body: { action: 'import', storage_path: path, target_deck_name: targetDeckName },
-      timeoutMs: 120_000,
+      timeoutMs: IMPORT_TIMEOUT_MS,
     });
     onProgress?.(1);
     return result;
