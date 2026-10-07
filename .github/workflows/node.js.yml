@@ -37,7 +37,7 @@ jobs:
           deno test --allow-all --config backend-source/supabase/functions/deno.json backend-source/supabase/functions/_shared
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.45.5
+          version: 2.120.0
       - name: Prepare isolated database and functions
         run: |
           mkdir -p ci-database
