@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { defaultLocale, isSupportedLocale, locales, type Dictionary, type SupportedLocale } from '../locales';
 import { translateUiText } from './autoTranslations';
@@ -96,12 +96,39 @@ function translateDocument(locale: SupportedLocale) {
   if (typeof document !== 'undefined' && document.body) translateSubtree(document.body, locale);
 }
 
+export function shouldApplySyncedLocale({
+  syncGeneration,
+  latestSyncGeneration,
+  preferenceGeneration,
+  latestPreferenceGeneration,
+  committedPreferenceGeneration,
+  requestStartedWhileSaving,
+  hasPendingPreference,
+}: {
+  syncGeneration: number;
+  latestSyncGeneration: number;
+  preferenceGeneration: number;
+  latestPreferenceGeneration: number;
+  committedPreferenceGeneration: number;
+  requestStartedWhileSaving: boolean;
+  hasPendingPreference: boolean;
+}) {
+  return syncGeneration === latestSyncGeneration
+    && preferenceGeneration === latestPreferenceGeneration
+    && preferenceGeneration === committedPreferenceGeneration
+    && !requestStartedWhileSaving
+    && !hasPendingPreference;
+}
+
+function writeBrowserLocale(locale: SupportedLocale) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(STORAGE_KEY, locale);
+  document.cookie = `${COOKIE_KEY}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  document.documentElement.lang = locale;
+}
+
 async function persistLocale(locale: SupportedLocale) {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(STORAGE_KEY, locale);
-    document.cookie = `${COOKIE_KEY}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    document.documentElement.lang = locale;
-  }
+  writeBrowserLocale(locale);
   if (!isSupabaseConfigured()) return;
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -112,8 +139,14 @@ async function persistLocale(locale: SupportedLocale) {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<SupportedLocale>(defaultLocale);
+  const localeRef = useRef<SupportedLocale>(defaultLocale);
+  const syncGenerationRef = useRef(0);
+  const preferenceGenerationRef = useRef(0);
+  const committedPreferenceGenerationRef = useRef(0);
+  const pendingPreferenceGenerationRef = useRef<number | null>(null);
 
   const applyLocale = useCallback((nextLocale: SupportedLocale) => {
+    localeRef.current = nextLocale;
     setLocaleState(nextLocale);
     if (typeof document !== 'undefined') document.documentElement.lang = nextLocale;
   }, []);
@@ -147,13 +180,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     const syncProfileLocale = async () => {
+      const syncGeneration = ++syncGenerationRef.current;
+      const preferenceGeneration = preferenceGenerationRef.current;
+      const requestStartedWhileSaving = pendingPreferenceGenerationRef.current !== null;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: profile, error } = await supabase.from('profiles').select('language').eq('id', user.id).maybeSingle();
-      if (!error && profile && isSupportedLocale(profile.language)) {
+      if (!error && profile && isSupportedLocale(profile.language)
+        && shouldApplySyncedLocale({
+          syncGeneration,
+          latestSyncGeneration: syncGenerationRef.current,
+          preferenceGeneration,
+          latestPreferenceGeneration: preferenceGenerationRef.current,
+          committedPreferenceGeneration: committedPreferenceGenerationRef.current,
+          requestStartedWhileSaving,
+          hasPendingPreference: pendingPreferenceGenerationRef.current !== null,
+        })) {
         applyLocale(profile.language);
-        window.localStorage.setItem(STORAGE_KEY, profile.language);
-        document.cookie = `${COOKIE_KEY}=${profile.language}; Path=/; Max-Age=31536000; SameSite=Lax`;
+        writeBrowserLocale(profile.language);
       }
     };
     void syncProfileLocale();
@@ -164,14 +208,27 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [applyLocale]);
 
   const setLocale = useCallback(async (nextLocale: SupportedLocale) => {
-    if (!locales[nextLocale] || nextLocale === locale) return;
+    const previousLocale = localeRef.current;
+    if (!locales[nextLocale] || nextLocale === previousLocale) return;
+    const preferenceGeneration = ++preferenceGenerationRef.current;
+    pendingPreferenceGenerationRef.current = preferenceGeneration;
     applyLocale(nextLocale);
     try {
       await persistLocale(nextLocale);
     } catch (error) {
-      void error; // Preference failure never logs user/backend payloads.
+      if (pendingPreferenceGenerationRef.current === preferenceGeneration) {
+        pendingPreferenceGenerationRef.current = null;
+        committedPreferenceGenerationRef.current = preferenceGeneration;
+        applyLocale(previousLocale);
+        writeBrowserLocale(previousLocale);
+      }
+      throw error;
     }
-  }, [applyLocale, locale]);
+    if (pendingPreferenceGenerationRef.current === preferenceGeneration) {
+      pendingPreferenceGenerationRef.current = null;
+      committedPreferenceGenerationRef.current = preferenceGeneration;
+    }
+  }, [applyLocale]);
 
   const t = useCallback((key: TranslationKey, variables?: Record<string, string | number>) => {
     const value = lookup(locales[locale], key) ?? lookup(locales[defaultLocale], key) ?? key;
