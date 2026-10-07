@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: barrosrafa/Flashi
-          ref: 5c4ef786b7c2be179e5acd9c6dbedca25809bc6c
+          ref: 776f1f8ce28ece1a341bcb828a19cb6415aebbab
           path: backend-source
       - uses: pnpm/action-setup@v4
         with:
